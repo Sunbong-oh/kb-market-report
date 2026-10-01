@@ -90,10 +90,20 @@ code { font-size: 12px; }
 .index { padding: 10px 12px; border-radius: 10px; background: var(--bg); }
 .index .n { font-size: 12px; color: var(--muted); }
 .index .v { font-size: 20px; font-weight: 700; }
+/* 리포트 제목 띠: 날짜 + 장마감 수급 (주황색) */
+.report-title { display: none; }
+body.report .report-title {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  background: #f97316; color: #fff; border-radius: var(--radius); padding: 14px 18px;
+}
+.report-title .t { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+.report-title .d { font-size: 15px; font-weight: 700; opacity: .95; }
+body.report .topbar { display: none; }  /* 제목 띠가 머리글 역할을 한다 */
+
 /* 텔레그램 리포트(?report=1): 매매창(주문·주문내역·모의매매 배지) 제외 */
 body.report .trade-only, body.report .badge.paper, body.report #rule-badge { display: none; }
 /* 리포트는 수치 중심: 분 단위 기록이 필요한 선물·지수 추이 차트는 뺀다 (선물 수급 수치는 '투자자별 순매수'에 있음) */
-body.report .hts { display: none; }
+body.report .hts, body.report #program-card { display: none; }
 
 /* 강세 테마 · 등락 종목수 */
 .theme-lead { margin: 0 0 6px; padding: 10px 12px; background: var(--bg); border-radius: 10px; font-size: 14px; line-height: 1.5; }
@@ -200,7 +210,7 @@ button.mini-btn { padding: 2px 8px; font-size: 11px; font-weight: 600; backgroun
 .bar-row .val { text-align: right; font-weight: 600; }
 .inv-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 700px) { .inv-cols { grid-template-columns: 1fr; } }
-.inv-cols h3 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+.inv-cols h3, .inv-group h3 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
 .bar-row.hl { font-weight: 700; }
 
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
@@ -216,10 +226,12 @@ button.mini-btn { padding: 2px 8px; font-size: 11px; font-weight: 600; backgroun
 .col { display: grid; gap: 14px; align-content: start; min-width: 0; }
 @media (max-width: 1080px) { .col { grid-column: span 1; } }
 
-.macro { display: grid; gap: 12px; }
-.stat { background: var(--bg); border-radius: 10px; padding: 12px 14px; }
+.macro { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }  /* 환율 · 금리를 좌우로 나란히 */
+.stat { background: var(--bg); border-radius: 10px; padding: 12px 12px; min-width: 0; }
 .stat .n { font-size: 12px; color: var(--muted); }
-.stat .v { font-size: 26px; font-weight: 800; }
+.stat .n .muted { display: block; font-size: 11px; }
+.stat .v { font-size: 22px; font-weight: 800; }
+.stat > div:last-child > div:last-child { font-size: 13px; }
 
 /* 선물 분봉 */
 .fut-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -266,6 +278,9 @@ button.mini-btn { padding: 2px 8px; font-size: 11px; font-weight: 600; backgroun
 }
 .inv-group + .inv-group { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .inv-group > h4 { margin: 0 0 10px; font-size: 13px; }
+/* 콜옵션 · 풋옵션은 폰에서도 항상 좌우로 나란히 */
+.inv-cols.pair { grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+.inv-cols.pair .bar-row { grid-template-columns: 44px 1fr 46px; gap: 6px; font-size: 12.5px; }
 .inv-cols.two { grid-template-columns: repeat(2, 1fr); }
 .inv-cols.three { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 900px) { .inv-cols.two, .inv-cols.three { grid-template-columns: 1fr; } }

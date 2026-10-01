@@ -37,6 +37,10 @@ async function loadStatus() {
   rb.textContent = s.rule.active ? `상승종목 매수제한 중 ${s.rule.window}` : `매수제한 ${s.rule.window} (비활성)`;
   rb.className = "badge " + (s.rule.active ? "rule-on" : "");
   $("#clock").textContent = `KST ${s.now}`;
+  // 리포트 제목 띠: "2026.10.01 (목)  장마감 수급"
+  const [y, mo, d] = s.now.slice(0, 10).split("-").map(Number);
+  const wd = "일월화수목금토"[new Date(y, mo - 1, d).getDay()];
+  $("#report-title").innerHTML = `<span class="t">장마감 수급</span><span class="d">${y}.${String(mo).padStart(2, "0")}.${String(d).padStart(2, "0")} (${wd}) · ${s.now.slice(11, 16)} 기준</span>`;
 }
 
 // ------------------------------------------------------------ market
@@ -81,18 +85,17 @@ async function loadMarket() {
       { name: "차익", v: p.arbitrage }, { name: "비차익", v: p.non_arbitrage }, { name: "합계", v: p.total },
     ], "v", ["합계"])}</div><p class="muted">순매수 금액 · 단위는 KB 전문 원문 기준</p>`;
 
-    const main = ["외국인", "기관계", "기관", "개인"];
-    const sorted = [...m.investors].sort((a, c) => {
-      const ia = main.indexOf(a.name), ic = main.indexOf(c.name);
-      return (ia < 0 ? 9 : ia) - (ic < 0 ? 9 : ic);
-    });
-    const col = (title, key, rows = sorted) => `<div><h3>${title}</h3><div class="pgm">${barRows(rows, key, main)}</div></div>`;
-    // 선물·옵션은 외국인 · 기관계 · 개인 3분류만
-    const big3 = ["외국인", "기관계", "개인"].map((n) => m.investors.find((i) => i.name === n)).filter(Boolean);
+    const main = ["외국인", "기관계", "개인"];
+    const pick = (names) => names.map((n) => m.investors.find((i) => i.name === n)).filter(Boolean);
+    // 현물: 외국인·기관계·개인·금융투자 (투신·은행 제외) / 선물·옵션: 외국인·기관계·개인
+    const spot = pick([...main, "금융투자"]), big3 = pick(main);
+    const col = (title, key, rows) => `<div><h3>${title}</h3><div class="pgm">${barRows(rows, key, main)}</div></div>`;
     $("#investors").innerHTML = m.investors.length ? `
-      <div class="inv-group"><h4>현물</h4><div class="inv-cols two">${col("코스피", "kospi")}${col("코스닥", "kosdaq")}</div></div>
-      <div class="inv-group"><h4>선물 · 옵션 (KOSPI200)</h4><div class="inv-cols three">${col("선물", "futures", big3)}${col("콜옵션", "call", big3)}${col("풋옵션", "put", big3)}</div></div>
-      <p class="muted">IVSA0070 투자자별 순매수 · 단위는 KB 전문 원문 기준</p>` : `<div class="empty">수급 데이터 없음</div>`;
+      <div class="inv-group"><h4>현물</h4><div class="inv-cols two">${col("코스피", "kospi", spot)}${col("코스닥", "kosdaq", spot)}</div></div>
+      <div class="inv-group"><h4>선물 · 옵션 (KOSPI200)</h4>
+        ${col("선물", "futures", big3)}
+        <div class="inv-cols pair">${col("콜옵션", "call", big3)}${col("풋옵션", "put", big3)}</div></div>
+      <p class="muted">IVSA0070 투자자별 순매수 · 단위 억원</p>` : `<div class="empty">수급 데이터 없음</div>`;
   } catch (e) { fail($("#indices"), e); }
 }
 
@@ -155,6 +158,14 @@ async function loadThemes() {
   } catch (e) { fail($("#themes"), e); }
 }
 
+// 금리 변화: bp(0.01%p)와, 전일 금리 대비 변동률(%)을 괄호로 - 예: 3.5bp (+0.79%)
+function bondMove(b) {
+  if (b.change == null) return "-";
+  const prev = b.yield - b.change;
+  const pct = prev ? (b.change / prev) * 100 : null;
+  return `${fmt(Math.abs(b.change) * 100, 1)}bp` + (pct == null ? "" : ` (${signed(pct, 2)}%)`);
+}
+
 async function loadMacro() {
   try {
     const { usd_krw: u, treasury_10y: b } = await api("/api/macro");
@@ -163,7 +174,7 @@ async function loadMacro() {
       : `<div class="empty">데이터 없음</div>`;
     $("#bond-date").textContent = b && b.date ? `IVA10370 · ${ymd(b.date)}` : "IVA10370";
     $("#tsy10").innerHTML = b
-      ? `<div class="v ${cls(b.change)}">${fmt(b.yield, 3)}%</div><div class="${cls(b.change)}">${arrow(b.change)} ${fmt(Math.abs(b.change ?? 0), 3)}%p</div>`
+      ? `<div class="v ${cls(b.change)}">${fmt(b.yield, 3)}%</div><div class="${cls(b.change)}">${arrow(b.change)} ${bondMove(b)}</div>`
       : `<div class="empty">데이터 없음</div>`;
   } catch (e) { fail($("#usdkrw"), e); fail($("#tsy10"), e); }
 }

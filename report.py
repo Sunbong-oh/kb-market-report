@@ -58,8 +58,8 @@ def start_server() -> subprocess.Popen:
 
 # 폰에서 읽기 좋게 3장으로 나눠 캡처: (파일 접미사, 캡처 폭(px), 포함할 카드, 설명)
 PARTS = [
-    ("1_market", 480, ["#indices", "#usdkrw"], "시장 지수 · 환율 · 금리"),
-    ("2_flows", 480, ["#program-market", "#investors"], "프로그램 매매 · 투자자별 순매수 (현물·선물·옵션)"),
+    ("1_market", 480, ["#report-title", "#indices", "#usdkrw"], "시장 지수 · 환율 · 금리"),
+    ("2_flows", 480, ["#investors"], "투자자별 순매수 (현물·선물·옵션)"),
     ("3_themes", 480, ["#themes"], "오늘의 강세 테마 · 등락 종목수"),
 ]
 
@@ -84,6 +84,7 @@ def capture(prefix: Path) -> tuple[list[tuple[Path, str]], dict]:
         page.goto(f"{URL}/?report=1", wait_until="networkidle")
         # 지수 미니차트·선물 차트·수급 막대가 그려질 때까지 대기
         try:
+            page.wait_for_selector("#report-title .t", timeout=30_000)
             page.wait_for_selector("svg.mini polyline", timeout=30_000)
             page.wait_for_selector("#investors .bar-row", timeout=30_000)
             page.wait_for_selector("#themes .theme-row, #themes .empty", timeout=30_000)

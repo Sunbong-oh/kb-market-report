@@ -25,6 +25,9 @@
 </div>
 
 <main class="grid">
+  <!-- 리포트 제목 띠 (텔레그램 리포트·스냅샷에서만 보임) -->
+  <section class="report-title span-3" id="report-title"></section>
+
   <!-- 지수 / 환율·금리 -->
   <section class="card span-2">
     <div class="card-head"><h2>시장 지수</h2><span class="muted" id="market-time"></span></div>
@@ -119,7 +122,7 @@
       </form>
     </section>
 
-    <section class="card">
+    <section class="card" id="program-card">
       <div class="card-head"><h2>프로그램 매매 (시장)</h2><span class="muted">IVSA0070</span></div>
       <div id="program-market"></div>
     </section>

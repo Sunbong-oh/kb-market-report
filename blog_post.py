@@ -76,7 +76,12 @@ def build_body(api: dict, now: datetime) -> str:
     if usd:
         lines.append(f"- 원/달러 {_n(usd.get('rate'), 2)}원 ({_move(usd.get('change'), usd.get('change_pct'))})")
     if tsy:
-        lines.append(f"- 국고채 10년 {_n(tsy.get('yield'), 3)}% ({_s(tsy.get('change'), 3)}%p)")
+        y, ch = tsy.get("yield"), tsy.get("change")
+        move = ""
+        if y is not None and ch is not None:
+            prev = y - ch
+            move = f" ({ch * 100:+.1f}bp" + (f", {ch / prev * 100:+.2f}%" if prev else "") + ")"
+        lines.append(f"- 국고채 10년 {_n(y, 3)}%{move}")
 
     if inv:
         lines += ["", "■ 투자자별 순매수 (억원)",
@@ -89,12 +94,6 @@ def build_body(api: dict, now: datetime) -> str:
         lines.append(f"- 선물: {_flow_line(inv, 'futures')}")
         lines.append(f"- 콜옵션: {_flow_line(inv, 'call')}")
         lines.append(f"- 풋옵션: {_flow_line(inv, 'put')}")
-
-    prog = market.get("program") or {}
-    if prog.get("arbitrage") is not None or prog.get("non_arbitrage") is not None:
-        word = lambda v: "-" if v is None else "순매수" if v > 0 else "순매도" if v < 0 else "보합"  # noqa: E731
-        lines += ["", "■ 프로그램 매매",
-                  f"- 차익 {word(prog.get('arbitrage'))}, 비차익 {word(prog.get('non_arbitrage'))} (합계 {word(prog.get('total'))})"]
 
     th = api.get("/api/themes") or {}
     if th.get("themes"):
