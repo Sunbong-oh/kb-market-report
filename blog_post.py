@@ -11,12 +11,13 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
 
 BLOG_DIR = Path(os.environ.get("BLOG_DIR", r"C:\CLAUDE\1\blog_post"))
-IMAGE_NAMES = ["1_시장", "2_수급", "3_강세업종"]
+IMAGE_NAMES = ["1_시장", "2_수급", "3_강세테마"]
 BIG3 = [("외국인", "외국인"), ("기관계", "기관"), ("개인", "개인")]
 
 
@@ -95,13 +96,19 @@ def build_body(api: dict, now: datetime) -> str:
         lines += ["", "■ 프로그램 매매",
                   f"- 차익 {word(prog.get('arbitrage'))}, 비차익 {word(prog.get('non_arbitrage'))} (합계 {word(prog.get('total'))})"]
 
-    sectors = api.get("/api/sectors") or {}
-    if sectors.get("kospi") or sectors.get("kosdaq"):
-        lines += ["", "■ 오늘의 강세 업종"]
-        for label, key in (("코스피", "kospi"), ("코스닥", "kosdaq")):
-            top = ", ".join(f"{s['name']} {s['change_pct']:+.2f}%" for s in sectors.get(key, []) if s.get("change_pct") is not None)
-            if top:
-                lines.append(f"- {label}: {top}")
+    th = api.get("/api/themes") or {}
+    if th.get("themes"):
+        lines += ["", "■ 오늘의 강세 테마" + (" (네이버 금융 테마 등락률 상위)" if th.get("source") == "naver" else " (KB 업종랭킹)")]
+        short = [re.sub(r"\(.*?\)", "", t["name"]).strip() for t in th["themes"][:3]]
+        lines.append(f"오늘은 {' · '.join(short)} 테마가 강세였습니다.")
+        for i, t in enumerate(th["themes"], 1):
+            line = f"{i}. {t['name']} {_s(t.get('change_pct'), 2)}%"
+            notes = []
+            if t.get("total"):
+                notes.append(f"{t['total']}종목 중 {t.get('rise', 0)} 상승" if t.get("fall") else f"{t['total']}종목 모두 상승")
+            if t.get("leaders"):
+                notes.append("주도주 " + ", ".join(f"{s['name']} {_s(s.get('change_pct'), 2)}%" for s in t["leaders"]))
+            lines.append(line + (" — " + " · ".join(notes) if notes else ""))
 
     breadth = market.get("breadth") or {}
     if breadth:

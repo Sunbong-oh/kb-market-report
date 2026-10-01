@@ -66,10 +66,15 @@ async function loadMarket() {
     const b = m.breadth;
     const br = (n, x) => `<span>${n} <b class="up">▲${fmt((x.up || 0) + (x.ulmt || 0))}</b> · ${fmt(x.unchng)} · <b class="down">▼${fmt((x.dwn || 0) + (x.llmt || 0))}</b></span>`;
     $("#breadth").innerHTML = br("코스피", b.kospi) + br("코스닥", b.kosdaq);
-    const brow = (n, x) => `<tr><td>${n}</td><td class="up">${fmt((x.up || 0) + (x.ulmt || 0))}</td><td class="up">${fmt(x.ulmt)}</td>
-      <td>${fmt(x.unchng)}</td><td class="down">${fmt((x.dwn || 0) + (x.llmt || 0))}</td><td class="down">${fmt(x.llmt)}</td></tr>`;
-    $("#breadth-table").innerHTML = `<thead><tr><th></th><th>상승</th><th>(상한)</th><th>보합</th><th>하락</th><th>(하한)</th></tr></thead>
-      <tbody>${brow("코스피", b.kospi)}${brow("코스닥", b.kosdaq)}</tbody>`;
+    // 등락 종목수: 상승(빨강)·보합(회색)·하락(파랑) 비율을 가로 막대로
+    const bbar = (n, x) => {
+      const up = (x.up || 0) + (x.ulmt || 0), dn = (x.dwn || 0) + (x.llmt || 0), st = x.unchng || 0, tot = up + dn + st || 1;
+      const seg = (c, v) => v ? `<span class="${c}" style="width:${(v / tot) * 100}%">${v / tot > 0.08 ? fmt(v) : ""}</span>` : "";
+      return `<div class="bb"><div class="bb-head"><b>${n}</b><span><span class="up">상승 ${fmt(up)}</span> · 보합 ${fmt(st)} · <span class="down">하락 ${fmt(dn)}</span></span></div>
+        <div class="bb-bar" role="img" aria-label="${n} 상승 ${up} 보합 ${st} 하락 ${dn}">${seg("u", up)}${seg("s", st)}${seg("d", dn)}</div>
+        <div class="bb-foot"><span>상승 ${fmt((up / tot) * 100, 0)}% · 상한가 ${fmt(x.ulmt || 0)}</span><span>하한가 ${fmt(x.llmt || 0)} · 하락 ${fmt((dn / tot) * 100, 0)}%</span></div></div>`;
+    };
+    $("#breadth-bars").innerHTML = bbar("코스피", b.kospi) + bbar("코스닥", b.kosdaq);
 
     const p = m.program;
     $("#program-market").innerHTML = `<div class="pgm">${barRows([
@@ -127,14 +132,27 @@ function drawMinis() {
   });
 }
 
-async function loadSectors() {
+async function loadThemes() {
   try {
-    const s = await api("/api/sectors");
-    const col = (title, rows) => `<div><h3>${title}</h3>${rows.length ? rows.map((r, i) => `
-      <div class="sector-row"><span class="rank">${i + 1}</span><span>${esc(r.name)}</span>
-      <span class="pct ${cls(r.change_pct)}">${signed(r.change_pct, 2)}%</span></div>`).join("") : `<div class="empty">데이터 없음</div>`}</div>`;
-    $("#sectors").innerHTML = `<div class="inv-cols two">${col("코스피", s.kospi || [])}${col("코스닥", s.kosdaq || [])}</div>`;
-  } catch (e) { fail($("#sectors"), e); }
+    const d = await api("/api/themes");
+    $("#themes-source").textContent = d.source === "naver" ? "네이버 금융 테마 · 등락률 상위" : "KB 업종랭킹 (네이버 테마 조회 실패 시 대체)";
+    // 요약은 수치로만: 상승·하락 종목수와 주도주 등락률
+    const sum = (t) => {
+      const parts = [];
+      if (t.total) parts.push(t.fall ? `${fmt(t.total)}종목 중 <b>${fmt(t.rise)} 상승</b> · ${fmt(t.fall)} 하락` : `<b>${fmt(t.total)}종목 모두 상승</b>`);
+      if (t.leaders?.length) parts.push("주도주 " + t.leaders.map((s) => `<b>${esc(s.name)}</b> <span class="${cls(s.change_pct)}">${signed(s.change_pct, 2)}%</span>`).join(", "));
+      return parts.join("<br>");
+    };
+    // 한 줄 요약: 상위 3개 테마 이름(괄호 설명 제외)과 평균 등락률
+    const short = (n) => String(n).replace(/\(.*?\)/g, "").trim();
+    const pcts = d.themes.map((t) => t.change_pct).filter((v) => v != null);
+    const lead = d.themes.length ? `<p class="theme-lead">오늘은 <b>${d.themes.slice(0, 3).map((t) => esc(short(t.name))).join(" · ")}</b> 테마가 강세
+      (상위 ${d.themes.length}개 평균 <span class="${cls(pcts[0])}">${signed(pcts.reduce((a, c) => a + c, 0) / (pcts.length || 1), 2)}%</span>)</p>` : "";
+    $("#themes").innerHTML = d.themes.length ? lead + d.themes.map((t, i) => `
+      <div class="theme-row"><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span>
+      <span class="pct ${cls(t.change_pct)}">${signed(t.change_pct, 2)}%</span>
+      ${sum(t) ? `<span class="tsum">${sum(t)}</span>` : ""}</div>`).join("") : `<div class="empty">테마 데이터 없음</div>`;
+  } catch (e) { fail($("#themes"), e); }
 }
 
 async function loadMacro() {
@@ -587,7 +605,7 @@ if (window.__SNAPSHOT__) {
   b.hidden = false;
 }
 function refreshFast() { loadStatus().catch(() => {}); loadQuote(); loadMarket(); loadFutures(); loadOrders(); loadPower(); }
-function refreshSlow() { loadMacro(); loadIntraday(); loadSectors(); }
+function refreshSlow() { loadMacro(); loadIntraday(); loadThemes(); }
 refreshFast(); refreshSlow();
 setInterval(refreshFast, 15000);
 setInterval(refreshSlow, 60000);

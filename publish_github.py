@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT  # 코드와 같은 비공개 저장소(kb-market-report)에 README.md · latest/ · archive/ 만 갱신한다
-IMAGES = ("1_시장", "2_수급", "3_강세업종")
+IMAGES = ("1_시장", "2_수급", "3_강세테마")
 
 
 def git(*args: str, check: bool = True) -> subprocess.CompletedProcess:

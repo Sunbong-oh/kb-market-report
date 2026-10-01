@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import demo, market
+from . import demo, market, themes
 from .config import settings
 from .futures_flow import FuturesFlowStore, record_loop
 from .kb_client import KBApiError, KBClient
@@ -141,10 +141,10 @@ async def get_indices_intraday():
     return dict(zip(market.INDEX_CHART_MARKET, charts))
 
 
-@app.get("/api/sectors")
-async def get_sectors():
-    """오늘의 강세 업종 (코스피·코스닥 상승률 상위)."""
-    return await market.sector_top(kb)
+@app.get("/api/themes")
+async def get_themes():
+    """오늘의 강세 테마 (네이버 금융 테마 등락률 상위, 실패 시 KB 업종랭킹)."""
+    return await themes.top_themes(kb)
 
 
 @app.get("/api/futures")
