@@ -1,0 +1,12 @@
+# 비밀값(키·토큰)은 절대 올리지 않는다 - GitHub에는 Secrets로만 등록
+.env
+.env.*
+*.env
+
+# 로컬 실행 환경·데이터
+.venv/
+__pycache__/
+data/
+reports/
+publish/
+.claude/
