@@ -66,6 +66,10 @@ async function loadMarket() {
     const b = m.breadth;
     const br = (n, x) => `<span>${n} <b class="up">▲${fmt((x.up || 0) + (x.ulmt || 0))}</b> · ${fmt(x.unchng)} · <b class="down">▼${fmt((x.dwn || 0) + (x.llmt || 0))}</b></span>`;
     $("#breadth").innerHTML = br("코스피", b.kospi) + br("코스닥", b.kosdaq);
+    const brow = (n, x) => `<tr><td>${n}</td><td class="up">${fmt((x.up || 0) + (x.ulmt || 0))}</td><td class="up">${fmt(x.ulmt)}</td>
+      <td>${fmt(x.unchng)}</td><td class="down">${fmt((x.dwn || 0) + (x.llmt || 0))}</td><td class="down">${fmt(x.llmt)}</td></tr>`;
+    $("#breadth-table").innerHTML = `<thead><tr><th></th><th>상승</th><th>(상한)</th><th>보합</th><th>하락</th><th>(하한)</th></tr></thead>
+      <tbody>${brow("코스피", b.kospi)}${brow("코스닥", b.kosdaq)}</tbody>`;
 
     const p = m.program;
     $("#program-market").innerHTML = `<div class="pgm">${barRows([
@@ -121,6 +125,16 @@ function drawMinis() {
       `<text x="2" y="${H - 1}">${d.recorded ? hhmm(pts[0].t) : "09:00"}</text>` +
       `<text x="${W - 2}" y="${H - 1}" text-anchor="end">${d.recorded ? hhmm(pts[pts.length - 1].t) : "15:30"}</text>`;
   });
+}
+
+async function loadSectors() {
+  try {
+    const s = await api("/api/sectors");
+    const col = (title, rows) => `<div><h3>${title}</h3>${rows.length ? rows.map((r, i) => `
+      <div class="sector-row"><span class="rank">${i + 1}</span><span>${esc(r.name)}</span>
+      <span class="pct ${cls(r.change_pct)}">${signed(r.change_pct, 2)}%</span></div>`).join("") : `<div class="empty">데이터 없음</div>`}</div>`;
+    $("#sectors").innerHTML = `<div class="inv-cols two">${col("코스피", s.kospi || [])}${col("코스닥", s.kosdaq || [])}</div>`;
+  } catch (e) { fail($("#sectors"), e); }
 }
 
 async function loadMacro() {
@@ -573,7 +587,7 @@ if (window.__SNAPSHOT__) {
   b.hidden = false;
 }
 function refreshFast() { loadStatus().catch(() => {}); loadQuote(); loadMarket(); loadFutures(); loadOrders(); loadPower(); }
-function refreshSlow() { loadMacro(); loadIntraday(); }
+function refreshSlow() { loadMacro(); loadIntraday(); loadSectors(); }
 refreshFast(); refreshSlow();
 setInterval(refreshFast, 15000);
 setInterval(refreshSlow, 60000);

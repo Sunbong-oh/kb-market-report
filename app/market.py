@@ -263,6 +263,28 @@ async def index_minute(kb: KBClient, index_id: str) -> dict:
     return {"prev_close": num(day[0], "bdy_cls_prc_p2"), "points": points}
 
 
+# 업종랭킹에 섞여 오는 '업종이 아닌 지수'(시장 전체·규모별·소속부)는 뺀다
+NOT_SECTOR = re.compile(r"종합|대형주|중형주|소형주|글로벌|기업부|우량|벤처|중견")
+
+
+async def sector_top(kb: KBClient) -> dict:
+    """IVM30010 업종랭킹 - 코스피·코스닥 상승률 상위 업종 (오늘의 강세 업종)."""
+    out = {}
+    for key, mk, prefix in (("kospi", "1", "코스피"), ("kosdaq", "2", "코스닥")):
+        d = await kb.call("IVM30010", {"mkt_clsf": mk}, ttl=60)
+        out[key] = [
+            {
+                "name": text(r, "indx_nm").removeprefix(prefix).strip(),
+                "value": num(r, "now_indx_p2"),
+                "change": signed(num(r, "bdy_cmpr_p2"), r.get("bdy_cmpr_ccd")),
+                "change_pct": signed(num(r, "up_dwn_r_p2"), r.get("bdy_cmpr_ccd")),
+            }
+            for r in find_records(d, "indx_nm")
+            if text(r, "indx_nm") and not NOT_SECTOR.search(text(r, "indx_nm"))
+        ]
+    return out
+
+
 # ---------------------------------------------------------- 프로그램매매
 async def program_by_stock(kb: KBClient, code: str, count: int = 10) -> list[dict]:
     """IVU10450 종목별프로그램매매추이 (시간별, 금액)."""

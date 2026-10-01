@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 BLOG_DIR = Path(os.environ.get("BLOG_DIR", r"C:\CLAUDE\1\blog_post"))
-IMAGE_NAMES = ["1_시장", "2_수급"]
+IMAGE_NAMES = ["1_시장", "2_수급", "3_강세업종"]
 BIG3 = [("외국인", "외국인"), ("기관계", "기관"), ("개인", "개인")]
 
 
@@ -94,6 +94,23 @@ def build_body(api: dict, now: datetime) -> str:
         word = lambda v: "-" if v is None else "순매수" if v > 0 else "순매도" if v < 0 else "보합"  # noqa: E731
         lines += ["", "■ 프로그램 매매",
                   f"- 차익 {word(prog.get('arbitrage'))}, 비차익 {word(prog.get('non_arbitrage'))} (합계 {word(prog.get('total'))})"]
+
+    sectors = api.get("/api/sectors") or {}
+    if sectors.get("kospi") or sectors.get("kosdaq"):
+        lines += ["", "■ 오늘의 강세 업종"]
+        for label, key in (("코스피", "kospi"), ("코스닥", "kosdaq")):
+            top = ", ".join(f"{s['name']} {s['change_pct']:+.2f}%" for s in sectors.get(key, []) if s.get("change_pct") is not None)
+            if top:
+                lines.append(f"- {label}: {top}")
+
+    breadth = market.get("breadth") or {}
+    if breadth:
+        lines += ["", "■ 등락 종목수"]
+        for label, key in (("코스피", "kospi"), ("코스닥", "kosdaq")):
+            b = breadth.get(key) or {}
+            up, down = (b.get("up") or 0) + (b.get("ulmt") or 0), (b.get("dwn") or 0) + (b.get("llmt") or 0)
+            lines.append(f"- {label}: 상승 {up:,.0f} (상한 {b.get('ulmt') or 0:,.0f}) / 보합 {b.get('unchng') or 0:,.0f} / "
+                         f"하락 {down:,.0f} (하한 {b.get('llmt') or 0:,.0f})")
 
     summary = _summary(inv, kospi)
     if summary:

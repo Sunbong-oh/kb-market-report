@@ -237,6 +237,13 @@ def futures_flows(times: list[str]) -> list[dict]:
 
 def response(tr_code: str, body: dict) -> dict:
     tr = tr_code.upper()
+    if tr == "IVM30010":
+        prefix = "코스피" if body.get("mkt_clsf") == "1" else "코스닥"
+        r = _rng("sector" + prefix)
+        names = ["의료 정밀기기", "제약", "전기 전자", "증권", "기계 장비"]
+        return {"out2": [{"indx_id": f"S{i}", "indx_nm": f"{prefix} {n}", "now_indx_p2": f"{r.uniform(800, 3000):.2f}",
+                          "bdy_cmpr_ccd": "2", "bdy_cmpr_p2": f"{r.uniform(5, 90):.2f}", "up_dwn_r_p2": f"{5 - i * 0.7:.2f}"}
+                         for i, n in enumerate(names)]}
     if tr == "IVS11560":
         return _futures_chart(int(body.get("minute_tck_indx") or 1))
     if tr == "IVU10140":

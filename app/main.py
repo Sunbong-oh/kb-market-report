@@ -141,6 +141,12 @@ async def get_indices_intraday():
     return dict(zip(market.INDEX_CHART_MARKET, charts))
 
 
+@app.get("/api/sectors")
+async def get_sectors():
+    """오늘의 강세 업종 (코스피·코스닥 상승률 상위)."""
+    return await market.sector_top(kb)
+
+
 @app.get("/api/futures")
 async def get_futures(minutes: int = 1):
     """KOSPI200 최근월 선물 분봉 + 투자자별 선물 순매수 분 단위 추이."""

@@ -95,6 +95,16 @@ body.report .trade-only, body.report .badge.paper, body.report #rule-badge { dis
 /* 리포트는 수치 중심: 분 단위 기록이 필요한 선물·지수 추이 차트는 뺀다 (선물 수급 수치는 '투자자별 순매수'에 있음) */
 body.report .hts { display: none; }
 
+/* 강세 업종 · 등락 종목수 */
+.sector-row { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.sector-row:last-child { border-bottom: 0; }
+.sector-row .rank { color: var(--muted); font-size: 12px; text-align: center; }
+.sector-row .pct { font-weight: 700; }
+.sub-head { font-size: 14px; margin: 16px 0 6px; padding-top: 14px; border-top: 1px solid var(--line); }
+.breadth-tbl th, .breadth-tbl td { text-align: right; }
+.breadth-tbl th:first-child, .breadth-tbl td:first-child { text-align: left; }
+.breadth-tbl td { font-weight: 600; }
+
 .mini { width: 100%; height: 64px; display: block; margin-top: 8px; }
 .mini text { fill: var(--muted); font-size: 10px; }
 .mini-note { font-size: 11px; min-height: 0; }

@@ -60,6 +60,7 @@ def start_server() -> subprocess.Popen:
 PARTS = [
     ("1_market", 480, ["#indices", "#usdkrw"], "시장 지수 · 환율 · 금리"),
     ("2_flows", 480, ["#program-market", "#investors"], "프로그램 매매 · 투자자별 순매수 (현물·선물·옵션)"),
+    ("3_sectors", 480, ["#sectors"], "오늘의 강세 업종 · 등락 종목수"),
 ]
 
 
@@ -85,6 +86,7 @@ def capture(prefix: Path) -> tuple[list[tuple[Path, str]], dict]:
         try:
             page.wait_for_selector("svg.mini polyline", timeout=30_000)
             page.wait_for_selector("#investors .bar-row", timeout=30_000)
+            page.wait_for_selector("#sectors .sector-row", timeout=30_000)
         except Exception as exc:
             # KB 서버 접속 실패 등으로 화면에 오류가 떴으면 그 내용을 그대로 알려준다
             errors = page.eval_on_selector_all(".err", "els => els.map(e => e.textContent)")
@@ -115,7 +117,7 @@ def build_snapshot(api: dict, path: Path, taken: str) -> None:
     css = (static / "style.css").read_text(encoding="utf-8")
     js = (static / "app.js").read_text(encoding="utf-8")
     # 리포트 화면에 필요한 시장 데이터만 담는다 (주문내역·주문가능금액 등 개인 모의매매 정보는 제외)
-    keep = ("/api/status", "/api/market", "/api/macro", "/api/futures", "/api/indices")
+    keep = ("/api/status", "/api/market", "/api/macro", "/api/futures", "/api/indices", "/api/sectors")
     api = {k: v for k, v in api.items() if k.startswith(keep)}
     data = json.dumps(api, ensure_ascii=False).replace("</", "<\\/")
     shim = f"""<script>
@@ -172,7 +174,7 @@ def share_to_onedrive(snapshot: Path, shots: list[tuple[Path, str]], blog_dir: P
     shutil.copy(snapshot, share / "장마감 수급체크.html")
     for old in share.glob("장마감수급_*.jpg"):  # 예전 3장 구성의 사진이 남지 않게
         old.unlink()
-    for (path, _), name in zip(shots, ("1_시장", "2_수급")):
+    for (path, _), name in zip(shots, ("1_시장", "2_수급", "3_강세업종")):
         shutil.copy(path, share / f"장마감수급_{name}.jpg")
     if blog_dir:
         for txt in ("제목_장마감수급.txt", "본문_장마감수급.txt"):
@@ -215,10 +217,11 @@ def main() -> int:
         share_to_onedrive(snapshot, shots, blog_dir, now)  # 회사 PC 등 다른 PC에서도 보이도록
     except Exception as exc:
         print(f"OneDrive 저장 실패: {exc}")
-    try:
-        print(publish(snapshot, shots, blog_dir, now))  # 비공개 GitHub 저장소 (회사 PC에서 github.com으로 확인)
-    except Exception as exc:
-        print(f"GitHub 업로드 실패: {getattr(exc, 'stderr', '') or exc}")
+    if send:  # 시험 실행(--no-send)은 GitHub에도 올리지 않는다
+        try:
+            print(publish(snapshot, shots, blog_dir, now))  # 비공개 GitHub 저장소 (회사 PC에서 github.com으로 확인)
+        except Exception as exc:
+            print(f"GitHub 업로드 실패: {getattr(exc, 'stderr', '') or exc}")
 
     if send:
         send_telegram(shots, f"KB 시장 리포트 {taken}")
