@@ -44,13 +44,20 @@ def _flow_line(inv: dict[str, dict], key: str) -> str:
     return " / ".join(f"{label} {_s(inv.get(name, {}).get(key))}" for name, label in BIG3)
 
 
+def _derivs_reset(inv: dict[str, dict]) -> bool:
+    """선물·옵션 수급이 전부 0 = KB가 장 마감 뒤 초기화한 상태 (늦게 실행된 리포트)."""
+    return all(not (inv.get(name, {}).get(key)) for name, _ in BIG3 for key in ("futures", "call", "put"))
+
+
 def _summary(inv: dict[str, dict], kospi: dict | None) -> str:
     f = inv.get("외국인", {})
     spot, fut = f.get("kospi"), f.get("futures")
     if spot is None or fut is None:
         return ""
     word = lambda v: "순매수" if v > 0 else "순매도"  # noqa: E731
-    if (spot > 0) == (fut > 0):
+    if _derivs_reset(inv) or not fut:
+        who = f"외국인 코스피 현물 {word(spot)}"
+    elif (spot > 0) == (fut > 0):
         who = f"외국인 현물·선물 동반 {word(spot)}"
     else:
         who = f"외국인 현물 {word(spot)}·선물 {word(fut)}"
@@ -91,9 +98,12 @@ def build_body(api: dict, now: datetime) -> str:
         f = market.get("futures") or {}
         if f.get("price") is not None:
             lines.append(f"- {f.get('name', 'KOSPI200 선물')} {_n(f.get('price'), 2)} ({_move(f.get('change'), f.get('change_pct'))})")
-        lines.append(f"- 선물: {_flow_line(inv, 'futures')}")
-        lines.append(f"- 콜옵션: {_flow_line(inv, 'call')}")
-        lines.append(f"- 풋옵션: {_flow_line(inv, 'put')}")
+        if _derivs_reset(inv):
+            lines.append("- 선물·옵션 수급: 장 마감 약 1시간 뒤 KB에서 초기화되어 표시할 값이 없습니다.")
+        else:
+            lines.append(f"- 선물: {_flow_line(inv, 'futures')}")
+            lines.append(f"- 콜옵션: {_flow_line(inv, 'call')}")
+            lines.append(f"- 풋옵션: {_flow_line(inv, 'put')}")
 
     th = api.get("/api/themes") or {}
     if th.get("themes"):
