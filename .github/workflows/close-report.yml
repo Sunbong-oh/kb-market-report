@@ -50,7 +50,8 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       REPORT_ONLY: "1"
-      REPORT_MODE: ${{ (github.event_name == 'schedule' || github.event_name == 'push' || inputs.mode == 'close') && 'close' || 'now' }}
+      # push 커밋 메시지에 [test] 가 있으면 예약 전송 테스트 → 시각·휴장일·하루 한 번 제한 없이 바로 보낸다
+      REPORT_MODE: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[test]')) || inputs.mode == 'close') && 'close' || 'now' }}
       PYTHONUTF8: "1"
       PYTHONIOENCODING: utf-8
       BLOG_DIR: ${{ github.workspace }}\reports\blog
