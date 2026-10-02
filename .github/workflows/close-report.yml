@@ -3,7 +3,8 @@ name: 장마감 수급체크
 # 평일 장 마감 후 KB OpenAPI 데이터를 받아 리포트 사진·블로그 본문을 만들고 텔레그램으로 보낸다.
 #
 # 발송 시각 보장 방법 (목표: 평일 오후 4시경, 하루 한 번):
-#   1) 노트북이 켜져 있으면 15:55에 노트북 서버가 workflow_dispatch(mode=close)로 "지금 실행"을 요청 → 바로 실행
+#   0) Claude 클라우드 루틴이 15:55에 trigger/close-request.txt 를 push → 바로 실행 (노트북 불필요)
+#   1) 노트북이 켜져 있으면 15:58에 노트북 서버가 workflow_dispatch(mode=close)로 "지금 실행"을 요청 → 바로 실행
 #   2) GitHub 예약(schedule)은 몇 시간씩 늦어지는 일이 있어(2026-10-02: 15:52 예약이 22:13 실행) 예비용으로만
 #      여러 번 걸어 둔다. 그날 장마감 리포트가 이미 나갔으면(archive/날짜/.close_sent) 건너뛴다.
 #   3) 19:00 이후에야 실행된 예약분은 너무 늦었으므로 보내지 않는다.
@@ -15,6 +16,11 @@ on:
     - cron: "20 7 * * 1-5"   # 16:20
     - cron: "40 7 * * 1-5"   # 16:40
     - cron: "10 8 * * 1-5"   # 17:10
+  # Claude 클라우드 루틴이 평일 15:55(KST)에 trigger/ 폴더에 요청 파일을 올리면 바로 실행된다
+  # (노트북이 꺼져 있어도 정시 발송). 어느 브랜치에 올려도 되며, 실행은 항상 main 코드로 한다.
+  push:
+    paths:
+      - "trigger/**"
   workflow_dispatch:
     inputs:
       send:
@@ -44,7 +50,7 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       REPORT_ONLY: "1"
-      REPORT_MODE: ${{ (github.event_name == 'schedule' || inputs.mode == 'close') && 'close' || 'now' }}
+      REPORT_MODE: ${{ (github.event_name == 'schedule' || github.event_name == 'push' || inputs.mode == 'close') && 'close' || 'now' }}
       PYTHONUTF8: "1"
       PYTHONIOENCODING: utf-8
       BLOG_DIR: ${{ github.workspace }}\reports\blog
