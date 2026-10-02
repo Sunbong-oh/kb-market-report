@@ -280,6 +280,7 @@ button.mini-btn { padding: 2px 8px; font-size: 11px; font-weight: 600; backgroun
 }
 .inv-group + .inv-group { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .inv-group > h4 { margin: 0 0 10px; font-size: 13px; }
+.scale-note { font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 4px; white-space: nowrap; }
 /* 콜옵션 · 풋옵션은 폰에서도 항상 좌우로 나란히 */
 .inv-cols.pair { grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
 .inv-cols.pair .bar-row { grid-template-columns: 44px 1fr 46px; gap: 6px; font-size: 12.5px; }

@@ -44,10 +44,14 @@ async function loadStatus() {
 }
 
 // ------------------------------------------------------------ market
-function barRows(items, key, hlNames = []) {
-  const max = Math.max(1, ...items.map((i) => Math.abs(i[key] || 0)));
+// 막대 길이 기준(억원): 이 금액이면 막대가 한쪽 끝까지 찬다. 넘는 값은 끝에서 잘린다.
+// scale을 안 주면 묶음 안 최댓값 기준(프로그램 매매 등).
+const BAR_SCALE = { kospi: 20000, kosdaq: 5000, futures: 30000, call: 200, put: 200 };  // 2조 · 5천억 · 3조 · 200억
+
+function barRows(items, key, hlNames = [], scale = null) {
+  const max = scale || Math.max(1, ...items.map((i) => Math.abs(i[key] || 0)));
   return items.map((i) => {
-    const v = i[key] || 0, w = (Math.abs(v) / max) * 50;
+    const v = i[key] || 0, w = Math.min(1, Math.abs(v) / max) * 50;
     return `<div class="bar-row ${hlNames.includes(i.name) ? "hl" : ""}">
       <span>${esc(i.name)}</span>
       <div class="bar-track"><div class="bar ${v >= 0 ? "pos" : "neg"}" style="width:${w}%"></div></div>
@@ -89,7 +93,9 @@ async function loadMarket() {
     const pick = (names) => names.map((n) => m.investors.find((i) => i.name === n)).filter(Boolean);
     // 현물: 외국인·기관계·개인·금융투자 (투신·은행 제외) / 선물·옵션: 외국인·기관계·개인
     const spot = pick([...main, "금융투자"]), big3 = pick(main);
-    const col = (title, key, rows) => `<div><h3>${title}</h3><div class="pgm">${barRows(rows, key, main)}</div></div>`;
+    const scaleNote = (k) => BAR_SCALE[k] >= 10000 ? `${BAR_SCALE[k] / 10000}조` : `${fmt(BAR_SCALE[k])}억`;
+    const col = (title, key, rows) => `<div><h3>${title} <span class="scale-note">막대 기준 ${scaleNote(key)}</span></h3>
+      <div class="pgm">${barRows(rows, key, main, BAR_SCALE[key])}</div></div>`;
     $("#investors").innerHTML = m.investors.length ? `
       <div class="inv-group"><h4>현물</h4><div class="inv-cols two">${col("코스피", "kospi", spot)}${col("코스닥", "kosdaq", spot)}</div></div>
       <div class="inv-group"><h4>선물 · 옵션 (KOSPI200)</h4>
