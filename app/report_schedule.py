@@ -22,7 +22,9 @@ from .trading import now_kst
 
 log = logging.getLogger("report_schedule")
 ROOT = Path(__file__).resolve().parent.parent
-TRIGGER_AT = os.environ.get("REPORT_TRIGGER_AT", "15:58")  # 실행 요청 후 약 1분 뒤 도착 → 오후 4시 무렵
+# 정시 발송은 Claude 클라우드 루틴(평일 15:58, trigger/ 폴더에 push)이 맡는다. 노트북은 16:02에 한 번 더
+# 요청하는 예비 역할 - 이미 발송됐으면 워크플로가 건너뛴다.
+TRIGGER_AT = os.environ.get("REPORT_TRIGGER_AT", "16:02")
 REPO = os.environ.get("REPORT_REPO", "Sunbong-oh/kb-market-report")
 
 
