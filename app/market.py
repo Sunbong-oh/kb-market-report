@@ -256,11 +256,12 @@ async def index_minute(kb: KBClient, index_id: str) -> dict:
     )
     recs = [r for r in find_records(d, "cls_prc_p2") if "090000" <= text(r, "tm").zfill(6) <= "153000"]
     if not recs:
-        return {"prev_close": None, "points": []}
+        return {"date": None, "prev_close": None, "points": []}
     last = max(text(r, "dt") for r in recs)
     day = [r for r in recs if text(r, "dt") == last]
     points = sorted(({"t": text(r, "tm").zfill(6)[:4], "c": num(r, "cls_prc_p2")} for r in day), key=lambda p: p["t"])
-    return {"prev_close": num(day[0], "bdy_cls_prc_p2"), "points": points}
+    # date = 가장 최근 거래일(YYYYMMDD). 오늘 날짜와 다르면 오늘은 휴장일이다.
+    return {"date": last, "prev_close": num(day[0], "bdy_cls_prc_p2"), "points": points}
 
 
 # 업종랭킹에 섞여 오는 '업종이 아닌 지수'(시장 전체·규모별·소속부)는 뺀다

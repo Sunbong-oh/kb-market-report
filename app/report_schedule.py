@@ -22,7 +22,7 @@ from .trading import now_kst
 
 log = logging.getLogger("report_schedule")
 ROOT = Path(__file__).resolve().parent.parent
-TRIGGER_AT = os.environ.get("REPORT_TRIGGER_AT", "15:55")
+TRIGGER_AT = os.environ.get("REPORT_TRIGGER_AT", "15:58")  # 실행 요청 후 약 1분 뒤 도착 → 오후 4시 무렵
 REPO = os.environ.get("REPORT_REPO", "Sunbong-oh/kb-market-report")
 
 

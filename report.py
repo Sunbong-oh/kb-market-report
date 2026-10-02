@@ -202,6 +202,12 @@ def main() -> int:
     finally:
         if proc:
             proc.terminate()
+    # 영업일에만 장마감 리포트를 보낸다: 코스피의 가장 최근 거래일이 오늘이 아니면 휴장일(공휴일 등)
+    if os.environ.get("REPORT_MODE") == "close":
+        last_day = ((api.get("/api/indices/intraday") or {}).get("KGG01P") or {}).get("date")
+        if last_day and last_day != f"{now:%Y%m%d}":
+            print(f"휴장일입니다 (최근 거래일 {last_day}) - 장마감 리포트를 보내지 않습니다.")
+            return 0
     weekday = "월화수목금토일"[now.weekday()]
     taken = f"{now:%Y-%m-%d}({weekday}) {now:%H:%M}"
     snapshot = prefix.with_name(f"{prefix.name}_site.html")
