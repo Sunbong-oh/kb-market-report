@@ -218,16 +218,15 @@ def main() -> int:
         share_to_onedrive(snapshot, shots, blog_dir, now)  # 회사 PC 등 다른 PC에서도 보이도록
     except Exception as exc:
         print(f"OneDrive 저장 실패: {exc}")
-    if send:  # 시험 실행(--no-send)은 GitHub에도 올리지 않는다
-        try:
-            print(publish(snapshot, shots, blog_dir, now))  # 비공개 GitHub 저장소 (회사 PC에서 github.com으로 확인)
-        except Exception as exc:
-            print(f"GitHub 업로드 실패: {getattr(exc, 'stderr', '') or exc}")
-
-    if send:
+    if send:  # 시험 실행(--no-send)은 텔레그램·GitHub 모두 건드리지 않는다
         send_telegram(shots, f"KB 시장 리포트 {taken}")
         send_telegram_file(snapshot, "사이트 스냅샷 · 파일을 눌러 브라우저로 열면 차트 확대·체크박스·터치 값 확인이 됩니다")
         print("텔레그램 전송 완료")
+        # 전송에 성공한 뒤에 올린다: 장마감(close) 실행이면 '오늘 발송함' 표시도 함께 올라가 중복 발송을 막는다
+        try:
+            print(publish(snapshot, shots, blog_dir, now, mark_sent=os.environ.get("REPORT_MODE") == "close"))
+        except Exception as exc:
+            print(f"GitHub 업로드 실패: {getattr(exc, 'stderr', '') or exc}")
     return 0
 
 

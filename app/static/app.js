@@ -40,7 +40,8 @@ async function loadStatus() {
   // 리포트 제목 띠: "2026.10.01 (목)  장마감 수급"
   const [y, mo, d] = s.now.slice(0, 10).split("-").map(Number);
   const wd = "일월화수목금토"[new Date(y, mo - 1, d).getDay()];
-  $("#report-title").innerHTML = `<span class="t">장마감 수급</span><span class="d">${y}.${String(mo).padStart(2, "0")}.${String(d).padStart(2, "0")} (${wd}) · ${s.now.slice(11, 16)} 기준</span>`;
+  const title = s.now.slice(11, 16) < "15:30" && s.now.slice(11, 16) >= "08:30" ? "장중 수급" : "장마감 수급";  // 장중에 받은 것은 '장중'으로 표시
+  $("#report-title").innerHTML = `<span class="t">${title}</span><span class="d">${y}.${String(mo).padStart(2, "0")}.${String(d).padStart(2, "0")} (${wd}) · ${s.now.slice(11, 16)} 기준</span>`;
 }
 
 // ------------------------------------------------------------ market

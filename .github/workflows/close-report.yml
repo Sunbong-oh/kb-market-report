@@ -1,18 +1,31 @@
 name: 장마감 수급체크
 
 # 평일 장 마감 후 KB OpenAPI 데이터를 받아 리포트 사진·블로그 본문을 만들고 텔레그램으로 보낸다.
-# 노트북이 꺼져 있어도 동작한다. (GitHub 예약 실행은 몇 분~십몇 분 늦어질 수 있음)
+#
+# 발송 시각 보장 방법 (목표: 평일 오후 4시경, 하루 한 번):
+#   1) 노트북이 켜져 있으면 15:55에 노트북 서버가 workflow_dispatch(mode=close)로 "지금 실행"을 요청 → 바로 실행
+#   2) GitHub 예약(schedule)은 몇 시간씩 늦어지는 일이 있어(2026-10-02: 15:52 예약이 22:13 실행) 예비용으로만
+#      여러 번 걸어 둔다. 그날 장마감 리포트가 이미 나갔으면(archive/날짜/.close_sent) 건너뛴다.
+#   3) 19:00 이후에야 실행된 예약분은 너무 늦었으므로 보내지 않는다.
+# 수동 실행(mode=now)은 언제든 그 시점 수급을 보내며, 하루 한 번 제한에 걸리지 않는다.
 on:
   schedule:
-    # 목표: 평일 오후 4시(KST) 텔레그램 도착. GitHub 예약은 보통 몇~십몇 분 늦고 정각(:00)은
-    # 더 밀리거나 건너뛰는 일이 있어 15:52(UTC 06:52)에 시작한다.
-    - cron: "52 6 * * 1-5"
+    - cron: "50 6 * * 1-5"   # 15:50 KST
+    - cron: "5 7 * * 1-5"    # 16:05
+    - cron: "20 7 * * 1-5"   # 16:20
+    - cron: "40 7 * * 1-5"   # 16:40
+    - cron: "10 8 * * 1-5"   # 17:10
   workflow_dispatch:
     inputs:
       send:
         description: 텔레그램으로 전송
         type: boolean
         default: true
+      mode:
+        description: "now = 지금 수급 보내기 / close = 장마감 리포트(하루 한 번)"
+        type: choice
+        options: [now, close]
+        default: now
 
 permissions:
   contents: write   # README.md · latest/ · archive/ 갱신
@@ -31,27 +44,48 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       REPORT_ONLY: "1"
+      REPORT_MODE: ${{ (github.event_name == 'schedule' || inputs.mode == 'close') && 'close' || 'now' }}
       PYTHONUTF8: "1"
       PYTHONIOENCODING: utf-8
       BLOG_DIR: ${{ github.workspace }}\reports\blog
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main   # 대기했다 실행돼도 최신 상태(오늘 발송 표시 포함)를 받는다
+
+      - name: 오늘 장마감 리포트를 이미 보냈는지 확인
+        id: gate
+        shell: pwsh
+        run: |
+          $kst = [DateTime]::UtcNow.AddHours(9)
+          $skip = "false"
+          if ($env:REPORT_MODE -eq "close") {
+            if (Test-Path ("archive/{0}/.close_sent" -f $kst.ToString("yyyy-MM-dd"))) { $skip = "true"; "이미 발송됨 → 건너뜀" }
+            elseif ($env:GITHUB_EVENT_NAME -eq "schedule" -and $kst.Hour -ge 19) { $skip = "true"; "19시 이후 지연 실행 → 보내지 않음" }
+            elseif ($kst.Hour -lt 15 -or ($kst.Hour -eq 15 -and $kst.Minute -lt 40)) { $skip = "true"; "장 마감 전 → 건너뜀" }
+          }
+          "skip=$skip" >> $env:GITHUB_OUTPUT
+          "KST $($kst.ToString('yyyy-MM-dd HH:mm')) mode=$env:REPORT_MODE event=$env:GITHUB_EVENT_NAME skip=$skip"
 
       - uses: actions/setup-python@v5
+        if: steps.gate.outputs.skip != 'true'
         with:
           python-version: "3.13"
           cache: pip
 
       - name: 패키지 설치
+        if: steps.gate.outputs.skip != 'true'
         run: pip install -r requirements.txt
 
       - name: git 사용자 설정
+        if: steps.gate.outputs.skip != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config core.quotepath false
 
       - name: 리포트 생성·전송
+        if: steps.gate.outputs.skip != 'true'
         run: python report.py ${{ (github.event_name == 'workflow_dispatch' && !inputs.send) && '--no-send' || '' }}
 
       - name: 실패 알림 (텔레그램)
@@ -63,7 +97,7 @@ jobs:
           Invoke-RestMethod -Method Post -Uri "https://api.telegram.org/bot$env:TELEGRAM_BOT_TOKEN/sendMessage" -Body @{ chat_id = $env:TELEGRAM_CHAT_ID; text = $text } | Out-Null
 
       - name: 결과 파일 보관
-        if: always()
+        if: always() && steps.gate.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: close-report
