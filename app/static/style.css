@@ -18,6 +18,7 @@
   --foreign: #e03131;
   --inst: #16a085;
   --indiv: #e08a00;
+  --label: #15803d;  /* 코스피·코스닥·선물 등 구분 이름 (초록) */
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -35,6 +36,7 @@
     --foreign: #ff5c5c;
     --inst: #3fd1b0;
     --indiv: #ffb13d;
+    --label: #4ade80;
   }
 }
 * { box-sizing: border-box; }
@@ -88,7 +90,7 @@ code { font-size: 12px; }
 /* 지수 */
 .index-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
 .index { padding: 10px 12px; border-radius: 10px; background: var(--bg); }
-.index .n { font-size: 12px; color: var(--muted); }
+.index .n { font-size: 15px; font-weight: 800; color: var(--label); letter-spacing: .2px; }
 .index .v { font-size: 20px; font-weight: 700; }
 /* 리포트 제목 띠: 날짜 + 장마감 수급 (주황색) */
 .report-title { display: none; }
@@ -117,7 +119,7 @@ body.report .hts, body.report #program-card { display: none; }
 .sub-head { font-size: 14px; margin: 16px 0 10px; padding-top: 14px; border-top: 1px solid var(--line); }
 .bb { margin-bottom: 14px; }
 .bb-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
-.bb-head b { font-size: 14px; }
+.bb-head b { font-size: 15px; font-weight: 800; color: var(--label); }
 .bb-bar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; background: var(--bg); }
 .bb-bar span { display: flex; align-items: center; justify-content: center; min-width: 0; color: #fff; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; }
 .bb-bar .u { background: var(--up); }
@@ -210,7 +212,7 @@ button.mini-btn { padding: 2px 8px; font-size: 11px; font-weight: 600; backgroun
 .bar-row .val { text-align: right; font-weight: 600; }
 .inv-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 700px) { .inv-cols { grid-template-columns: 1fr; } }
-.inv-cols h3, .inv-group h3 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+.inv-cols h3, .inv-group h3 { font-size: 15px; margin: 0 0 8px; color: var(--label); font-weight: 800; }
 .bar-row.hl { font-weight: 700; }
 
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
@@ -228,7 +230,7 @@ button.mini-btn { padding: 2px 8px; font-size: 11px; font-weight: 600; backgroun
 
 .macro { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }  /* 환율 · 금리를 좌우로 나란히 */
 .stat { background: var(--bg); border-radius: 10px; padding: 12px 12px; min-width: 0; }
-.stat .n { font-size: 12px; color: var(--muted); }
+.stat .n { font-size: 15px; font-weight: 800; color: var(--label); }
 .stat .n .muted { display: block; font-size: 11px; }
 .stat .v { font-size: 22px; font-weight: 800; }
 .stat > div:last-child > div:last-child { font-size: 13px; }
