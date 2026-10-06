@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
 from blog_post import save_blog_post
+from market_calendar import build_section as calendar_section
 from publish_github import publish
 
 ROOT = Path(__file__).resolve().parent
@@ -154,6 +155,13 @@ def send_telegram(shots: list[tuple[Path, str]], caption: str) -> None:
         raise RuntimeError(f"텔레그램 전송 실패: HTTP {res.status_code} {res.text[:200]}")
 
 
+def send_telegram_text(text: str) -> None:
+    token, chat_id = os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"]
+    res = httpx.post(f"https://api.telegram.org/bot{token}/sendMessage", data={"chat_id": chat_id, "text": text}, timeout=30)
+    if res.status_code != 200 or not res.json().get("ok"):
+        raise RuntimeError(f"텔레그램 메시지 전송 실패: HTTP {res.status_code} {res.text[:200]}")
+
+
 def send_telegram_file(path: Path, caption: str) -> None:
     token, chat_id = os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"]
     res = httpx.post(f"https://api.telegram.org/bot{token}/sendDocument", data={"chat_id": chat_id, "caption": caption},
@@ -226,6 +234,12 @@ def main() -> int:
         print(f"OneDrive 저장 실패: {exc}")
     if send:  # 시험 실행(--no-send)은 텔레그램·GitHub 모두 건드리지 않는다
         send_telegram(shots, f"KB 시장 리포트 {taken}")
+        try:  # 오늘 저녁 실적·이슈 + 내일 일정 (캘린더에 없으면 보내지 않음)
+            cal = calendar_section(now)
+            if cal:
+                send_telegram_text("\n".join(cal).strip())
+        except Exception as exc:
+            print(f"캘린더 메시지 전송 실패: {exc}")
         send_telegram_file(snapshot, "사이트 스냅샷 · 파일을 눌러 브라우저로 열면 차트 확대·체크박스·터치 값 확인이 됩니다")
         print("텔레그램 전송 완료")
         # 전송에 성공한 뒤에 올린다: 장마감(close) 실행이면 '오늘 발송함' 표시도 함께 올라가 중복 발송을 막는다

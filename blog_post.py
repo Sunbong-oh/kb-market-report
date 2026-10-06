@@ -16,6 +16,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from market_calendar import build_section as calendar_section
+
 BLOG_DIR = Path(os.environ.get("BLOG_DIR", r"C:\CLAUDE\1\blog_post"))
 IMAGE_NAMES = ["1_시장", "2_수급", "3_강세테마"]
 BIG3 = [("외국인", "외국인"), ("기관계", "기관"), ("개인", "개인")]
@@ -127,6 +129,11 @@ def build_body(api: dict, now: datetime) -> str:
             up, down = (b.get("up") or 0) + (b.get("ulmt") or 0), (b.get("dwn") or 0) + (b.get("llmt") or 0)
             lines.append(f"- {label}: 상승 {up:,.0f} (상한 {b.get('ulmt') or 0:,.0f}) / 보합 {b.get('unchng') or 0:,.0f} / "
                          f"하락 {down:,.0f} (하한 {b.get('llmt') or 0:,.0f})")
+
+    try:
+        lines += calendar_section(now)  # 오늘 저녁 발표 실적·이슈, 내일 일정 (증시 캘린더)
+    except Exception as exc:  # 캘린더 때문에 리포트가 막히지 않게
+        print(f"캘린더 섹션 건너뜀: {exc}")
 
     summary = _summary(inv, kospi)
     if summary:
