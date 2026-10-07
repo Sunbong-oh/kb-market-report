@@ -10,6 +10,7 @@ Windows 작업 스케줄러가 월~금 15:50에 report.bat으로 실행한다.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import shutil
@@ -111,6 +112,21 @@ def capture(prefix: Path) -> tuple[list[tuple[Path, str]], dict]:
             shots.append((path, title))
         browser.close()
     return shots, api
+
+
+def stitch_below(top: Path, bottom: Path) -> None:
+    """bottom 사진을 top 사진 바로 아래에 이어 붙여 top 파일을 덮어쓴다 (두 사진 폭이 같다)."""
+    def uri(path: Path) -> str:
+        return "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode()
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(channel="msedge", headless=True)
+        page = browser.new_page(viewport={"width": 480, "height": 400}, device_scale_factor=2.5)
+        page.set_content(f'<body style="margin:0;background:#f4f5f7"><img src="{uri(top)}" style="display:block;width:480px">'
+                         f'<img src="{uri(bottom)}" style="display:block;width:480px"></body>')
+        page.wait_for_function("[...document.images].every(i => i.complete)")
+        page.screenshot(path=str(top), type="jpeg", quality=90, full_page=True)
+        browser.close()
 
 
 def build_snapshot(api: dict, path: Path, taken: str) -> None:
@@ -232,6 +248,15 @@ def main() -> int:
     shutil.copy(snapshot, out_dir / "latest.html")  # PC 바탕화면 '장마감 수급체크' 바로가기가 여는 최신 리포트
     for path in [*(p for p, _ in shots), snapshot]:
         print(f"저장: {path}")
+    cal_text: list[str] = []
+    try:  # 오늘 저녁 실적·이슈 + 내일 일정을 1번 사진(시장 지수·환율·금리) 아래에 붙인다 (캘린더에 없으면 그대로)
+        cal_img = calendar_image(now, prefix.with_name(f"{prefix.name}_calendar.jpg"))
+        print(f"일정 사진: {cal_img or '캘린더 자료 없음'}")
+        if cal_img:
+            stitch_below(shots[0][0], cal_img)
+    except Exception as exc:  # 붙이지 못하면 예전처럼 글자 메시지로
+        print(f"일정 사진 붙이기 실패, 글자로 대체: {exc}")
+        cal_text = calendar_section(now)
     blog_dir = None
     try:
         blog_dir = save_blog_post(api, shots, now)  # 블로그 준비물 (일일 대시보드와 같은 blog_post 폴더)
@@ -242,18 +267,8 @@ def main() -> int:
     except Exception as exc:
         print(f"OneDrive 저장 실패: {exc}")
     if send:  # 시험 실행(--no-send)은 텔레그램·GitHub 모두 건드리지 않는다
-        cal_text: list[str] = []
-        album = list(shots)
-        try:  # 오늘 저녁 실적·이슈 + 내일 일정을 사진으로 만들어 앨범 마지막 장에 함께 보낸다 (캘린더에 없으면 빠짐)
-            cal_img = calendar_image(now, prefix.with_name(f"{prefix.name}_calendar.jpg"))
-            print(f"일정 사진: {cal_img or '캘린더 자료 없음'}")
-            if cal_img:
-                album.append((cal_img, "오늘 저녁 발표·내일 일정"))
-        except Exception as exc:  # 사진을 못 만들면 예전처럼 글자 메시지로
-            print(f"일정 사진 만들기 실패, 글자로 대체: {exc}")
-            cal_text = calendar_section(now)
-        send_telegram(album, f"KB 시장 리포트 {taken}")
-        if cal_text:
+        send_telegram(shots, f"KB 시장 리포트 {taken}")
+        if cal_text:  # 일정 사진을 못 만든 날만: 예전처럼 글자로
             send_telegram_text("\n".join(cal_text).strip())
         send_telegram_file(snapshot, "사이트 스냅샷 · 파일을 눌러 브라우저로 열면 차트 확대·체크박스·터치 값 확인이 됩니다")
         print("텔레그램 전송 완료")
