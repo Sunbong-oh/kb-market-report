@@ -26,6 +26,7 @@ from playwright.sync_api import sync_playwright
 
 from blog_post import save_blog_post
 from market_calendar import build_section as calendar_section
+from market_calendar import render_image as calendar_image
 from publish_github import publish
 
 ROOT = Path(__file__).resolve().parent
@@ -162,6 +163,14 @@ def send_telegram_text(text: str) -> None:
         raise RuntimeError(f"텔레그램 메시지 전송 실패: HTTP {res.status_code} {res.text[:200]}")
 
 
+def send_telegram_photo(path: Path, caption: str) -> None:
+    token, chat_id = os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"]
+    res = httpx.post(f"https://api.telegram.org/bot{token}/sendPhoto", data={"chat_id": chat_id, "caption": caption},
+                     files={"photo": (path.name, path.read_bytes(), "image/jpeg")}, timeout=60)
+    if res.status_code != 200 or not res.json().get("ok"):
+        raise RuntimeError(f"텔레그램 사진 전송 실패: HTTP {res.status_code} {res.text[:200]}")
+
+
 def send_telegram_file(path: Path, caption: str) -> None:
     token, chat_id = os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"]
     res = httpx.post(f"https://api.telegram.org/bot{token}/sendDocument", data={"chat_id": chat_id, "caption": caption},
@@ -235,9 +244,15 @@ def main() -> int:
     if send:  # 시험 실행(--no-send)은 텔레그램·GitHub 모두 건드리지 않는다
         send_telegram(shots, f"KB 시장 리포트 {taken}")
         try:  # 오늘 저녁 실적·이슈 + 내일 일정 (캘린더에 없으면 보내지 않음)
-            cal = calendar_section(now)
-            if cal:
-                send_telegram_text("\n".join(cal).strip())
+            try:
+                cal_img = calendar_image(now, prefix.with_name(f"{prefix.name}_calendar.jpg"))
+                if cal_img:
+                    send_telegram_photo(cal_img, f"오늘 저녁 발표·내일 일정 {taken}")
+            except Exception as exc:  # 사진 생성·전송이 안 되면 예전처럼 글자 메시지로
+                print(f"일정 사진 실패, 글자로 대체: {exc}")
+                cal = calendar_section(now)
+                if cal:
+                    send_telegram_text("\n".join(cal).strip())
         except Exception as exc:
             print(f"캘린더 메시지 전송 실패: {exc}")
         send_telegram_file(snapshot, "사이트 스냅샷 · 파일을 눌러 브라우저로 열면 차트 확대·체크박스·터치 값 확인이 됩니다")

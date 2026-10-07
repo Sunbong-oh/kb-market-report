@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -47,6 +48,73 @@ def _lines(day: dict) -> list[str]:
         if day.get(key):
             out.append(f"- {label}: " + " · ".join(day[key]))
     return out
+
+
+def build_data(now: datetime) -> dict:
+    """사진·본문이 함께 쓰는 구조화 자료: {'tonight': [(라벨, [항목])], 'tomorrow': {...} | None}."""
+    today = now.date()
+    tomorrow = next_trading_day(today)
+
+    def items(day: dict) -> list[tuple[str, list[str]]]:
+        return [(label, day[key]) for key, label in FIELDS if day.get(key)]
+
+    nxt = items(_day(tomorrow))
+    label = f"{tomorrow.month}월 {tomorrow.day}일({'월화수목금토일'[tomorrow.weekday()]})"
+    if tomorrow != today + timedelta(days=1):
+        label += " · 다음 거래일"
+    return {
+        "today": f"{today.month}월 {today.day}일({'월화수목금토일'[today.weekday()]})",
+        "tonight": items(_day(today)),
+        "tomorrow": {"label": label, "items": nxt} if (nxt or _month(tomorrow)) else None,
+    }
+
+
+def _rows_html(items: list[tuple[str, list[str]]]) -> str:
+    rows = []
+    for label, values in items:
+        chips = "".join(
+            f'<span class="chip{" star" if v.startswith("★") else ""}">{html.escape(v.lstrip("★"))}</span>'
+            for v in values
+        )
+        rows.append(f'<div class="row"><div class="lab">{html.escape(label.split("(")[0])}</div><div class="chips">{chips}</div></div>')
+    return "".join(rows) or '<div class="none">주요 일정 없음</div>'
+
+
+def render_image(now: datetime, path: Path) -> Path | None:
+    """오늘 저녁 발표·내일 일정을 사진(JPG)으로 만든다. 캘린더 자료가 없으면 None."""
+    data = build_data(now)
+    if not data["tonight"] and not data["tomorrow"]:
+        return None
+    sections = ""
+    if data["tonight"]:
+        sections += f'<section><h2>오늘 저녁 발표 실적·주요 이슈 <small>{data["today"]}</small></h2>{_rows_html(data["tonight"])}</section>'
+    if data["tomorrow"]:
+        sections += f'<section><h2>내일 일정 <small>{html.escape(data["tomorrow"]["label"])}</small></h2>{_rows_html(data["tomorrow"]["items"])}</section>'
+    page_html = f"""<!doctype html><html lang="ko"><meta charset="utf-8"><style>
+body{{margin:0;padding:14px;width:452px;background:#f4f5f7;color:#1b1f24;font-family:"Malgun Gothic","Noto Sans CJK KR","Apple SD Gothic Neo",sans-serif}}
+h1{{margin:0 0 10px;font-size:17px}}h1 small{{color:#7a828c;font-weight:400;font-size:12px;margin-left:6px}}
+section{{background:#fff;border:1px solid #e7e9ec;border-radius:12px;padding:12px 14px;margin-bottom:10px}}
+h2{{margin:0 0 8px;font-size:14px;border-left:4px solid #ffbc00;padding-left:8px}}h2 small{{color:#7a828c;font-weight:400;margin-left:4px}}
+.row{{display:flex;gap:10px;padding:6px 0;border-top:1px solid #e7e9ec}}.row:first-of-type{{border-top:0}}
+.lab{{flex:0 0 84px;font-size:12px;color:#15803d;font-weight:700;line-height:1.5}}
+.chips{{flex:1;display:flex;flex-wrap:wrap;gap:5px}}
+.chip{{font-size:13px;background:#f4f5f7;border-radius:6px;padding:2px 7px;line-height:1.5}}
+.chip.star{{background:#fff6dc;font-weight:700}}.chip.star::before{{content:"★ ";color:#e08a00}}
+.none{{font-size:13px;color:#7a828c}}.foot{{font-size:11px;color:#7a828c;line-height:1.5}}
+</style><body><h1>증시 일정<small>KB 시장 리포트</small></h1>{sections}
+<div class="foot">★ 핵심 · 증시 캘린더 기준, 미국 실적은 한국시간 밤~새벽 발표 · 해외 일정은 현지시각이며 변경될 수 있습니다</div></body></html>"""
+    from playwright.sync_api import sync_playwright  # blog_post가 이 모듈을 쓸 때는 필요 없으므로 늦게 불러온다
+
+    with sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(channel="msedge", headless=True)
+        except Exception:  # Edge가 없는 환경(로컬 테스트 등)은 기본 Chromium으로
+            browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 480, "height": 400}, device_scale_factor=2.5)
+        page.set_content(page_html)
+        page.screenshot(path=str(path), type="jpeg", quality=90, full_page=True)
+        browser.close()
+    return path
 
 
 def build_section(now: datetime) -> list[str]:
