@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from . import demo, market, themes
 from .config import settings
-from .flow_upload import live_loop, upload_loop
+from .flow_upload import backfill, live_loop, upload_loop
 from .futures_flow import FuturesFlowStore, record_loop
 from .kb_client import KBApiError, KBClient
 from .report_schedule import report_loop
@@ -51,6 +51,7 @@ async def lifespan(_: FastAPI):
         tasks.append(asyncio.create_task(report_loop()))  # 월~금 15:50 텔레그램 리포트
         tasks.append(asyncio.create_task(upload_loop(lambda: get_futures(1))))  # 15:46 선물 기록 → GitHub (사이트 차트)
         tasks.append(asyncio.create_task(live_loop(lambda: get_futures(1))))  # 장중 1분마다 → flow-live (실시간 차트)
+        tasks.append(asyncio.create_task(backfill(flow_store.series)))  # 켤 때 한 번: DB에 남은 지난 날짜(예: 10/8) 업로드
     tasks.append(asyncio.create_task(fill_loop()))  # 지정가 미체결 주문 체결·장마감 취소
     # 텔레그램 봇 주문: .env에 봇 토큰·채팅 ID가 있으면 켠다
     token, chat_id = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")

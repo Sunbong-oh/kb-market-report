@@ -35,12 +35,12 @@ def _git(*args: str) -> subprocess.CompletedProcess:
                           errors="replace", timeout=120)
 
 
-def _push(path: Path, label: str) -> str:
-    rel = path.relative_to(ROOT).as_posix()
-    _git("add", rel)
-    if not _git("diff", "--cached", "--name-only", "--", rel).stdout.strip():
+def _push(path: Path | list[Path], label: str) -> str:
+    rels = [q.relative_to(ROOT).as_posix() for q in (path if isinstance(path, list) else [path])]
+    _git("add", *rels)
+    if not _git("diff", "--cached", "--name-only", "--", *rels).stdout.strip():
         return "변경 없음"
-    res = _git("commit", "-m", f"선물 수급 기록 {label}", "--", rel)
+    res = _git("commit", "-m", f"선물 수급 기록 {label}", "--", *rels)
     if res.returncode:
         raise RuntimeError(f"commit 실패: {res.stderr.strip()[:200]}")
     for _ in range(3):
@@ -129,3 +129,44 @@ async def live_loop(get_payload: Callable[[], Awaitable[dict]]) -> None:
                     _log(f"실시간 업로드 실패 {type(exc).__name__}: {exc}")
                     logged = today + "err"
         await asyncio.sleep(LIVE_SEC)
+
+
+def _report_futures(day: Path) -> dict | None:
+    """그날 장마감 리포트 HTML에 저장된 /api/futures 응답 (선물 1분봉·마감 수급)."""
+    for h in day.glob("*.html"):
+        txt = h.read_text(encoding="utf-8", errors="replace")
+        i = txt.find('"/api/futures?minutes=1": {')
+        if i >= 0:
+            try:
+                return json.JSONDecoder().raw_decode(txt[txt.index("{", i):])[0]
+            except ValueError:
+                return None
+    return None
+
+
+async def backfill(series: Callable[[str], tuple[str, list[dict]]]) -> None:
+    """서버를 켤 때 한 번: futures_flow.json이 없는 지난 장마감 날짜 중 이 PC DB에 분 단위 기록이 있는 날을
+    (리포트의 선물 1분봉 + DB의 투자자별 누적) 합쳐 올린다. 예: 업로드 기능을 넣기 전인 10/8."""
+    if os.environ.get("FLOW_UPLOAD", "on").lower() in ("off", "0", "false"):
+        return
+    try:
+        _git("pull", "--rebase", "--autostash", "origin", "main")
+        today = f"{now_kst():%Y-%m-%d}"
+        paths = []
+        for day in sorted((ROOT / "archive").glob("20??-??-??")):
+            out = day / "futures_flow.json"
+            if day.name >= today or out.exists():
+                continue
+            dt, flows = series(day.name.replace("-", ""))
+            rep = _report_futures(day) if len(flows) >= 2 else None
+            if not rep or not rep.get("bars"):
+                continue
+            rep.update(flows=flows, flow_date=dt)
+            out.write_text(json.dumps(rep, ensure_ascii=False), encoding="utf-8")
+            paths.append(out)
+        if paths:
+            _log(f"지난 기록 {', '.join(q.parent.name for q in paths)}: " +
+                 await asyncio.to_thread(_push, paths, "지난 날짜"))
+    except Exception as exc:
+        log.warning("지난 선물 기록 업로드 실패: %s", exc)
+        _log(f"지난 기록 업로드 실패 {type(exc).__name__}: {exc}")
