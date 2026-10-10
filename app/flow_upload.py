@@ -5,7 +5,10 @@ GitHub Actions에는 없다. 평일 15:46 이후 한 번, /api/futures 와 같�
 (KOSPI200 선물 1분봉 + 투자자별 선물 순매수 누적)을 archive/YYYY-MM-DD/futures_flow.json 으로
 저장해 main 브랜치에 push 한다. market-dashboard 사이트가 이 파일로 차트를 그린다.
 
-FLOW_UPLOAD=off 이면 끈다. 결과는 reports/report.log.
+장중(평일 08:46~15:50)에는 live_loop가 1분마다 같은 내용을 flow-live 브랜치(커밋 1개, 매번 덮어씀)에
+올려 사이트가 실시간 차트를 그린다. main 기록은 늘지 않는다.
+
+FLOW_UPLOAD=off 이면 둘 다 끈다. FLOW_LIVE=off 이면 실시간만 끈다. 결과는 reports/report.log.
 """
 
 from __future__ import annotations
@@ -23,6 +26,8 @@ from .trading import now_kst
 log = logging.getLogger("flow_upload")
 ROOT = Path(__file__).resolve().parent.parent
 UPLOAD_AT = os.environ.get("FLOW_UPLOAD_AT", "15:46")
+LIVE_BRANCH = "flow-live"
+LIVE_SEC = int(os.environ.get("FLOW_LIVE_SEC", "60"))
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
@@ -76,3 +81,51 @@ async def upload_loop(get_payload: Callable[[], Awaitable[dict]]) -> None:
                 await asyncio.sleep(300)
                 continue
         await asyncio.sleep(60)
+
+
+def _slim(payload: dict) -> dict:
+    """사이트 차트에 필요한 값만 (선물 종가, 외국인·기관계·개인 누적)."""
+    keep = ("t", "외국인", "기관계", "개인")
+    return {
+        "flow_date": payload.get("flow_date"),
+        "futures": payload.get("futures"),
+        "bars": [{"t": b["t"], "c": b.get("c")} for b in payload.get("bars") or []],
+        "flows": [{k: r[k] for k in keep if k in r} for r in payload.get("flows") or []],
+        "updated": f"{now_kst():%H:%M}",
+    }
+
+
+def _push_live(data: str) -> None:
+    """작업 폴더·main은 건드리지 않고, 파일 하나짜리 커밋을 만들어 flow-live 브랜치에 강제 push."""
+    run = lambda args, inp: subprocess.run(["git", *args], cwd=ROOT, input=inp, capture_output=True, timeout=60)
+    blob = run(["hash-object", "-w", "--stdin"], data.encode("utf-8")).stdout.decode().strip()
+    tree = run(["mktree"], f"100644 blob {blob}\tfutures_flow.json\n".encode()).stdout.decode().strip()
+    res = _git("commit-tree", tree, "-m", "실시간 선물 수급")
+    if res.returncode or not blob or not tree:
+        raise RuntimeError(f"commit-tree 실패: {res.stderr.strip()[:200]}")
+    res = _git("push", "-f", "-q", "origin", f"{res.stdout.strip()}:refs/heads/{LIVE_BRANCH}")
+    if res.returncode:
+        raise RuntimeError(f"push 실패: {res.stderr.strip()[:200]}")
+
+
+async def live_loop(get_payload: Callable[[], Awaitable[dict]]) -> None:
+    if any(os.environ.get(k, "on").lower() in ("off", "0", "false") for k in ("FLOW_UPLOAD", "FLOW_LIVE")):
+        return
+    logged = ""  # 성공·실패 로그는 하루 한 번씩만 (1분마다 쌓이지 않게)
+    while True:
+        now = now_kst()
+        today = now.strftime("%Y%m%d")
+        if now.weekday() < 5 and "08:46" <= now.strftime("%H:%M") <= "15:50":
+            try:
+                payload = await get_payload()
+                if payload.get("flow_date") == today and payload.get("flows"):
+                    await asyncio.to_thread(_push_live, json.dumps(_slim(payload), ensure_ascii=False))
+                    if not logged.startswith(today + "ok"):
+                        _log("실시간 업로드 시작 (flow-live 브랜치, 1분마다)")
+                        logged = today + "ok"
+            except Exception as exc:
+                log.warning("실시간 선물 기록 업로드 실패: %s", exc)
+                if logged != today + "err":
+                    _log(f"실시간 업로드 실패 {type(exc).__name__}: {exc}")
+                    logged = today + "err"
+        await asyncio.sleep(LIVE_SEC)
