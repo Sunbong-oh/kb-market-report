@@ -31,14 +31,15 @@ from kids import DATA, KST, categorize, find_dates, fmt_dt, guess_apply_start, l
 
 INBOX = DATA / "inbox_events.json"
 OFFSET = DATA / "inbox_offset.json"
+CAFE_URL = re.compile(r"https?://(?:m\.)?cafe\.(?:naver\.com|daum\.net)/\S+", re.I)
 IG_URL = re.compile(r"https?://(?:www\.)?instagram\.com/(?:p|reel|reels|tv)/[\w-]+/?[^\s]*", re.I)
 URL = re.compile(r"https?://\S+")
 MODEL = "claude-opus-5-5"
 HELP = ("👶 제주 아이 행사 받은편지함\n\n"
-        "인스타·블로그·카톡에서 본 행사를 이 대화방으로 보내 주세요.\n"
+        "인스타·맘카페·블로그·카톡에서 본 행사를 이 대화방으로 보내 주세요.\n"
         "• 인스타 게시물 링크 (공유 → 텔레그램 또는 링크 복사)\n"
-        "• 포스터 캡처 사진 (여러 장 OK)\n"
-        "• 모집 글 복사해서 붙여넣기\n\n"
+        "• 맘카페 글은 로그인이 필요해서 본문 복사 또는 캡처로 (링크도 같이 보내면 바로가기로 붙여요)\n"
+        "• 포스터 캡처 사진 (여러 장 OK)\n\n"
         "신청 날짜를 읽어 3일 전 · 전날 저녁 · 당일 아침 · 시작 1시간 전에 알려 드려요.\n"
         "15분 안에 답장이 와요.\n\n"
         "/list 다가오는 신청 보기\n/del 번호 잘못 읽은 일정 지우기")
@@ -71,8 +72,8 @@ class Bot:
 
 # ── 인스타그램 미리보기 ───────────────────────────────
 
-def instagram_preview(url: str) -> tuple[str, bytes | None]:
-    """공개 게시물의 링크 미리보기(og 태그)에서 글과 대표 사진을 가져온다. 막히면 빈 값."""
+def link_preview(url: str) -> tuple[str, bytes | None]:
+    """링크 미리보기(og 태그)에서 글과 대표 사진을 가져온다. 인스타 공개 게시물·블로그·기사용. 막히면 빈 값."""
     try:
         with httpx.Client(timeout=20, follow_redirects=True,
                           headers={"User-Agent": "facebookexternalhit/1.1", "Accept-Language": "ko-KR,ko"}) as c:
@@ -247,13 +248,18 @@ def main() -> int:
             ig = IG_URL.search(text)
             url = ig.group(0) if ig else (URL.search(text).group(0) if URL.search(text) else "")
             images = [bot.photo_bytes(m["photo"]) for m in msgs if m.get("photo")]
-            if ig and len(URL.sub("", text).strip()) < 20:  # 링크만 왔으면 게시물 미리보기를 읽는다
-                ig_text, ig_img = instagram_preview(url)
-                text = f"{text}\n{ig_text}".strip()
-                if ig_img:
-                    images.append(ig_img)
+            if url and not images and len(URL.sub("", text).strip()) < 20:  # 링크만 왔으면 미리보기를 읽는다
+                if CAFE_URL.search(url):
+                    bot.reply(chat_id, "맘카페 글은 로그인해야 보여서 링크만으로는 못 읽어요. 글을 길게 눌러 복사해 붙여 주시거나, "
+                                       "포스터·본문을 캡처해서 보내 주세요. (링크도 같이 보내 주시면 알림에 바로가기로 붙여 둘게요)",
+                              first["message_id"])
+                    continue
+                pv_text, pv_img = link_preview(url)
+                text = f"{text}\n{pv_text}".strip()
+                if pv_img:
+                    images.append(pv_img)
             if not URL.sub("", text).strip() and not images:
-                bot.reply(chat_id, "인스타 게시물을 열 수 없었어요 (비공개이거나 인스타가 막음). 포스터를 캡처해서 보내 주시거나 글을 복사해 붙여 주세요.", first["message_id"])
+                bot.reply(chat_id, "링크를 열 수 없었어요 (비공개이거나 사이트가 막음). 포스터를 캡처해서 보내 주시거나 글을 복사해 붙여 주세요.", first["message_id"])
                 continue
 
             programs = extract_with_claude(text, images, now)
