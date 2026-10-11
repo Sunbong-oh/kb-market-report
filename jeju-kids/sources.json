@@ -1,0 +1,29 @@
+{
+  "_설명": "매일 확인하는 곳. type html = 페이지의 글 목록에서 유아·가족 관련 글을 찾음, rss = 뉴스 검색(보도자료 '○일부터 참가자 모집' 기사를 잡음).",
+  "html": [
+    {"name": "교육청 통합예약 (토요가족체험 등)", "url": "https://org.jje.go.kr/reserve/index.jje"},
+    {"name": "교육청 공공도서관 (제주도서관 등)", "url": "https://org.jje.go.kr/lib/index.jje"},
+    {"name": "제주유아교육진흥원", "url": "https://org.jje.go.kr/jjkids/index.jje"},
+    {"name": "제주도 공공도서관 프로그램", "url": "https://www.jeju.go.kr/lib/event/program/add.htm"},
+    {"name": "은성종합사회복지관", "url": "http://www.eunsungsw.org/"},
+    {"name": "제주육아종합지원센터", "url": "https://jeju.childcare.go.kr/ccef/main.jsp"},
+    {"name": "국립제주박물관 교육", "url": "https://jeju.museum.go.kr/_prog/edunew/?site_dvs_cd=kr&menu_dvs_cd=0301&func_dvs_cd=edu"},
+    {"name": "민속자연사박물관 교육", "url": "https://www.jeju.go.kr/museum/edu/application/application.htm"},
+    {"name": "문화예술진흥원 공연달력", "url": "https://www.jeju.go.kr/jejuculture/show/month1/calendar1.htm"},
+    {"name": "제주평생교육다모아", "url": "https://damoa.jeju.kr/"}
+  ],
+  "rss": [
+    "제주 유아 참가자 모집",
+    "제주도서관 영유아",
+    "제주 도서관 그림책 유아 모집",
+    "제주 어린이 공연 마술",
+    "제주 가족 체험 참가자 모집",
+    "제주유아교육진흥원",
+    "제주 과학축전",
+    "은성종합사회복지관",
+    "제주 유아 체육 교실",
+    "제주 유아 영어 프로그램",
+    "제주 어린이 미술 체험 모집",
+    "제주 어린이 요리 체험"
+  ]
+}

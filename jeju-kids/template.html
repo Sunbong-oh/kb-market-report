@@ -1,0 +1,224 @@
+<title>제주 아이 행사 알리미</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: 한 줄 세로 보드 — 맨 위 "다가오는 신청" 티켓 띠, 아래로 분류 필터와 상태별 목록. 현무암 잉크 + 감귤 강조 */
+:root {
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --ink: #23292e;
+  --muted: #5d6870;
+  --line: #dde2e0;
+  --tangerine: #e8710a;
+  --tangerine-soft: #fdebd9;
+  --sea: #0f7579;
+  --sea-soft: #dcefee;
+  --warn: #b3261e;
+  --font-display: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15191c; --surface: #1d2327; --ink: #e9ecea; --muted: #9aa5ac; --line: #2f383d;
+    --tangerine: #ff9a3d; --tangerine-soft: #3a2615; --sea: #5cc4c6; --sea-soft: #16302f; --warn: #ff8a80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15191c; --surface: #1d2327; --ink: #e9ecea; --muted: #9aa5ac; --line: #2f383d;
+  --tangerine: #ff9a3d; --tangerine-soft: #3a2615; --sea: #5cc4c6; --sea-soft: #16302f; --warn: #ff8a80;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 28px 16px 64px; display: grid; gap: 28px; }
+a { color: var(--sea); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--tangerine); outline-offset: 2px; }
+header h1 { font-family: var(--font-display); font-weight: 400; font-size: 2rem; line-height: 1.2; margin: 0; text-wrap: balance; }
+header p { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+.meta { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.3rem; margin: 0 0 10px; display: flex; align-items: baseline; gap: 8px; }
+h2 .count { font-family: var(--font-body); font-size: 0.8rem; color: var(--muted); }
+
+/* 다가오는 신청 티켓 */
+.tickets { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.ticket { background: var(--tangerine-soft); border-radius: 14px; padding: 14px 16px; display: grid; gap: 4px; min-width: 0; text-decoration: none; color: var(--ink); border: 1px dashed var(--tangerine); }
+.ticket .dday { font-family: var(--font-display); font-size: 2rem; line-height: 1; color: var(--tangerine); font-variant-numeric: tabular-nums; }
+.ticket .when { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ticket .t { font-size: 0.92rem; }
+.empty { color: var(--muted); font-size: 0.92rem; margin: 0; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: 0.85rem; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.list { display: grid; gap: 0; border-top: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: 96px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.row > div { min-width: 0; }
+.state { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; border-radius: 6px; padding: 2px 8px; justify-self: start; align-self: start; white-space: nowrap; }
+.s-soon { background: var(--tangerine); color: var(--surface); }
+.s-open { background: var(--sea); color: var(--surface); }
+.s-run { background: var(--sea-soft); color: var(--sea); }
+.s-watch { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+.s-est, .s-past { background: transparent; color: var(--muted); border: 1px dashed var(--line); }
+.row h3 { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.4; }
+.row h3 a { color: inherit; text-decoration: none; }
+.row h3 a:hover { text-decoration: underline; }
+.facts { margin: 4px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 1px 10px; font-size: 0.88rem; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.note { margin: 6px 0 0; font-size: 0.85rem; color: var(--muted); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.tag { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
+
+.found .row { grid-template-columns: 96px 1fr; }
+.src { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+details { font-size: 0.85rem; color: var(--muted); }
+details ul { padding-left: 18px; margin: 6px 0 0; }
+.bad { color: var(--warn); }
+@media (max-width: 520px) {
+  .row, .found .row { grid-template-columns: 1fr; gap: 6px; }
+  header h1 { font-size: 1.6rem; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>제주 아이 행사 알리미</h1>
+    <p>4살 아이와 갈 만한 제주 도서관·체험·공연·체육 프로그램의 신청 날짜를 모았어요. 신청 3일 전, 전날 저녁, 당일 아침에 텔레그램으로 알려 드려요.</p>
+    <div class="meta" id="updated"></div>
+  </header>
+
+  <section aria-labelledby="h-soon">
+    <h2 id="h-soon">다가오는 신청 <span class="count" id="soon-count"></span></h2>
+    <div class="tickets" id="tickets"></div>
+  </section>
+
+  <section aria-labelledby="h-list">
+    <h2 id="h-list">프로그램·행사 <span class="count" id="list-count"></span></h2>
+    <div class="chips" id="chips" role="group" aria-label="분류"></div>
+    <div class="list" id="list" style="margin-top:12px"></div>
+  </section>
+
+  <section aria-labelledby="h-found" class="found">
+    <h2 id="h-found">자동으로 찾은 공고 <span class="count" id="found-count"></span></h2>
+    <p class="note" style="margin:0 0 10px">기관 누리집과 뉴스에서 유아·가족 대상 글을 매일 아침·저녁에 모아요. 날짜는 글에서 자동으로 읽은 것이라 원문을 꼭 확인하세요.</p>
+    <div class="list" id="found"></div>
+  </section>
+
+  <details>
+    <summary>확인하는 곳</summary>
+    <ul id="health"></ul>
+  </details>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null || {
+  updated: "2026-10-11T08:00", health: [],
+  events: [
+    { id: "ex1", title: "예시: 제주도서관 아장아장 책걸음 (4세반)", kind: "dated", categories: ["독서"], place: "제주도서관", age: "4세+보호자", apply_start: "2026-10-08T10:00", event_start: "2026-10-20", event_end: "2026-11-26", url: "https://org.jje.go.kr/lib/index.jje" }
+  ],
+  found: []
+};
+const WD = "일월화수목금토";
+const now = new Date();
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const parse = (s, end) => {
+  if (!s) return null;
+  const d = new Date(s.length <= 10 ? s + (end ? "T23:59:00+09:00" : "T00:00:00+09:00") : s + "+09:00");
+  return isNaN(d) ? null : d;
+};
+const kst = d => new Date(d.getTime() + (9 * 60 + d.getTimezoneOffset()) * 60000);
+const day = d => { const k = kst(d); return `${k.getMonth() + 1}/${k.getDate()}(${WD[k.getDay()]})`; };
+const dt = d => { const k = kst(d); return day(d) + (k.getHours() || k.getMinutes() ? ` ${String(k.getHours()).padStart(2, "0")}:${String(k.getMinutes()).padStart(2, "0")}` : ""); };
+const ddays = d => Math.round((new Date(kst(d).getFullYear(), kst(d).getMonth(), kst(d).getDate()) - today) / 86400000);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function status(ev) {
+  const as = parse(ev.apply_start), ae = parse(ev.apply_end, true);
+  const es = parse(ev.event_start), ee = parse(ev.event_end, true) || (es && parse(ev.event_start, true));
+  if (as && as > now) return { key: "soon", label: `신청 D-${ddays(as) || "day"}`, rank: 0, at: as };
+  if (as && (!ae || ae > now) && (!ee || ee > now) && (!es || es > now)) return { key: "open", label: "접수 중", rank: 1, at: ae || es };
+  if (ev.kind === "estimated") return { key: "est", label: "작년 기준 예상", rank: 5, at: es };
+  if (ev.kind === "watch") return { key: "watch", label: "공고 기다리는 중", rank: 3, at: es };
+  if (ee && ee < now) return { key: "past", label: "지남", rank: 6, at: ee };
+  if (es && es > now) return { key: "run", label: `${day(es)} 시작`, rank: 2, at: es };
+  return { key: "run", label: ev.kind === "ongoing" ? "운영 중" : "진행 중", rank: 2, at: ee };
+}
+
+document.getElementById("updated").textContent = `마지막 갱신 ${DATA.updated.replace("T", " ")} (KST)`;
+
+// 다가오는 신청: 직접 관리 일정 + 자동 감지 날짜
+const soon = [];
+for (const ev of DATA.events) { const d = parse(ev.apply_start); if (d && d > now) soon.push({ d, title: ev.title, url: ev.url, auto: false }); }
+for (const f of DATA.found) { const d = parse(f.apply_start); if (d && d > now) soon.push({ d, title: f.title, url: f.url, auto: true }); }
+soon.sort((a, b) => a.d - b.d);
+document.getElementById("soon-count").textContent = soon.length ? `${soon.length}건` : "";
+document.getElementById("tickets").innerHTML = soon.length ? soon.slice(0, 9).map(s => `
+  <a class="ticket" href="${esc(s.url)}" target="_blank" rel="noopener">
+    <span class="dday">${ddays(s.d) === 0 ? "오늘" : "D-" + ddays(s.d)}</span>
+    <span class="when">${dt(s.d)} 신청 시작</span>
+    <span class="t">${esc(s.title)}${s.auto ? " · 자동 감지" : ""}</span>
+  </a>`).join("") : `<p class="empty">지금 날짜가 확정된 신청 예정은 없어요. 새 공고가 뜨면 텔레그램으로 바로 알려 드려요.</p>`;
+
+// 분류 필터
+const cats = ["전체", ...new Set(DATA.events.flatMap(e => e.categories || []).concat(DATA.found.flatMap(f => f.categories || [])))];
+let pick = "전체";
+try { pick = localStorage.getItem("jk-cat") || "전체"; } catch (e) {}
+if (!cats.includes(pick)) pick = "전체";
+const chips = document.getElementById("chips");
+function drawChips() {
+  chips.innerHTML = cats.map(c => `<button type="button" class="chip" aria-pressed="${c === pick}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+}
+chips.addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  pick = b.dataset.c; try { localStorage.setItem("jk-cat", pick); } catch (err) {}
+  drawChips(); drawList(); drawFound();
+});
+const match = x => pick === "전체" || (x.categories || []).includes(pick);
+
+function drawList() {
+  const evs = DATA.events.filter(match).map(e => ({ e, s: status(e) }))
+    .sort((a, b) => a.s.rank - b.s.rank || (a.s.at || Infinity) - (b.s.at || Infinity));
+  document.getElementById("list-count").textContent = `${evs.length}건`;
+  document.getElementById("list").innerHTML = evs.map(({ e, s }) => {
+    const as = parse(e.apply_start), ae = parse(e.apply_end, true), es = parse(e.event_start), ee = parse(e.event_end);
+    const facts = [
+      ["신청", as ? dt(as) + (ae ? ` ~ ${dt(ae)}` : " 부터 (선착순)") : ""],
+      ["기간", es ? day(es) + (ee ? ` ~ ${day(ee)}` : "") : e.schedule || ""],
+      ["대상", e.age], ["장소", e.place], ["비용", e.fee], ["방법", e.how]
+    ].filter(f => f[1]);
+    if (es && e.schedule) facts.splice(2, 0, ["일정", e.schedule]);
+    return `<article class="row">
+      <span class="state s-${s.key}">${esc(s.label)}</span>
+      <div>
+        <h3>${e.url ? `<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}</a>` : esc(e.title)}</h3>
+        <dl class="facts">${facts.map(f => `<dt>${f[0]}</dt><dd>${esc(f[1])}</dd>`).join("")}</dl>
+        ${e.note ? `<p class="note">${esc(e.note)}</p>` : ""}
+        <div class="tags">${(e.categories || []).map(c => `<span class="tag">${esc(c)}</span>`).join("")}${e.source ? `<a class="tag" href="${esc(e.source)}" target="_blank" rel="noopener">출처</a>` : ""}</div>
+      </div>
+    </article>`;
+  }).join("") || `<p class="empty" style="padding:12px 0">이 분류에는 아직 없어요.</p>`;
+}
+
+function drawFound() {
+  const items = DATA.found.filter(match).slice(0, 60);
+  document.getElementById("found-count").textContent = DATA.found.length ? `${items.length}건` : "";
+  document.getElementById("found").innerHTML = items.map(f => {
+    const as = parse(f.apply_start);
+    return `<article class="row">
+      <span class="src">${esc(f.published)}<br>${esc(f.source)}</span>
+      <div>
+        <h3><a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.title)}</a></h3>
+        ${as ? `<p class="note">신청 시작으로 보이는 날짜: ${dt(as)}</p>` : ""}
+        <div class="tags">${(f.categories || []).map(c => `<span class="tag">${esc(c)}</span>`).join("")}</div>
+      </div>
+    </article>`;
+  }).join("") || `<p class="empty" style="padding:12px 0">첫 수집 전이에요. GitHub Actions가 돌면 여기에 공고가 쌓여요.</p>`;
+}
+
+document.getElementById("health").innerHTML = DATA.health.length
+  ? DATA.health.map(h => `<li class="${h.ok ? "" : "bad"}">${esc(h.name)} — ${h.ok ? `${h.count}건` : "접속 실패"}</li>`).join("")
+  : "<li>아직 수집 기록이 없어요.</li>";
+
+drawChips(); drawList(); drawFound();
+</script>

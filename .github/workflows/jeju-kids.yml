@@ -1,0 +1,86 @@
+name: 제주 아이 행사 알리미
+
+# 매일 아침 6시·저녁 8시(KST)에 제주 기관 누리집·뉴스를 훑어 4살 아이용 새 공고와 신청 시작일을 텔레그램으로 알리고,
+# jeju-kids/site 를 GitHub Pages로 올린다.
+# GitHub 예약 실행은 늦어질 때가 있어 아침에 한 번 더 걸어 둔다. 이미 보낸 알림은 jeju-kids/state/sent.json 으로 걸러져 두 번 가지 않는다.
+on:
+  schedule:
+    - cron: "0 21 * * *"    # 06:00 KST
+    - cron: "40 22 * * *"   # 07:40 KST (아침 예비)
+    - cron: "0 11 * * *"    # 20:00 KST (내일 신청 시작 알림)
+  push:
+    branches: [main]
+    paths:
+      - "jeju-kids/events.json"
+      - "jeju-kids/sources.json"
+      - "jeju-kids/template.html"
+      - "jeju-kids/kids.py"
+  workflow_dispatch:
+    inputs:
+      send:
+        description: 텔레그램으로 전송
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # jeju-kids/state · site 갱신
+  pages: write
+  id-token: write
+
+concurrency:
+  group: jeju-kids
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    timeout-minutes: 10
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      KIDS_TELEGRAM_CHAT_ID: ${{ secrets.KIDS_TELEGRAM_CHAT_ID }}   # 없으면 TELEGRAM_CHAT_ID로 보냄
+      TZ: Asia/Seoul
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install "httpx>=0.27"
+
+      - name: 수집·알림·사이트 생성
+        run: python jeju-kids/kids.py ${{ (github.event_name == 'workflow_dispatch' && !inputs.send) && '--no-send' || '' }}
+
+      - name: 상태 저장
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add jeju-kids/state jeju-kids/site
+          git diff --cached --quiet && exit 0
+          git commit -m "제주 아이 행사 알리미 갱신 $(date '+%Y-%m-%d %H:%M')"
+          for i in 1 2 3 4; do
+            git pull --rebase -X theirs origin main && git push origin HEAD:main && exit 0
+            sleep $((i * 5))
+          done
+          exit 1
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: jeju-kids/site
+
+      - name: GitHub Pages 배포
+        id: pages
+        uses: actions/deploy-pages@v4
+        continue-on-error: true   # Pages를 아직 켜지 않았어도 알림은 계속 동작
+
+      - name: 실패 알림 (텔레그램)
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${KIDS_TELEGRAM_CHAT_ID:-$TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=⚠️ 제주 아이 행사 알리미 실행 실패 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" > /dev/null
