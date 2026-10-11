@@ -95,15 +95,15 @@ def _slim(payload: dict) -> dict:
     }
 
 
-def _push_live(data: str) -> None:
-    """작업 폴더·main은 건드리지 않고, 파일 하나짜리 커밋을 만들어 flow-live 브랜치에 강제 push."""
+def _push_live(data: str, branch: str = LIVE_BRANCH, filename: str = "futures_flow.json") -> None:
+    """작업 폴더·main은 건드리지 않고, 파일 하나짜리 커밋을 만들어 branch(기본 flow-live)에 강제 push."""
     run = lambda args, inp: subprocess.run(["git", *args], cwd=ROOT, input=inp, capture_output=True, timeout=60)
     blob = run(["hash-object", "-w", "--stdin"], data.encode("utf-8")).stdout.decode().strip()
-    tree = run(["mktree"], f"100644 blob {blob}\tfutures_flow.json\n".encode()).stdout.decode().strip()
+    tree = run(["mktree"], f"100644 blob {blob}\t{filename}\n".encode()).stdout.decode().strip()
     res = _git("commit-tree", tree, "-m", "실시간 선물 수급")
     if res.returncode or not blob or not tree:
         raise RuntimeError(f"commit-tree 실패: {res.stderr.strip()[:200]}")
-    res = _git("push", "-f", "-q", "origin", f"{res.stdout.strip()}:refs/heads/{LIVE_BRANCH}")
+    res = _git("push", "-f", "-q", "origin", f"{res.stdout.strip()}:refs/heads/{branch}")
     if res.returncode:
         raise RuntimeError(f"push 실패: {res.stderr.strip()[:200]}")
 
@@ -128,6 +128,44 @@ async def live_loop(get_payload: Callable[[], Awaitable[dict]]) -> None:
                 if logged != today + "err":
                     _log(f"실시간 업로드 실패 {type(exc).__name__}: {exc}")
                     logged = today + "err"
+        await asyncio.sleep(LIVE_SEC)
+
+
+NIGHT_BRANCH = "night-live"
+
+
+def night_window(now) -> bool:
+    """야간장: 월~금 18:00 시작 → 다음날 06:00 종료. (월 18시~토 06시)"""
+    hm = now.strftime("%H:%M")
+    return (now.weekday() < 5 and hm >= "17:55") or (1 <= now.weekday() <= 5 and hm <= "06:05")
+
+
+async def night_loop(get_payload: Callable[[], Awaitable[dict]]) -> None:
+    """야간선물을 1분마다 night-live 브랜치(futures_night.json, 커밋 1개, 매번 덮어씀)에 올린다. 홈 사이트가 읽는다."""
+    if any(os.environ.get(k, "on").lower() in ("off", "0", "false") for k in ("FLOW_UPLOAD", "FLOW_NIGHT")):
+        return
+    logged = ""
+    while True:
+        now = now_kst()
+        if night_window(now):
+            tag = f"{now:%Y%m%d}"
+            try:
+                payload = await get_payload()
+                if payload.get("bars"):
+                    payload["updated"] = now.isoformat(timespec="seconds")
+                    await asyncio.to_thread(_push_live, json.dumps(payload, ensure_ascii=False), NIGHT_BRANCH,
+                                            "futures_night.json")
+                    if logged != tag + "ok":
+                        _log(f"야간선물 업로드 시작 (night-live 브랜치, 1분마다) 받은 봉 {payload.get('n_raw')}개·야간 {len(payload['bars'])}개")
+                        logged = tag + "ok"
+                elif logged != tag + "empty":  # TR이 야간 봉을 안 주는지 확인할 수 있게 하루 한 번 남긴다
+                    _log(f"야간선물 봉 없음 (IVS11560 응답 {payload.get('n_raw')}개 중 18~06시 봉 0개)")
+                    logged = tag + "empty"
+            except Exception as exc:
+                log.warning("야간선물 업로드 실패: %s", exc)
+                if logged != tag + "err":
+                    _log(f"야간선물 업로드 실패 {type(exc).__name__}: {exc}")
+                    logged = tag + "err"
         await asyncio.sleep(LIVE_SEC)
 
 

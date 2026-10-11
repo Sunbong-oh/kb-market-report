@@ -237,6 +237,38 @@ async def futures_minute(kb: KBClient, code: str, minutes: int = 1) -> list[dict
     return sorted(bars, key=lambda b: b["t"])
 
 
+async def futures_night(kb: KBClient, code: str, minutes: int = 5) -> dict:
+    """IVS11560 통합차트 - KOSPI200 선물 분봉 중 가장 최근 야간장(18:00~다음날 06:00)과 직전 주간장 종가.
+
+    {"bars": [{"t": "1800", "c": 사가격}, …], "base": 주간 종가(등락 기준), "n_raw": 받은 봉 수}
+    야간 봉의 dt가 달력 날짜인지 거래일인지 명세에 없어서 dt에 기대지 않는다. 응답 순서(시간순/역순)만 보고
+    '마지막으로 18시 이후 봉이 시작된 덩어리'를 최근 야간장으로 본다.
+    """
+    d = await kb.call(
+        "IVS11560",
+        {"info_ccd": "1", "mkt_clsf": "2", "chrt_clsf": "B", "minute_tck_indx": str(minutes), "is_cd": code,
+         "inq_clsf": "2", "strt_dy": "", "inq_cnt": str(1000 // minutes + 20)},
+        ttl=20,
+    )
+    return night_from_records(find_records(d, "cls_prc_p2"))
+
+
+def night_from_records(recs: list[dict]) -> dict:
+    tm = lambda r: text(r, "tm").zfill(6)
+    if len(recs) >= 2 and text(recs[0], "dt") > text(recs[-1], "dt"):  # 최신순으로 오는 응답 (날짜가 다를 때만 판단)
+        recs = recs[::-1]
+    day = [r for r in recs if "084500" <= tm(r) <= "154500"]
+    night = [r for r in recs if tm(r) >= "180000" or tm(r) < "060000"]
+    base = num(day[-1], "cls_prc_p2") if day else None  # 시간순 마지막 주간봉(15:45)의 종가
+    start = None
+    for i, r in enumerate(night):  # 가장 마지막 '저녁 18시대 시작' 위치
+        if tm(r) >= "180000" and (i == 0 or tm(night[i - 1]) < "180000"):
+            start = i
+    session = night[start:] if start is not None else []
+    bars = [{"t": tm(r)[:4], "c": num(r, "cls_prc_p2")} for r in session]
+    return {"bars": [b for b in bars if b["c"] is not None], "base": base, "n_raw": len(recs)}
+
+
 def overseas_values(summary: dict) -> dict[str, float | None]:
     """IVSA0070 out4에서 해외지수(나스닥 선물 등) 현재값 {"CME@NQ": 30625.25}."""
     return {
