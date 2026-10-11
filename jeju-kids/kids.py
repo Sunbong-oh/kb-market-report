@@ -291,25 +291,31 @@ def enrich(item: dict) -> dict:
 
 
 def reminders(events: list[dict], now: datetime, sent: dict) -> list[tuple[str, str, dict]]:
-    """보낼 알림 (키, 문구, 일정). 실행이 한 번 빠져도 다음 실행에서 놓친 단계를 보낸다."""
+    """보낼 알림 (키, 문구, 일정). 15분마다 실행되므로 단계마다 보내는 시간대를 정해 두고,
+    실행이 늦거나 빠져도 다음 실행에서 놓친 단계를 보낸다. 밤 10시~아침 6시에는 '곧 시작'만 보낸다."""
     out = []
     today = now.date()
+    quiet = now.hour >= 22 or now.hour < 6
     for ev in events:
         start, end = parse_dt(ev.get("apply_start")), parse_dt(ev.get("apply_end"), end=True)
         if start and now < start:
             days = (start.date() - today).days
+            mins = (start - now).total_seconds() / 60
             when = fmt_dt(start)
-            if days == 0:
+            stage = None
+            if mins <= 75:
+                stage, msg = "soon", f"🚨 {start:%H:%M} 신청 시작 ({int(mins)}분 전) — 지금 준비하세요!"
+            elif quiet:
+                pass
+            elif days == 0:
                 stage, msg = "d0", f"⏰ 오늘 {start:%H:%M} 신청 시작" if start.hour else "⏰ 오늘 신청 시작"
-            elif days == 1:
+            elif days == 1 and now.hour >= 19:
                 stage, msg = "d1", f"🔔 내일 {when} 신청 시작 — 알람 맞춰 두세요"
-            elif days <= 3:
+            elif 2 <= days <= 3 and now.hour >= 8:
                 stage, msg = "d3", f"📌 {days}일 뒤 {when} 신청 시작"
-            else:
-                stage = None
             if stage and f"{ev['id']}:{stage}" not in sent:
                 out.append((f"{ev['id']}:{stage}", msg, ev))
-        if end and now < end and (end.date() - today).days <= 1:
+        if end and now < end and (end.date() - today).days <= 1 and not quiet and now.hour >= 8:
             key = f"{ev['id']}:end"
             if key not in sent:
                 out.append((key, f"⌛ 신청 마감 {fmt_dt(end)} — 아직 안 했으면 지금!", ev))
@@ -331,12 +337,18 @@ def describe(ev: dict) -> str:
     return "\n".join(lines)
 
 
+def bot_target() -> tuple[str, str]:
+    """아이 행사 전용 봇(KIDS_TELEGRAM_BOT_TOKEN)이 있으면 그 봇으로, 없으면 장마감 리포트 봇으로 보낸다."""
+    token = os.environ.get("KIDS_TELEGRAM_BOT_TOKEN") or os.environ["TELEGRAM_BOT_TOKEN"]
+    chat = os.environ.get("KIDS_TELEGRAM_CHAT_ID") or os.environ["TELEGRAM_CHAT_ID"]
+    return token, chat
+
+
 def send(text: str, dry: bool) -> None:
     if dry:
         print("── 텔레그램(미전송) ──\n" + re.sub(r"<[^>]+>", "", text) + "\n")
         return
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
-    chat = os.environ.get("KIDS_TELEGRAM_CHAT_ID") or os.environ["TELEGRAM_CHAT_ID"]
+    token, chat = bot_target()
     for i in range(0, len(text), 3800):  # 텔레그램 4096자 제한
         r = httpx.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30, data={
             "chat_id": chat, "text": text[i:i + 3800], "parse_mode": "HTML", "disable_web_page_preview": "true"})
@@ -378,20 +390,28 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-send", action="store_true", help="텔레그램 대신 화면에 출력")
     ap.add_argument("--no-crawl", action="store_true", help="누리집·뉴스 수집 생략")
+    ap.add_argument("--auto", action="store_true", help="수집은 아침 6시·저녁 8시 이후 첫 실행에서만 (15분 간격 실행용)")
     ap.add_argument("--now", help="시각 지정 (테스트용, 예: 2026-10-11T06:00)")
     args = ap.parse_args()
-    dry = args.no_send or not os.environ.get("TELEGRAM_BOT_TOKEN")
+    dry = args.no_send or not (os.environ.get("KIDS_TELEGRAM_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN"))
     now = parse_dt(args.now) if args.now else datetime.now(KST)
     today = now.date()
 
-    events = load_json(ROOT / "events.json", {})["events"]
+    # 직접 관리 일정 + 텔레그램으로 보낸 인스타 게시물 등 (inbox.py가 state/inbox_events.json에 저장)
+    events = load_json(ROOT / "events.json", {})["events"] + load_json(DATA / "inbox_events.json", [])
     seen: dict = load_json(DATA / "seen.json", {})
     sent: dict = load_json(DATA / "sent.json", {})
     health = load_json(DATA / "health.json", [])
     first_run = not seen
 
+    last_crawl = parse_dt(load_json(DATA / "last_crawl.json", {}).get("at"))
+    slots = [datetime(today.year, today.month, today.day, h, tzinfo=KST) for h in (6, 20)]
+    slot = max([s for s in slots if s <= now], default=slots[1] - timedelta(days=1))
+    do_crawl = not args.no_crawl and (not args.auto or last_crawl is None or last_crawl < slot)
+
     new_items = []
-    if not args.no_crawl:
+    if do_crawl:
+        save_json(DATA / "last_crawl.json", {"at": now.isoformat(timespec="minutes")})
         found, health = crawl(load_json(ROOT / "sources.json", {}), today)
         for it in found:
             if it["id"] not in seen:
@@ -425,7 +445,7 @@ def main() -> int:
     for key, msg, ev in due:
         messages.append(f"{msg}\n{describe(ev)}")
 
-    is_monday_morning = now.weekday() == 0 and now.hour < 12
+    is_monday_morning = now.weekday() == 0 and 6 <= now.hour < 12
     if is_monday_morning and f"weekly:{today}" not in sent:
         messages.append(weekly_digest(all_events, now))
 
@@ -445,7 +465,8 @@ def main() -> int:
     save_json(DATA / "sent.json", sent)
     save_json(DATA / "health.json", health)
     build_site({
-        "updated": now.isoformat(timespec="minutes"),
+        # 수집한 시각 기준 → 수집 없는 15분 실행에서는 사이트 파일이 바뀌지 않아 커밋도 생기지 않는다
+        "updated": (now if do_crawl or last_crawl is None else last_crawl).isoformat(timespec="minutes"),
         "events": events,
         "found": sorted(({k: v[k] for k in ("id", "source", "title", "url", "published", "first_seen", "categories", "apply_start", "dates") if k in v}
                          for v in seen.values()), key=lambda x: x.get("first_seen", ""), reverse=True),
