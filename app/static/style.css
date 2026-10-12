@@ -104,8 +104,14 @@ body.report .topbar { display: none; }  /* 제목 띠가 머리글 역할을 한
 
 /* 텔레그램 리포트(?report=1): 매매창(주문·주문내역·모의매매 배지) 제외 */
 body.report .trade-only, body.report .badge.paper, body.report #rule-badge { display: none; }
-/* 리포트는 수치 중심: 분 단위 기록이 필요한 선물·지수 추이 차트는 뺀다 (선물 수급 수치는 '투자자별 순매수'에 있음) */
-body.report .hts, body.report #program-card { display: none; }
+/* 리포트: 프로그램 매매는 뺀다 (선물지수·외국인 선물 교차차트 .hts 는 장마감 수급에 포함) */
+body.report #program-card { display: none; }
+/* 리포트의 투자자별 순매수: 수치 글자를 크게 */
+body.report #investors .bar-row { grid-template-columns: 64px 1fr 96px; font-size: 15px; }
+body.report #investors .bar-row .val { font-size: 19px; font-weight: 800; }
+body.report #investors .inv-cols.pair .bar-row { grid-template-columns: 48px 1fr 62px; font-size: 13.5px; }
+body.report #investors .inv-cols.pair .bar-row .val { font-size: 17px; }
+body.report .hts .fut-head .price { font-size: 26px; }
 
 /* 강세 테마 · 등락 종목수 */
 .theme-lead { margin: 0 0 6px; padding: 10px 12px; background: var(--bg); border-radius: 10px; font-size: 14px; line-height: 1.5; }
