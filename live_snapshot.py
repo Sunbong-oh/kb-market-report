@@ -155,6 +155,23 @@ def save_archive(snap: dict, t: datetime) -> bool:
     return False
 
 
+def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
+    """KB 응답이 가끔 비거나 짧게 오면(예: 코스닥 분봉 0개) 화면 차트가 빈다 → 직전 스냅샷 값을 이어 쓴다."""
+    if not remote or remote.get("date") != today:
+        return
+    old = remote.get("data") or {}
+    for k, v in old.items():
+        if k not in snap:
+            snap[k] = v
+    new_ix, old_ix = snap.get("/api/indices/intraday") or {}, old.get("/api/indices/intraday") or {}
+    for code, prev in old_ix.items():
+        cur = new_ix.get(code) or {}
+        if len(cur.get("points") or []) < len(prev.get("points") or []):
+            new_ix[code] = prev
+    if new_ix:
+        snap["/api/indices/intraday"] = new_ix
+
+
 def main() -> None:
     began = now()
     if began.weekday() >= 5 or began.strftime("%H:%M") > END:
@@ -176,6 +193,7 @@ def main() -> None:
                 if not seeded:
                     flows, seeded = seed_flows(remote, today), True
                     print("이어 받은 분 단위 기록:", len(flows))
+                keep_previous(snap, remote, today)
                 record_flows(snap, flows, t)
                 if not archived and t.strftime("%H%M") > "1546" and has_today(snap, today):
                     archived = save_archive(snap, t)
