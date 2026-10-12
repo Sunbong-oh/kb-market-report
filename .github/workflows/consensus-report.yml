@@ -1,0 +1,80 @@
+name: 목표주가 변동 리포트
+
+# 평일 아침 한경 컨센서스에 올라온 기업 리포트의 목표주가 상향·하향을 정리해 텔레그램으로 보낸다.
+# GitHub 예약(schedule)은 늦어지는 일이 있어 여러 번 걸어 두고, 그날 이미 보냈으면(consensus/날짜.md) 건너뛴다.
+# 수동 실행(workflow_dispatch)은 언제든 다시 보내며, 날짜를 지정하면 그날 리포트를 정리한다.
+on:
+  schedule:
+    - cron: "40 23 * * 0-4"   # 08:40 KST (월~금)
+    - cron: "10 0 * * 1-5"    # 09:10
+    - cron: "40 0 * * 1-5"    # 09:40
+  workflow_dispatch:
+    inputs:
+      day:
+        description: "정리할 날짜 (YYYY-MM-DD, 비우면 오늘)"
+        type: string
+        default: ""
+      send:
+        description: 텔레그램으로 전송
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # consensus/ 갱신
+
+concurrency:
+  group: consensus-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: 오늘 이미 보냈는지 확인
+        id: gate
+        run: |
+          day=$(TZ=Asia/Seoul date +%F)
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ -f "consensus/$day.md" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "이미 발송됨 → 건너뜀"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          python-version: "3.13"
+
+      - name: 패키지 설치
+        if: steps.gate.outputs.skip != 'true'
+        run: pip install httpx python-dotenv beautifulsoup4
+
+      - name: git 사용자 설정
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config core.quotepath false
+
+      - name: 리포트 생성·전송
+        if: steps.gate.outputs.skip != 'true'
+        run: >
+          python consensus_report.py
+          ${{ inputs.day && format('--date {0}', inputs.day) || '' }}
+          ${{ (github.event_name == 'workflow_dispatch' && !inputs.send) && '--no-send' || '' }}
+
+      - name: 실패 알림 (텔레그램)
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            --data-urlencode chat_id="$TELEGRAM_CHAT_ID" \
+            --data-urlencode text="⚠️ 목표주가 변동 리포트 실패 (GitHub Actions) $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > /dev/null
