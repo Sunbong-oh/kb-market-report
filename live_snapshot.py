@@ -97,9 +97,12 @@ def pc_active(remote: dict | None, t: datetime) -> bool:
     return (t.hour * 60 + t.minute) - (hh * 60 + mm) <= 3
 
 
-def push(data: str, keep_rows: list[str]) -> None:
-    blob = git("hash-object", "-w", "--stdin", inp=data.encode("utf-8")).stdout.decode().strip()
-    rows = "".join(r + "\n" for r in keep_rows) + f"100644 blob {blob}\tsnapshot.json\n"
+def push(data: str, keep_rows: list[str], extra: dict | None = None) -> None:
+    files = {"snapshot.json": data, **(extra or {})}
+    rows = "".join(r + "\n" for r in keep_rows if r.split("\t")[-1] not in files)
+    for name, body in files.items():
+        blob = git("hash-object", "-w", "--stdin", inp=body.encode("utf-8")).stdout.decode().strip()
+        rows += f"100644 blob {blob}\t{name}\n"
     tree = git("mktree", inp=rows.encode()).stdout.decode().strip()
     commit = git("commit-tree", tree, "-m", "실시간 수급 (Actions)").stdout.decode().strip()
     res = git("push", "-f", "-q", "origin", f"{commit}:refs/heads/{BRANCH}")
@@ -155,6 +158,74 @@ def save_archive(snap: dict, t: datetime) -> bool:
     return False
 
 
+NAVER = "https://m.stock.naver.com/api/stocks/industry"
+NAVER_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0 Safari/537.36",
+                 "Referer": "https://m.stock.naver.com/"}
+
+
+def _num(v) -> float | None:
+    try:
+        return float(str(v).replace(",", "").replace("+", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _pct(s: dict) -> float | None:
+    pct = _num(s.get("fluctuationsRatio"))
+    if pct is not None and pct > 0 and (s.get("compareToPreviousPrice") or {}).get("name") in ("FALLING", "LOWER_LIMIT"):
+        pct = -pct
+    return pct
+
+
+def _market(s: dict) -> str:
+    ex = s.get("stockExchangeType") or {}
+    code = str(ex.get("code") or ex.get("nameEng") or s.get("stockExchangeName") or s.get("sosok") or "").upper()
+    if code in ("KS", "KOSPI", "0", "KOSPI200"):
+        return "kospi"
+    if code in ("KQ", "KOSDAQ", "1"):
+        return "kosdaq"
+    return ""
+
+
+_logged = False
+
+
+def market_map(per_sector: int = 30) -> dict | None:
+    """네이버 증권 업종(섹터)별 종목 등락 → 사이트 '맵'(트리맵). 시장별로 업종 안 종목을 시가총액 순으로."""
+    global _logged
+    try:
+        with httpx.Client(headers=NAVER_HEADERS, timeout=10, follow_redirects=True) as http:
+            groups = http.get(NAVER, params={"page": 1, "pageSize": 100}).json().get("groups", [])
+            out = {"kospi": [], "kosdaq": []}
+            for g in groups:
+                try:
+                    stocks = http.get(f"{NAVER}/{g['no']}", params={"page": 1, "pageSize": 100}).json().get("stocks", [])
+                except Exception:
+                    continue
+                if stocks and not _logged:
+                    print("  맵 종목 필드:", {k: stocks[0][k] for k in list(stocks[0])[:25]}, flush=True)
+                    _logged = True
+                by = {"kospi": [], "kosdaq": []}
+                for st in stocks:
+                    mk, pct, cap = _market(st), _pct(st), _num(st.get("marketValue"))
+                    if mk and pct is not None:
+                        by[mk].append({"n": st.get("stockName"), "p": round(pct, 2), "v": cap or 0})
+                for mk, rows in by.items():
+                    if not rows:
+                        continue
+                    rows.sort(key=lambda r: r["v"], reverse=True)
+                    tot = sum(r["v"] for r in rows) or 0
+                    pct = (sum(r["p"] * r["v"] for r in rows) / tot) if tot else sum(r["p"] for r in rows) / len(rows)
+                    out[mk].append({"s": g.get("name"), "p": round(pct, 2), "v": tot, "st": rows[:per_sector]})
+            for mk in out:
+                out[mk].sort(key=lambda r: r["v"], reverse=True)
+            print("  맵:", {k: (len(v), sum(len(x["st"]) for x in v)) for k, v in out.items()}, flush=True)
+            return out if out["kospi"] or out["kosdaq"] else None
+    except Exception as e:
+        print("  맵 실패:", type(e).__name__, e, flush=True)
+        return None
+
+
 def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
     """KB 응답이 가끔 비거나 짧게 오면(예: 코스닥 분봉 0개) 화면 차트가 빈다 → 직전 스냅샷 값을 이어 쓴다."""
     if not remote or remote.get("date") != today:
@@ -193,6 +264,11 @@ def main() -> None:
                 if not seeded:
                     flows, seeded = seed_flows(remote, today), True
                     print("이어 받은 분 단위 기록:", len(flows))
+                extra = {}
+                if t.minute % 5 == 0 or not any(r.endswith("\tmap.json") for r in keep):
+                    m = market_map()
+                    if m:  # 맵은 따로 map.json (용량이 커서 1분마다 받는 snapshot.json과 나눈다)
+                        extra["map.json"] = json.dumps({"date": today, "time": hm, "data": m}, ensure_ascii=False)
                 keep_previous(snap, remote, today)
                 record_flows(snap, flows, t)
                 if not archived and t.strftime("%H%M") > "1546" and has_today(snap, today):
@@ -202,7 +278,7 @@ def main() -> None:
                 elif pc_active(remote, t):
                     print(hm, "회사 PC가 올리는 중 → 건너뜀")
                 else:
-                    push(json.dumps({"date": today, "time": hm, "source": "gh", "data": snap}, ensure_ascii=False), keep)
+                    push(json.dumps({"date": today, "time": hm, "source": "gh", "data": snap}, ensure_ascii=False), keep, extra)
                     print(hm, "업로드", len(snap), "개 항목")
             time.sleep(max(5, 60 - now().second))
     finally:
