@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from . import demo, market, themes
 from .config import settings
-from .flow_upload import backfill, live_loop, night_loop, upload_loop
+from .flow_upload import backfill, live_loop, upload_loop
 from .futures_flow import FuturesFlowStore, record_loop
 from .kb_client import KBApiError, KBClient
 from .report_schedule import report_loop
@@ -51,7 +51,6 @@ async def lifespan(_: FastAPI):
         tasks.append(asyncio.create_task(report_loop()))  # 월~금 15:50 텔레그램 리포트
         tasks.append(asyncio.create_task(upload_loop(lambda: get_futures(1))))  # 15:46 선물 기록 → GitHub (사이트 차트)
         tasks.append(asyncio.create_task(live_loop(lambda: get_futures(1))))  # 장중 1분마다 → flow-live (실시간 차트)
-        tasks.append(asyncio.create_task(night_loop(lambda: get_futures_night())))  # 평일 18:00~다음날 06:00 야간선물 → night-live
         tasks.append(asyncio.create_task(backfill(flow_store.series)))  # 켤 때 한 번: DB에 남은 지난 날짜(예: 10/8) 업로드
     tasks.append(asyncio.create_task(fill_loop()))  # 지정가 미체결 주문 체결·장마감 취소
     # 텔레그램 봇 주문: .env에 봇 토큰·채팅 ID가 있으면 켠다
@@ -174,17 +173,6 @@ async def get_futures(minutes: int = 1):
         "current_flows": market.investor_futures(summary),
         "recording": not settings.demo_mode,
     }
-
-
-@app.get("/api/futures_night")
-async def get_futures_night():
-    """KOSPI200 최근월 선물의 가장 최근 야간장(18:00~06:00) 5분봉 + 직전 주간 종가."""
-    summary = await kb.call("IVSA0070")
-    fut = market.front_futures(summary)
-    if not fut:
-        raise HTTPException(502, "IVSA0070 응답에서 KOSPI200 선물을 찾지 못했습니다.")
-    night = await market.futures_night(kb, fut["code"], 5)
-    return {"futures": {"name": fut["name"], "code": fut["code"]}, **night}
 
 
 # -------------------------------------------------------------- 모의매매
