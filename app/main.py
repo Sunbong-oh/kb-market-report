@@ -50,7 +50,7 @@ async def lifespan(_: FastAPI):
         tasks.append(asyncio.create_task(record_loop(kb, flow_store)))
         tasks.append(asyncio.create_task(report_loop()))  # 월~금 15:50 텔레그램 리포트
         tasks.append(asyncio.create_task(upload_loop(lambda: get_futures(1))))  # 15:46 선물 기록 → GitHub (사이트 차트)
-        tasks.append(asyncio.create_task(live_loop(lambda: get_futures(1))))  # 장중 1분마다 → flow-live (실시간 차트)
+        tasks.append(asyncio.create_task(live_loop(live_snapshot)))  # 평일 08~16시 1분마다 → flow-live (사이트 실시간 수급)
         tasks.append(asyncio.create_task(backfill(flow_store.series)))  # 켤 때 한 번: DB에 남은 지난 날짜(예: 10/8) 업로드
     tasks.append(asyncio.create_task(fill_loop()))  # 지정가 미체결 주문 체결·장마감 취소
     # 텔레그램 봇 주문: .env에 봇 토큰·채팅 ID가 있으면 켠다
@@ -173,6 +173,17 @@ async def get_futures(minutes: int = 1):
         "current_flows": market.investor_futures(summary),
         "recording": not settings.demo_mode,
     }
+
+
+async def live_snapshot() -> dict:
+    """사이트 '실시간 수급'용: 리포트 화면이 쓰는 API 응답 묶음 (report.py 스냅샷과 같은 키)."""
+    calls = {
+        "/api/status": status(), "/api/market": get_market(), "/api/macro": get_macro(),
+        "/api/indices/intraday": get_indices_intraday(), "/api/themes": get_themes(),
+        "/api/futures?minutes=1": get_futures(1),
+    }
+    res = await asyncio.gather(*calls.values(), return_exceptions=True)
+    return {k: v for k, v in zip(calls, res) if not isinstance(v, BaseException)}
 
 
 # -------------------------------------------------------------- 모의매매
