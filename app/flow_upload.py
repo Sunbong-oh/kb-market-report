@@ -5,8 +5,8 @@ GitHub Actions에는 없다. 평일 15:46 이후 한 번, /api/futures 와 같�
 (KOSPI200 선물 1분봉 + 투자자별 선물 순매수 누적)을 archive/YYYY-MM-DD/futures_flow.json 으로
 저장해 main 브랜치에 push 한다. market-dashboard 사이트가 이 파일로 차트를 그린다.
 
-장중(평일 08:46~15:50)에는 live_loop가 1분마다 같은 내용을 flow-live 브랜치(커밋 1개, 매번 덮어씀)에
-올려 사이트가 실시간 차트를 그린다. main 기록은 늘지 않는다.
+평일 08:00~16:00에는 live_loop가 1분마다 화면 데이터 묶음(snapshot.json)과 선물 기록(futures_flow.json)을
+flow-live 브랜치(커밋 1개, 매번 덮어씀)에 올려 사이트가 실시간 수급·차트를 보여 준다. main 기록은 늘지 않는다.
 
 FLOW_UPLOAD=off 이면 둘 다 끈다. FLOW_LIVE=off 이면 실시간만 끈다. 결과는 reports/report.log.
 """
@@ -95,36 +95,48 @@ def _slim(payload: dict) -> dict:
     }
 
 
-def _push_live(data: str) -> None:
-    """작업 폴더·main은 건드리지 않고, 파일 하나짜리 커밋을 만들어 flow-live 브랜치에 강제 push."""
+def _push_live(files: dict[str, str]) -> None:
+    """작업 폴더·main은 건드리지 않고, 파일 몇 개짜리 커밋을 만들어 flow-live 브랜치에 강제 push."""
     run = lambda args, inp: subprocess.run(["git", *args], cwd=ROOT, input=inp, capture_output=True, timeout=60)
-    blob = run(["hash-object", "-w", "--stdin"], data.encode("utf-8")).stdout.decode().strip()
-    tree = run(["mktree"], f"100644 blob {blob}\tfutures_flow.json\n".encode()).stdout.decode().strip()
-    res = _git("commit-tree", tree, "-m", "실시간 선물 수급")
-    if res.returncode or not blob or not tree:
+    rows = ""
+    for name, data in sorted(files.items()):
+        blob = run(["hash-object", "-w", "--stdin"], data.encode("utf-8")).stdout.decode().strip()
+        if not blob:
+            raise RuntimeError(f"hash-object 실패: {name}")
+        rows += f"100644 blob {blob}\t{name}\n"
+    tree = run(["mktree"], rows.encode()).stdout.decode().strip()
+    res = _git("commit-tree", tree, "-m", "실시간 수급")
+    if res.returncode or not tree:
         raise RuntimeError(f"commit-tree 실패: {res.stderr.strip()[:200]}")
     res = _git("push", "-f", "-q", "origin", f"{res.stdout.strip()}:refs/heads/{LIVE_BRANCH}")
     if res.returncode:
         raise RuntimeError(f"push 실패: {res.stderr.strip()[:200]}")
 
 
-async def live_loop(get_payload: Callable[[], Awaitable[dict]]) -> None:
+async def live_loop(get_snapshot: Callable[[], Awaitable[dict]]) -> None:
+    """평일 08:00~16:00 1분마다 flow-live 브랜치에 올린다.
+    - snapshot.json: 화면 API 응답 묶음(지수·투자자별 순매수·테마·선물 등) → 사이트 '실시간 수급'
+    - futures_flow.json: 오늘 선물·외국인 분 단위 기록(있을 때) → 사이트 실시간 교차차트"""
     if any(os.environ.get(k, "on").lower() in ("off", "0", "false") for k in ("FLOW_UPLOAD", "FLOW_LIVE")):
         return
     logged = ""  # 성공·실패 로그는 하루 한 번씩만 (1분마다 쌓이지 않게)
     while True:
         now = now_kst()
         today = now.strftime("%Y%m%d")
-        if now.weekday() < 5 and "08:46" <= now.strftime("%H:%M") <= "15:50":
+        if now.weekday() < 5 and "08:00" <= now.strftime("%H:%M") <= "16:00":
             try:
-                payload = await get_payload()
-                if payload.get("flow_date") == today and payload.get("flows"):
-                    await asyncio.to_thread(_push_live, json.dumps(_slim(payload), ensure_ascii=False))
-                    if not logged.startswith(today + "ok"):
-                        _log("실시간 업로드 시작 (flow-live 브랜치, 1분마다)")
-                        logged = today + "ok"
+                snap = await get_snapshot()
+                files = {"snapshot.json": json.dumps({"date": today, "time": f"{now:%H:%M}", "data": snap},
+                                                     ensure_ascii=False)}
+                fut = snap.get("/api/futures?minutes=1") or {}
+                if fut.get("flow_date") == today and fut.get("flows"):
+                    files["futures_flow.json"] = json.dumps(_slim(fut), ensure_ascii=False)
+                await asyncio.to_thread(_push_live, files)
+                if not logged.startswith(today + "ok"):
+                    _log("실시간 업로드 시작 (flow-live 브랜치, 1분마다)")
+                    logged = today + "ok"
             except Exception as exc:
-                log.warning("실시간 선물 기록 업로드 실패: %s", exc)
+                log.warning("실시간 수급 업로드 실패: %s", exc)
                 if logged != today + "err":
                     _log(f"실시간 업로드 실패 {type(exc).__name__}: {exc}")
                     logged = today + "err"
