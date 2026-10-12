@@ -50,6 +50,20 @@ def _lines(day: dict) -> list[str]:
     return out
 
 
+def _week_rest(today: date, tomorrow: date) -> tuple[str, list[tuple[str, list[str]]]]:
+    """내일 다음 날부터 그 주 금요일까지 거래일별 일정(모든 항목을 한 줄로). 다음 주로 넘어가면 '다음 주 일정'."""
+    title = "금주의 일정" if tomorrow.isocalendar()[:2] == today.isocalendar()[:2] else "다음 주 일정"
+    rows, d = [], tomorrow + timedelta(days=1)
+    while d.weekday() < 5:
+        if not _is_holiday(d):
+            day = _day(d)
+            vals = [v for key, _ in FIELDS for v in day.get(key) or []]
+            if vals:
+                rows.append((f"{d.month}/{d.day} {'월화수목금토일'[d.weekday()]}", vals))  # 사진 라벨은 괄호 앞만 쓰므로 괄호 없이
+        d += timedelta(days=1)
+    return title, rows
+
+
 def build_data(now: datetime) -> dict:
     """사진·본문이 함께 쓰는 구조화 자료: {'tonight': [(라벨, [항목])], 'tomorrow': {...} | None}."""
     today = now.date()
@@ -66,6 +80,7 @@ def build_data(now: datetime) -> dict:
         "today": f"{today.month}월 {today.day}일({'월화수목금토일'[today.weekday()]})",
         "tonight": items(_day(today)),
         "tomorrow": {"label": label, "items": nxt} if (nxt or _month(tomorrow)) else None,
+        "week": _week_rest(today, tomorrow),
     }
 
 
@@ -83,13 +98,15 @@ def _rows_html(items: list[tuple[str, list[str]]]) -> str:
 def render_image(now: datetime, path: Path) -> Path | None:
     """오늘 저녁 발표·내일 일정을 사진(JPG)으로 만든다. 캘린더 자료가 없으면 None."""
     data = build_data(now)
-    if not data["tonight"] and not data["tomorrow"]:
+    if not data["tonight"] and not data["tomorrow"] and not data["week"][1]:
         return None
     sections = ""
     if data["tonight"]:
         sections += f'<section><h2>오늘 저녁 발표 실적·주요 이슈 <small>{data["today"]}</small></h2>{_rows_html(data["tonight"])}</section>'
     if data["tomorrow"]:
         sections += f'<section><h2>내일 일정 <small>{html.escape(data["tomorrow"]["label"])}</small></h2>{_rows_html(data["tomorrow"]["items"])}</section>'
+    if data["week"][1]:
+        sections += f'<section><h2>{data["week"][0]}</h2>{_rows_html(data["week"][1])}</section>'
     page_html = f"""<!doctype html><html lang="ko"><meta charset="utf-8"><style>
 body{{margin:0;padding:14px;width:452px;background:#f4f5f7;color:#1b1f24;font-family:"Malgun Gothic","Noto Sans CJK KR","Apple SD Gothic Neo",sans-serif}}
 h1{{margin:0 0 10px;font-size:17px}}h1 small{{color:#7a828c;font-weight:400;font-size:12px;margin-left:6px}}
@@ -131,6 +148,9 @@ def build_section(now: datetime) -> list[str]:
         if tomorrow != today + timedelta(days=1):
             label += " · 다음 거래일"
         lines += ["", f"■ 내일 일정 · {label}", *(nxt or ["- 주요 일정 없음"])]
+    title, week = _week_rest(today, tomorrow)
+    if week:
+        lines += ["", f"■ {title}", *(f"- {lab}: " + " · ".join(vals) for lab, vals in week)]
     if lines:
         lines += ["(★ 핵심 · 증시 캘린더 기준, 해외 일정은 현지시각이며 변경될 수 있습니다)"]
     return lines
