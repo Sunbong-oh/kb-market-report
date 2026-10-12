@@ -12,7 +12,10 @@
 from __future__ import annotations
 
 import asyncio
+import html
+import re
 import time
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -73,6 +76,103 @@ async def _naver_themes(count: int, leaders: int) -> list[dict]:
         return list(await asyncio.gather(*(detail(g) for g in groups)))
 
 
+# ---- 이슈 테마: 네이버 고정 테마 목록에 없는 그날의 재료(예: '호남 반도체 클러스터')를 잡는다 ----
+# 오늘 급등주들의 네이버 종목 뉴스에서 '같은 기사'가 여러 종목에 함께 묶여 있으면 하나의 이슈로 본다.
+UP = "https://m.stock.naver.com/api/stocks/up/{}"
+NEWS = "https://m.stock.naver.com/api/news/stock/{}"
+KST = timezone(timedelta(hours=9))
+SKIP_NAME = re.compile(r"ETN|ETF|인버스|레버리지|스팩|KODEX|TIGER|RISE|ACE|SOL|PLUS|HANARO|KOSEF")
+SKIP_TITLE = re.compile(r"시황|마감|서울데이터랩|오늘의 메모|공시|장 초반|거래상위|상승률 1위|코스피\s?[\d,]+|코스닥\s?[\d,]+")
+MIN_PCT, MIN_CAP = 7.0, 300  # 등락률 %, 시가총액(억원)
+
+
+def _label(title: str) -> str:
+    """기사 제목에서 이슈 이름: 따옴표 안 말을 우선, 없으면 '…' 앞부분."""
+    for q in re.findall(r"['‘\"“]([^'’\"”]{4,24})['’\"”]", title):
+        if not re.search(r"상한가|불기둥|폭등|급등|이 종목", q):
+            return q.strip()
+    head = re.split(r"[…·,]|\.\.\.", title)[0]
+    head = re.sub(r"\[[^\]]*\]", "", head).strip()
+    return head[:24]
+
+
+async def _issues(http: httpx.AsyncClient, limit: int = 3) -> list[dict]:
+    today = datetime.now(KST).strftime("%Y%m%d")
+    risers = []
+    for mk in ("KOSPI", "KOSDAQ"):
+        try:
+            r = await http.get(UP.format(mk), params={"page": 1, "pageSize": 40})
+            r.raise_for_status()
+            for s in r.json().get("stocks", []):
+                pct, cap = _stock_pct(s), _f(s.get("marketValue"))
+                if pct is not None and pct >= MIN_PCT and (cap or 0) >= MIN_CAP and not SKIP_NAME.search(s.get("stockName", "")):
+                    risers.append({"name": s.get("stockName"), "code": s.get("itemCode"), "change_pct": pct})
+        except Exception:
+            continue
+    sem = asyncio.Semaphore(8)
+
+    async def news(st: dict) -> list[tuple[str, str]]:
+        async with sem:
+            try:
+                r = await http.get(NEWS.format(st["code"]), params={"page": 1, "pageSize": 10})
+                data = r.json()
+            except Exception:
+                return []
+        rows = []
+        for g in data if isinstance(data, list) else [data]:
+            if isinstance(g, dict):
+                rows += g.get("items") or ([g] if "title" in g else [])
+        out = []
+        for it in rows:
+            t = html.unescape(re.sub(r"<[^>]+>", "", str(it.get("title") or ""))).strip()
+            if t and str(it.get("datetime", "")).startswith(today) and not SKIP_TITLE.search(t):
+                link = (f"https://n.news.naver.com/mnews/article/{it['officeId']}/{it['articleId']}"
+                        if it.get("officeId") and it.get("articleId") else "")
+                out.append((t, link))
+        return out
+
+    heads = await asyncio.gather(*(news(s) for s in risers))
+    by_title: dict[str, list[int]] = {}
+    links: dict[str, str] = {}
+    for i, hs in enumerate(heads):
+        for t, link in hs:
+            by_title.setdefault(t, [])
+            if i not in by_title[t]:
+                by_title[t].append(i)
+            links.setdefault(t, link)
+    # 같은 기사로 묶인 종목끼리 합친다 (union-find)
+    parent = list(range(len(risers)))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for t, idx in by_title.items():
+        if 2 <= len(idx) <= 8:
+            for j in idx[1:]:
+                parent[find(j)] = find(idx[0])
+    groups: dict[int, list[int]] = {}
+    for i in range(len(risers)):
+        groups.setdefault(find(i), []).append(i)
+    out = []
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        shared = [(len(set(idx) & set(members)), t) for t, idx in by_title.items() if len(set(idx) & set(members)) >= 2]
+        if not shared:
+            continue
+        shared.sort(key=lambda x: (-x[0], len(x[1])))
+        title = shared[0][1]
+        stocks = sorted((risers[i] for i in members), key=lambda s: s["change_pct"], reverse=True)
+        out.append({"name": _label(title), "headline": title, "url": links.get(title) or None,
+                    "change_pct": round(sum(s["change_pct"] for s in stocks) / len(stocks), 2),
+                    "stocks": stocks[:6]})
+    out.sort(key=lambda g: (len(g["stocks"]), g["change_pct"]), reverse=True)
+    return out[:limit]
+
+
 async def top_themes(kb: KBClient, count: int = 5, leaders: int = 3) -> dict:
     """{"source": "naver" | "kb", "themes": [{name, change_pct, total, rise, fall, steady, leaders[]}]}"""
     global _cache
@@ -83,6 +183,11 @@ async def top_themes(kb: KBClient, count: int = 5, leaders: int = 3) -> dict:
         if not themes:
             raise RuntimeError("테마 목록이 비어 있음")
         result = {"source": "naver", "themes": themes}
+        try:
+            async with httpx.AsyncClient(headers=HEADERS, timeout=10, follow_redirects=True) as http:
+                result["issues"] = await _issues(http)
+        except Exception:
+            result["issues"] = []
     except Exception:
         # 대체: KB 업종랭킹 (테마 분류는 아니지만 강세 업종)
         s = await market.sector_top(kb)
