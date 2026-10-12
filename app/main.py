@@ -131,7 +131,12 @@ async def get_market():
 @app.get("/api/macro")
 async def get_macro():
     """원/달러 환율 + 국고채 10년물 금리."""
-    usd, bond = await asyncio.gather(market.usd_krw(kb), market.treasury_10y(kb))
+    usd, bond, live = await asyncio.gather(market.usd_krw(kb), market.treasury_10y(kb), market.treasury_10y_live(),
+                                           return_exceptions=True)
+    usd, bond, live = [None if isinstance(x, BaseException) else x for x in (usd, bond, live)]
+    # 장중엔 네이버 실시간 값(오늘 날짜), 없거나 더 오래됐으면 IVA10370 일별 값
+    if live and (not bond or live.get("date", "") >= str(bond.get("date", ""))):
+        bond = live
     return {"usd_krw": usd, "treasury_10y": bond}
 
 

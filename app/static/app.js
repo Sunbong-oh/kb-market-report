@@ -181,7 +181,8 @@ async function loadMacro() {
     $("#usdkrw").innerHTML = u
       ? `<div class="v ${cls(u.change)}">${fmt(u.rate, 2)}</div><div class="${cls(u.change)}">${arrow(u.change)} ${fmt(Math.abs(u.change ?? 0), 2)} (${signed(u.change_pct, 2)}%)</div>`
       : `<div class="empty">데이터 없음</div>`;
-    $("#bond-date").textContent = b && b.date ? `IVA10370 · ${ymd(b.date)}` : "IVA10370";
+    $("#bond-date").textContent = b && b.source === "naver" ? `네이버 · ${ymd(b.date)} ${b.time || ""}`
+      : b && b.date ? `IVA10370 · ${ymd(b.date)}` : "IVA10370";
     $("#tsy10").innerHTML = b
       ? `<div class="v ${cls(b.change)}">${fmt(b.yield, 3)}%</div><div class="${cls(b.change)}">${arrow(b.change)} ${bondMove(b)}</div>`
       : `<div class="empty">데이터 없음</div>`;
