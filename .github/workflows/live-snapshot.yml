@@ -1,0 +1,45 @@
+name: 실시간 수급 (장중)
+
+# 평일 08:00~16:05 KST, 1분마다 리포트 화면 데이터를 flow-live/snapshot.json 에 올린다 (live_snapshot.py).
+# 회사 PC 서버가 켜져 있으면 PC가 올리고(선물 분 단위 기록 포함), 이 작업은 그동안 건너뛴다.
+# GitHub 예약 실행은 늦어질 수 있어 여러 번 걸어 둔다. 한 번에 한 작업만 돌고(concurrency),
+# 한 작업은 최대 5시간 45분이라 끝나면 대기 중인 다음 예약이 이어서 돈다. 16:05 이후 시작된 작업은 바로 끝난다.
+on:
+  schedule:
+    - cron: "50 22 * * 0-4"   # 07:50 KST (월~금)
+    - cron: "30 0 * * 1-5"    # 09:30
+    - cron: "0 2 * * 1-5"     # 11:00
+    - cron: "0 4 * * 1-5"     # 13:00
+    - cron: "30 5 * * 1-5"    # 14:30
+  workflow_dispatch:
+
+permissions:
+  contents: write   # flow-live 브랜치 갱신
+
+concurrency:
+  group: live-snapshot
+  cancel-in-progress: false
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
+      KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
+      REPORT_ONLY: "1"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - run: python live_snapshot.py
