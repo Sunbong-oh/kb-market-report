@@ -11,6 +11,10 @@ on:
     - cron: "0 2 * * 1-5"     # 11:00
     - cron: "0 4 * * 1-5"     # 13:00
     - cron: "30 5 * * 1-5"    # 14:30
+  # Claude 루틴이 평일 07:50(KST)에 trigger-live/request.txt 를 main에 push → 예약 지연 없이 바로 시작
+  push:
+    branches: [main]
+    paths: ["trigger-live/**"]
   workflow_dispatch:
 
 permissions:
