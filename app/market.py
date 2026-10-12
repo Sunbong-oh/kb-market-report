@@ -322,6 +322,49 @@ async def usd_krw(kb: KBClient) -> dict | None:
     return None
 
 
+BOND_URLS = (  # 네이버 증권 국고채 10년(KR10YT=RR) 실시간 - 앞의 주소가 안 되면 다음 주소
+    "https://api.stock.naver.com/marketindex/bond/KR10YT=RR",
+    "https://m.stock.naver.com/front-api/marketIndex/productDetail?category=bond&reutersCode=KR10YT=RR",
+)
+
+
+def _f(v) -> float | None:
+    try:
+        return float(str(v).replace(",", "").replace("+", "")) if v not in (None, "") else None
+    except ValueError:
+        return None
+
+
+async def treasury_10y_live() -> dict | None:
+    """국고채 10년물 장중 금리 (네이버 증권). IVA10370은 하루 늦게 나오는 일별 자료라 장중엔 이것을 쓴다."""
+    import httpx  # 지연 import: KB 전용 실행에는 필요 없음
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0 Safari/537.36",
+               "Referer": "https://m.stock.naver.com/"}
+    async with httpx.AsyncClient(headers=headers, timeout=8, follow_redirects=True) as http:
+        for url in BOND_URLS:
+            try:
+                j = (await http.get(url)).json()
+            except Exception as exc:
+                print("국고채 10년 실시간 실패:", url, type(exc).__name__, flush=True)
+                continue
+            r = j.get("result", j) if isinstance(j, dict) else {}
+            if isinstance(r, list):
+                r = r[0] if r else {}
+            y = next((_f(r.get(k)) for k in ("closePrice", "nowVal", "tradePrice", "price") if _f(r.get(k)) is not None), None)
+            if y is None:
+                print("국고채 10년 실시간: 값 없음", url, str(j)[:200], flush=True)
+                continue
+            chg = next((_f(r.get(k)) for k in ("fluctuations", "compareToPreviousClosePrice", "changeVal") if _f(r.get(k)) is not None), 0.0)
+            kind = str((r.get("fluctuationsType") or r.get("compareToPreviousPrice") or {}).get("name", "")) \
+                if isinstance(r.get("fluctuationsType") or r.get("compareToPreviousPrice"), dict) else ""
+            if kind in ("FALLING", "LOWER_LIMIT") and chg > 0:
+                chg = -chg
+            at = re.sub(r"\D", "", str(r.get("localTradedAt") or r.get("tradedAt") or ""))
+            return {"date": at[:8], "time": f"{at[8:10]}:{at[10:12]}" if len(at) >= 12 else "",
+                    "yield": y, "change": chg, "source": "naver"}
+    return None
+
+
 async def treasury_10y(kb: KBClient) -> dict | None:
     """IVA10370 증시주변자금동향 → 국고채 10년물 금리."""
     d = await kb.call("IVA10370", ttl=60)
