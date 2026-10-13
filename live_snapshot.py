@@ -289,7 +289,7 @@ def main() -> None:
                     flows, seeded = seed_flows(remote, today), True
                     print("이어 받은 분 단위 기록:", len(flows))
                 extra = {}
-                if t.minute % 5 == 0 or not any(r.endswith("\tmap.json") for r in keep):
+                if t.minute % 5 == 0 or last_map is None or not any(r.endswith("\tmap.json") for r in keep):
                     m = market_map()
                     if m:  # 맵은 따로 map.json (용량이 커서 1분마다 받는 snapshot.json과 나눈다)
                         last_map = m
