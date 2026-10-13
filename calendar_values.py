@@ -24,9 +24,9 @@ NQ_EARN = "https://api.nasdaq.com/api/calendar/earnings?date={}"
 
 # (한글 키워드들, [(표시 이름, ForexFactory 제목, 나스닥 이름)])
 MACRO = (
-    (("근원 PCE", "PCE"), [("", "Core PCE Price Index m/m", "Core PCE Price Index")]),
-    (("소비자물가", "CPI"), [("", "CPI y/y", "CPI"), ("근원", "Core CPI y/y", "Core CPI")]),
-    (("생산자물가", "PPI"), [("", "PPI m/m", "PPI"), ("근원", "Core PPI m/m", "Core PPI")]),
+    (("PCE", "근원 PCE"), [("", "Core PCE Price Index m/m", "Core PCE Price Index")]),
+    (("CPI", "소비자물가"), [("", "CPI y/y", "CPI"), ("근원", "Core CPI y/y", "Core CPI")]),
+    (("PPI", "생산자물가"), [("", "PPI m/m", "PPI"), ("근원", "Core PPI m/m", "Core PPI")]),
     (("소매판매",), [("", "Retail Sales m/m", "Retail Sales")]),
     (("고용", "비농업"), [("", "Non-Farm Employment Change", "Nonfarm Payrolls"), ("실업률", "Unemployment Rate", "Unemployment Rate")]),
     (("금리결정", "금리 결정"), [("", "Federal Funds Rate", "Fed Interest Rate Decision")]),
@@ -67,9 +67,12 @@ def _ff_events() -> list[dict]:
 def _macro(d: date, text: str) -> str:
     if not text.startswith("미") and "FOMC" not in text:
         return ""
-    series = next((s for keys, s in MACRO if any(k in text for k in keys)), None)
-    if not series:
+    groups = [(keys[0], s) for keys, s in MACRO if any(k in text for k in keys)]
+    if not groups:
         return ""
+    # 'PPI·소매판매'처럼 지표가 여럿이면 각 지표 이름을 앞에 붙인다
+    series = [((name + " " + label).strip() if len(groups) > 1 and not label else label, ff_t, nq_n)
+              for name, s in groups for label, ff_t, nq_n in s]
     days = {d.isoformat(), (d - timedelta(days=1)).isoformat()}  # 캘린더가 한국 날짜로 적힌 경우도 맞춘다
     ff = [e for e in _ff_events() if (e.get("date") or "")[:10] in days]
     parts = []
