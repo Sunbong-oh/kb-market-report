@@ -9,7 +9,8 @@
   /api/futures 의 flows 로 넣는다 (교차차트의 외국인 빨간 선). 작업이 이어 뛸 때는 flow-live에 올라간 기록을 이어 받는다.
 - 15:46 이후 한 번, 그날 기록을 main의 archive/날짜/futures_flow.json 으로 저장한다 (장마감 페이지 교차차트용, PC가 이미
   올렸으면 건너뜀).
-한 번 실행은 최대 5시간 45분 (Actions 작업 시간 제한) - 워크플로가 하루 여러 번 이어서 띄운다.
+한 번 실행은 최대 5시간 40분 (Actions 작업 시간 제한). 끝나면 워크플로가 다음 실행을 바로 띄워 하루 종일 이어 달린다
+(장 시간이 아니면 기다리기만 한다 - 공개 저장소라 Actions 사용 시간 제한 없음).
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ KST = timezone(timedelta(hours=9))
 BRANCH = "flow-live"
 KEYS = ("/api/status", "/api/market", "/api/macro", "/api/indices/intraday", "/api/themes", "/api/futures?minutes=1")
 START, END = "08:00", "16:05"
-MAX_RUN = timedelta(hours=5, minutes=45)
+MAX_RUN = timedelta(hours=5, minutes=40)
 SESSION = ("0845", "1545")  # 선물 정규장 - 이 시간의 투자자별 누적 순매수를 분 단위로 쌓는다
 FLOW_KEYS = ("외국인", "기관계", "개인")
 
@@ -244,22 +245,35 @@ def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
 
 
 def main() -> None:
+    """한 번 실행은 최대 MAX_RUN. 장 시간이 아니면 기다리고, 끝나면 워크플로가 다음 실행을 이어 띄운다(이어달리기).
+    그래서 예약 실행이 늦거나 시작 루틴이 실패해도 매일 08:00부터 돈다."""
     began = now()
-    if began.weekday() >= 5 or began.strftime("%H:%M") > END:
-        print("장중이 아니어서 종료")
-        return
-    proc = start_server()
+    proc: subprocess.Popen | None = None
     flows: dict = {}
+    day = ""
     seeded = archived = False
     try:
-        while True:
+        while now() - began < MAX_RUN:
             t = now()
-            hm = t.strftime("%H:%M")
-            if hm > END or t - began > MAX_RUN:
-                break
-            if hm >= START:
+            hm, today = t.strftime("%H:%M"), t.strftime("%Y%m%d")
+            if t.weekday() >= 5 or not (START <= hm <= END):
+                if proc:  # 장 끝: 서버를 내렸다가 다음 날 새로 띄운다 (KB 접속 토큰도 새로)
+                    proc.terminate()
+                    proc = None
+                    print(hm, "장 시간 끝 → 다음 장까지 대기")
+                time.sleep(60)
+                continue
+            if today != day:
+                day, flows, seeded, archived = today, {}, False, False
+            if proc is None:
+                try:
+                    proc = start_server()
+                except RuntimeError as e:
+                    print(hm, "서버 시작 실패, 5분 뒤 다시:", e)
+                    time.sleep(300)
+                    continue
+            try:
                 snap = snapshot()
-                today = t.strftime("%Y%m%d")
                 remote, keep = remote_tree()
                 if not seeded:
                     flows, seeded = seed_flows(remote, today), True
@@ -280,10 +294,12 @@ def main() -> None:
                 else:
                     push(json.dumps({"date": today, "time": hm, "source": "gh", "data": snap}, ensure_ascii=False), keep, extra)
                     print(hm, "업로드", len(snap), "개 항목")
+            except Exception as e:  # 한 번 실패해도 다음 분에 다시
+                print(hm, "실패:", type(e).__name__, e)
             time.sleep(max(5, 60 - now().second))
     finally:
-        proc.terminate()
-
+        if proc:
+            proc.terminate()
 
 if __name__ == "__main__":
     main()
