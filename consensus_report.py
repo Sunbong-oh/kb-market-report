@@ -11,12 +11,13 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent
 OUT_DIR = ROOT / "consensus"
+HISTORY = OUT_DIR / "history.json"
 KST = timezone(timedelta(hours=9))
 BASE = "https://consensus.hankyung.com"
 LIST_URL = f"{BASE}/analysis/list"
@@ -66,8 +68,10 @@ class Change:
 
     @property
     def opinion_changed(self) -> bool:
-        return bool(self.prev and self.prev.opinion and self.now.opinion
-                    and _norm_opinion(self.prev.opinion) != _norm_opinion(self.now.opinion))
+        if not self.prev:
+            return False
+        a, b = _norm_opinion(self.prev.opinion), _norm_opinion(self.now.opinion)
+        return bool(a and b and a != b)  # '투자의견없음'·NR 이 끼면 변경으로 보지 않는다
 
 
 # ── 한경 컨센서스 목록 읽기 ─────────────────────────────────────────────
@@ -165,24 +169,27 @@ def fetch_list(client: httpx.Client, sdate: str, edate: str, **extra: str) -> li
     return out
 
 
-def find_previous(client: httpx.Client, rep: Report, cache: dict) -> Report | None:
+def load_history() -> list[Report]:
+    """지난 실행에서 모아 둔 리포트 기록 (consensus/history.json) - 한경 목록 2달치보다 오래된 직전 리포트용."""
+    try:
+        return [Report(**r) for r in json.loads(HISTORY.read_text(encoding="utf-8"))]
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def save_history(rows: list[Report], day: date) -> None:
+    cutoff = (day - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    keep = {(r.day, r.code or r.company, _norm_broker(r.broker), r.title): r for r in rows if r.day >= cutoff}
+    data = [{**asdict(r), "summary": []} for r in sorted(keep.values(), key=lambda r: r.day)]
+    OUT_DIR.mkdir(exist_ok=True)
+    HISTORY.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+
+def find_previous(rep: Report, pool: list[Report]) -> Report | None:
     """같은 증권사가 같은 종목에 낸, 오늘 이전의 가장 최근 리포트."""
-    key = rep.code or rep.company
-    if key not in cache:
-        end = (date.fromisoformat(rep.day) - timedelta(days=1)).isoformat()
-        start = (date.fromisoformat(rep.day) - timedelta(days=LOOKBACK_DAYS)).isoformat()
-        rows: list[Report] = []
-        try:
-            if rep.code:
-                rows = fetch_list(client, start, end, business_code=rep.code)
-            if not rows:
-                rows = fetch_list(client, start, end, search_value="REPORT_TITLE", search_text=rep.company)
-        except httpx.HTTPError as exc:
-            print(f"직전 리포트 조회 실패 {rep.company}: {exc}")
-        # 검색 조건이 무시되더라도 엉뚱한 종목과 비교하지 않도록 종목을 다시 확인한다
-        cache[key] = [r for r in rows if (r.code == rep.code if rep.code else r.company == rep.company)]
-        time.sleep(0.3)
-    same = [r for r in cache[key] if _norm_broker(r.broker) == _norm_broker(rep.broker) and r.day < rep.day]
+    same = [r for r in pool
+            if (r.code == rep.code if rep.code else r.company == rep.company)
+            and _norm_broker(r.broker) == _norm_broker(rep.broker) and r.day < rep.day]
     return max(same, key=lambda r: r.day) if same else None
 
 
@@ -194,7 +201,8 @@ def _norm_opinion(op: str) -> str:
     op = op.strip().lower().replace(" ", "")
     return {"매수": "buy", "strongbuy": "buy", "outperform": "buy", "overweight": "buy", "tradingbuy": "buy",
             "중립": "hold", "neutral": "hold", "marketperform": "hold", "보유": "hold",
-            "매도": "sell", "underperform": "sell", "reduce": "sell"}.get(op, op)
+            "매도": "sell", "underperform": "sell", "reduce": "sell",
+            "투자의견없음": "", "없음": "", "nr": "", "notrated": "", "-": ""}.get(op, op)
 
 
 # ── KB 스타일 글 ──────────────────────────────────────────────────────
@@ -210,7 +218,7 @@ def _line(no: int, c: Change) -> list[str]:
         op = f"{p.opinion}→{r.opinion}"
     out = [f"{no}. {r.company} {_won(p.target)} → {_won(r.target)}원 ({c.pct:+.1f}%) · {r.broker} · {op}",
            f"   「{r.title}」"]
-    if r.summary:
+    if r.summary and r.summary[0] != r.title:
         out.append(f"   - {r.summary[0][:90]}")
     return out
 
@@ -329,8 +337,14 @@ def main() -> int:
         if not today:
             print("오늘 올라온 기업 리포트가 없습니다 (휴일이거나 아직 업로드 전) - 보내지 않습니다.")
             return 0
-        cache: dict = {}
-        changes = [Change(r, find_previous(client, r, cache)) for r in today]
+        # 종목별 검색은 한경이 조건을 무시해 종목마다 수십 쪽을 읽게 되므로(5건에 8분),
+        # 최근 목록을 한 번만 받아 지난 기록과 합친 뒤 그 안에서 직전 리포트를 찾는다
+        start = (day - timedelta(days=LOOKBACK_DAYS)).isoformat()
+        recent = fetch_list(client, start, (day - timedelta(days=1)).isoformat())
+        print(f"직전 비교용 최근 리포트 {len(recent)}건 (가장 오래된 날 {min((r.day for r in recent), default='-')})")
+        pool = load_history() + recent
+        changes = [Change(r, find_previous(r, pool)) for r in today]
+    save_history(pool + today, day)
 
     title, body = build_text(day, changes, made)
     print(title)
