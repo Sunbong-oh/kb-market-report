@@ -62,7 +62,7 @@ def start_server() -> subprocess.Popen:
 # 폰에서 읽기 좋게 3장으로 나눠 캡처: (파일 접미사, 캡처 폭(px), 포함할 카드, 설명)
 PARTS = [
     ("1_market", 480, ["#report-title", "#indices", "#usdkrw"], "시장 지수 · 환율 · 금리"),
-    ("2_flows", 480, ["#fut-chart", "#investors"], "외국인 선물·지수 교차차트 + 투자자별 순매수"),
+    ("2_flows", 480, ["#investors"], "투자자별 순매수 (현물·선물·옵션)"),
     ("3_themes", 480, ["#themes"], "오늘의 강세 테마 · 등락 종목수"),
 ]
 
@@ -90,7 +90,6 @@ def capture(prefix: Path) -> tuple[list[tuple[Path, str]], dict]:
             page.wait_for_selector("#report-title .t", timeout=30_000)
             page.wait_for_selector("svg.mini polyline", timeout=30_000)
             page.wait_for_selector("#investors .bar-row", timeout=30_000)
-            page.wait_for_selector("#fut-chart polyline", timeout=30_000)
             page.wait_for_selector("#themes .theme-row, #themes .empty", timeout=30_000)
         except Exception as exc:
             # KB 서버 접속 실패 등으로 화면에 오류가 떴으면 그 내용을 그대로 알려준다
