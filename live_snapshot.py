@@ -25,6 +25,8 @@ from pathlib import Path
 
 import httpx
 
+from market_issues import market_issues
+
 ROOT = Path(__file__).resolve().parent
 URL = "http://127.0.0.1:8000"
 KST = timezone(timedelta(hours=9))
@@ -199,9 +201,16 @@ def market_map(per_sector: int = 30) -> dict | None:
             groups = http.get(NAVER, params={"page": 1, "pageSize": 100}).json().get("groups", [])
             out = {"kospi": [], "kosdaq": []}
             for g in groups:
-                try:
-                    stocks = http.get(f"{NAVER}/{g['no']}", params={"page": 1, "pageSize": 100}).json().get("stocks", [])
-                except Exception:
+                stocks = []
+                for page in range(1, 6):  # 반도체처럼 100종목이 넘는 업종은 여러 쪽 (정렬이 등락순이라 1쪽만 보면 대형주가 빠진다)
+                    try:
+                        rows = http.get(f"{NAVER}/{g['no']}", params={"page": page, "pageSize": 100}).json().get("stocks", [])
+                    except Exception:
+                        break
+                    stocks += rows
+                    if len(rows) < 100:
+                        break
+                if not stocks:
                     continue
                 if stocks and not _logged:
                     print("  맵 종목 필드:", {k: stocks[0][k] for k in list(stocks[0])[:25]}, flush=True)
@@ -250,6 +259,7 @@ def main() -> None:
     began = now()
     proc: subprocess.Popen | None = None
     flows: dict = {}
+    last_map: dict | None = None
     day = ""
     seeded = archived = False
     try:
@@ -282,13 +292,20 @@ def main() -> None:
                 if t.minute % 5 == 0 or not any(r.endswith("\tmap.json") for r in keep):
                     m = market_map()
                     if m:  # 맵은 따로 map.json (용량이 커서 1분마다 받는 snapshot.json과 나눈다)
+                        last_map = m
                         extra["map.json"] = json.dumps({"date": today, "time": hm, "data": m}, ensure_ascii=False)
+                if t.minute % 5 == 0 or not any(r.endswith("\tissues.json") for r in keep):
+                    iss = market_issues(last_map)  # 오늘의 핵심 이슈 (주요뉴스 묶음 + 관련 종목 등락)
+                    if iss is not None:
+                        extra["issues.json"] = json.dumps({"date": today, "time": hm, "data": iss}, ensure_ascii=False)
                 keep_previous(snap, remote, today)
                 record_flows(snap, flows, t)
                 if not archived and t.strftime("%H%M") > "1546" and has_today(snap, today):
                     archived = save_archive(snap, t)
                 if not has_today(snap, today):
-                    print(hm, "오늘 장 데이터 없음 (개장 전·휴장) → 올리지 않음")
+                    if extra and remote:  # 개장 전: 수급(snapshot.json)은 그대로 두고 핵심 이슈·맵만 올린다
+                        push(json.dumps(remote, ensure_ascii=False), keep, extra)
+                    print(hm, "오늘 장 데이터 없음 (개장 전·휴장) → 수급은 올리지 않음", "· 이슈/맵 갱신" if extra and remote else "")
                 elif pc_active(remote, t):
                     print(hm, "회사 PC가 올리는 중 → 건너뜀")
                 else:
