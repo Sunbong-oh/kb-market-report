@@ -9,6 +9,7 @@ dataBody 안에서 찾아 쓴다.
 from __future__ import annotations
 
 import re
+from datetime import datetime, timedelta
 from typing import Any
 
 from .kb_client import KBClient
@@ -217,7 +218,7 @@ async def futures_minute(kb: KBClient, code: str, minutes: int = 1) -> list[dict
         ttl=20,
     )
     recs = find_records(d, "cls_prc_p2")
-    day = [r for r in recs if "084500" <= text(r, "tm").zfill(6) <= "154500"]
+    day = [r for r in recs if "084500" <= text(r, "tm").zfill(6) <= "154500" and _valid_day(text(r, "dt"))]
     if not day:
         return []
     last = max(text(r, "dt") for r in day)
@@ -246,6 +247,15 @@ def overseas_values(summary: dict) -> dict[str, float | None]:
     }
 
 
+def _valid_day(dt: str) -> bool:
+    """KB 분봉에 가끔 '20989000' 같은 엉터리 날짜 행이 섞여 온다 → 실제 날짜이고 오늘(한국) 이전인 것만."""
+    try:
+        d = datetime.strptime(dt, "%Y%m%d")
+    except ValueError:
+        return False
+    return d.date() <= (datetime.utcnow() + timedelta(hours=9)).date()
+
+
 async def index_minute(kb: KBClient, index_id: str) -> dict:
     """IVS11560 통합차트 - 코스피/코스닥 지수 1분봉, 가장 최근 거래일 정규장(09:00~15:30)."""
     d = await kb.call(
@@ -254,7 +264,8 @@ async def index_minute(kb: KBClient, index_id: str) -> dict:
          "is_cd": index_id, "inq_clsf": "2", "strt_dy": "", "inq_cnt": "420"},
         ttl=30,
     )
-    recs = [r for r in find_records(d, "cls_prc_p2") if "090000" <= text(r, "tm").zfill(6) <= "153000"]
+    recs = [r for r in find_records(d, "cls_prc_p2")
+            if "090000" <= text(r, "tm").zfill(6) <= "153000" and _valid_day(text(r, "dt"))]
     if not recs:
         return {"date": None, "prev_close": None, "points": []}
     last = max(text(r, "dt") for r in recs)
