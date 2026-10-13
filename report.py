@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
 from blog_post import save_blog_post
+from fut_chart import render_image as futures_image
 from market_calendar import build_section as calendar_section
 from market_calendar import render_image as calendar_image
 from publish_github import publish
@@ -220,6 +221,17 @@ def share_to_onedrive(snapshot: Path, shots: list[tuple[Path, str]], blog_dir: P
     print(f"OneDrive 저장: {share} (+ 바탕화면 '장마감 수급체크.html') · {now:%H:%M}")
 
 
+def load_futures_flow(now: datetime) -> dict | None:
+    """실시간 작업(GitHub Actions)이 15:46에 main에 올린 archive/날짜/futures_flow.json (없으면 원격에서 한 번 더 받아 본다)."""
+    rel = f"archive/{now:%Y-%m-%d}/futures_flow.json"
+    path = ROOT / rel
+    if not path.exists():
+        subprocess.run(["git", "fetch", "-q", "origin", "main"], cwd=ROOT, capture_output=True, timeout=60)
+        r = subprocess.run(["git", "show", f"origin/main:{rel}"], cwd=ROOT, capture_output=True, timeout=60)
+        return json.loads(r.stdout.decode("utf-8")) if r.returncode == 0 and r.stdout else None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def main() -> int:
     send = "--no-send" not in sys.argv
     now = datetime.now(KST).replace(tzinfo=None)  # 클라우드(UTC)에서도 한국 시간 기준
@@ -249,6 +261,14 @@ def main() -> int:
     shutil.copy(snapshot, out_dir / "latest.html")  # PC 바탕화면 '장마감 수급체크' 바로가기가 여는 최신 리포트
     for path in [*(p for p, _ in shots), snapshot]:
         print(f"저장: {path}")
+    try:  # 홈페이지와 같은 선물지수 · 외국인 선물 교차차트를 2번 사진(투자자별 매매동향) 아래에 붙인다
+        raw = load_futures_flow(now)
+        fut_img = futures_image(raw, api.get("/api/market"), prefix.with_name(f"{prefix.name}_futures.jpg")) if raw else None
+        print(f"선물 교차차트: {fut_img or '기록 없음'}")
+        if fut_img and len(shots) > 1:
+            stitch_below(shots[1][0], fut_img)
+    except Exception as exc:
+        print(f"선물 교차차트 붙이기 실패: {exc}")
     cal_text: list[str] = []
     try:  # 오늘 저녁 실적·이슈 + 내일 일정을 1번 사진(시장 지수·환율·금리) 아래에 붙인다 (캘린더에 없으면 그대로)
         cal_img = calendar_image(now, prefix.with_name(f"{prefix.name}_calendar.jpg"))
