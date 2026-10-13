@@ -123,6 +123,9 @@ def record_flows(snap: dict, flows: dict, t: datetime) -> None:
     cur = fut.get("current_flows") or {}
     if SESSION[0] <= tm <= SESSION[1] and any(cur.get(k) is not None for k in FLOW_KEYS):
         flows[tm] = {"t": tm, **{k: cur[k] for k in FLOW_KEYS if cur.get(k) is not None}}
+    elif SESSION[1] < tm <= "1605" and flows and any(cur.get(k) is not None for k in FLOW_KEYS):
+        # 15:35 동시호가부터 실시간 값이 멈췄다가 장 뒤에 최종값으로 바뀐다 → 15:45 마지막 점을 최신 값으로 계속 갱신
+        flows[SESSION[1]] = {"t": SESSION[1], **{k: cur[k] for k in FLOW_KEYS if cur.get(k) is not None}}
     if flows and not fut.get("flows"):
         fut["flows"] = [flows[k] for k in sorted(flows)]
         fut["flow_date"] = t.strftime("%Y%m%d")
