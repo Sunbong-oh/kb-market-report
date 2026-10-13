@@ -7,7 +7,9 @@ live_snapshot.py가 5분마다 불러 flow-live/issues.json 으로 올린다. �
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 from collections import Counter
+from email.utils import parsedate_to_datetime
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -103,7 +105,7 @@ def _label(rows, members) -> str:
     return re.sub(r"\s*\[[^\]]*\]\s*", " ", rows[best]["t"]).strip()
 
 
-def build(rows: list[dict], map_data: dict | None, top: int = 3) -> list[dict]:
+def build(rows: list[dict], map_data: dict | None, top: int = 3, pinned: tuple[list[str], list[dict]] | None = None) -> list[dict]:
     stocks: dict[str, float] = {}
     sectors: dict[str, float] = {}
     big: dict[str, float] = {}
@@ -116,7 +118,14 @@ def build(rows: list[dict], map_data: dict | None, top: int = 3) -> list[dict]:
                     big[st["n"]] = st.get("v") or 0
     names = sorted((n for n in stocks if len(n) >= 2), key=len, reverse=True)
     out = []
-    for members in cluster(rows):
+    groups = cluster(rows)
+    if pinned and pinned[1]:  # 지정 키워드 이슈: 그 기사들을 한 묶음으로 맨 앞에
+        kws, karts = pinned
+        rows = rows + [a for a in karts if a not in rows]
+        groups = [[rows.index(a) for a in karts]] + [g for g in groups if not any(
+            any(k.lower() in rows[i]["t"].lower() for k in kws) for i in g)]
+    for gi, members in enumerate(groups):
+        is_pin = bool(pinned and pinned[1]) and gi == 0
         text = " ".join(rows[i]["t"] + " " + rows[i]["b"] for i in members)
         offices = {rows[i]["o"] for i in members}
         titles = " ".join(rows[i]["t"] for i in members)
@@ -127,29 +136,61 @@ def build(rows: list[dict], map_data: dict | None, top: int = 3) -> list[dict]:
             if re.search(r"(?<![가-힣A-Za-z])" + re.escape(nm) + r"(?![가-힣A-Za-z])", titles) and not any(nm in f for f in found):
                 found.append(nm)
         sec = None
-        for pat, sname, reps in SECTOR_KEYS:
+        for pat, sname, reps in ([] if is_pin else SECTOR_KEYS):  # 지정 키워드는 기사 제목에 나온 종목만
             if len(re.findall(pat, titles)) >= max(1, len(members) // 3):  # 제목에 업종 단어가 충분히 나올 때만
                 sec = sname
                 found += [r for r in reps if r not in found]
                 break
         cap = sum(big.get(n, 0) for n in found[:5])
         score = len(members) * 2 + len(offices) + (3 if cap > 1_000_000 else 0) + (2 if re.search(r"쇼크|급락|급등|폭락|폭등|충격", text) else 0)
-        if len(members) < 2 and score < 6:
+        if not is_pin and len(members) < 2 and score < 6:
             continue
-        rel = sorted(({"n": n, "p": stocks[n]} for n in found if n in stocks), key=lambda r: big.get(r["n"], 0), reverse=True)[:6]
+        order = (lambda r: (titles.count(r["n"]), big.get(r["n"], 0))) if is_pin else (lambda r: big.get(r["n"], 0))
+        rel = sorted(({"n": n, "p": stocks[n]} for n in found if n in stocks), key=order, reverse=True)[:6]
         arts = sorted((rows[i] for i in members), key=lambda r: r["dt"], reverse=True)
-        out.append({"title": _label(rows, members), "n": len(members), "offices": len(offices), "score": score,
+        title = _label(rows, members) if len(members) > 1 else rows[members[0]]["t"]
+        out.append({"title": title, "n": len(members), "offices": len(offices), "score": 10**6 if is_pin else score,
+                    "pin": " · ".join(pinned[0]) if is_pin else None,
                     "stocks": rel, "sector": {"s": sec, "p": sectors.get(sec)} if sec and sec in sectors else None,
                     "articles": [{"t": a["t"], "o": a["o"], "url": a["url"], "dt": a["dt"]} for a in arts[:4]]})
     out.sort(key=lambda g: g["score"], reverse=True)
     return out[:top]
 
 
-def market_issues(map_data: dict | None) -> list[dict] | None:
+def keyword_news(http: httpx.Client, keywords: list[str], rows: list[dict], hours: int = 24) -> list[dict]:
+    """지정 키워드 기사: 구글 뉴스 검색(최근 1일) + 네이버 주요뉴스 중 키워드가 들어간 기사."""
+    since = (datetime.now(KST) - timedelta(hours=hours)).strftime("%Y%m%d%H%M%S")
+    out, seen = [], set()
+    for kw in keywords:
+        for r in rows:
+            if kw.lower() in (r["t"] + " " + r["b"]).lower() and r["url"] not in seen:
+                seen.add(r["url"])
+                out.append(r)
+        try:
+            xml = http.get("https://news.google.com/rss/search",
+                           params={"q": f"{kw} when:1d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}).text
+            for it in ET.fromstring(xml).iter("item"):
+                src = it.findtext("source") or ""
+                title = re.sub(r"\s+-\s+[^-]+$", "", it.findtext("title") or "").strip()
+                try:
+                    dt = parsedate_to_datetime(it.findtext("pubDate")).astimezone(KST).strftime("%Y%m%d%H%M%S")
+                except Exception:
+                    continue
+                link = it.findtext("link") or ""
+                if title and dt >= since and link not in seen and kw.lower() in title.lower():
+                    seen.add(link)
+                    out.append({"t": title, "b": "", "dt": dt, "o": src, "url": link})
+        except Exception as e:
+            print("  키워드 뉴스 실패:", kw, type(e).__name__, e, flush=True)
+    return out
+
+
+def market_issues(map_data: dict | None, keywords: list[str] | None = None) -> list[dict] | None:
     try:
         with httpx.Client(headers=HEADERS, timeout=10, follow_redirects=True) as http:
             rows = fetch_news(http)
-        res = build(rows, map_data)
+            karts = keyword_news(http, keywords, rows) if keywords else []
+        res = build(rows, map_data, pinned=(keywords, karts) if keywords else None)
         print("  이슈:", [(g["title"][:30], g["n"], g["score"]) for g in res], flush=True)
         return res
     except Exception as e:
