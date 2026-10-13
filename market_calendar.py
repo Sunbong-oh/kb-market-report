@@ -116,7 +116,7 @@ h2{{margin:0 0 8px;font-size:14px;border-left:4px solid #ffbc00;padding-left:8px
 .lab{{flex:0 0 84px;font-size:12px;color:#15803d;font-weight:700;line-height:1.5}}
 .chips{{flex:1;display:flex;flex-wrap:wrap;gap:5px}}
 .chip{{font-size:13px;background:#f4f5f7;border-radius:6px;padding:2px 7px;line-height:1.5}}
-.chip.star{{background:#fff6dc;font-weight:700}}.chip.star::before{{content:"★ ";color:#e08a00}}
+.chip.star{{background:#fff0f0;color:#e03131;font-weight:700}}.chip.star::before{{content:"★ ";color:#e03131}}
 .none{{font-size:13px;color:#7a828c}}.foot{{font-size:11px;color:#7a828c;line-height:1.5}}
 </style><body><h1>증시 일정<small>KB 시장 리포트</small></h1>{sections}
 <div class="foot">★ 핵심 · 증시 캘린더 기준, 미국 실적은 한국시간 밤~새벽 발표 · 해외 일정은 현지시각이며 변경될 수 있습니다</div></body></html>"""
