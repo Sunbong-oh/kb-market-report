@@ -54,6 +54,7 @@ class Report:
     broker: str
     summary: list[str]
     pdf: str
+    source: str = "한경"  # 한경 / 네이버
 
 
 @dataclass
@@ -170,6 +171,106 @@ def fetch_list(client: httpx.Client, sdate: str, edate: str, **extra: str) -> li
     return out
 
 
+# ── 네이버 증권 리서치 (종목분석 리포트) ─────────────────────────────────
+# 한경 컨센서스에 올라오지 않는 증권사 리포트가 있어(예: 2026-10-13 에이피알 하향) 두 번째 출처로 함께 본다.
+NAVER = "https://finance.naver.com/research/"
+
+
+def _naver_get(client: httpx.Client, url: str, **params) -> str:
+    res = client.get(url, params=params or None, headers={"Referer": NAVER})  # 빈 params 는 주소의 ?nid= 를 지운다
+    res.raise_for_status()
+    return res.content.decode("cp949", errors="replace")
+
+
+def _naver_day(text: str) -> str:
+    m = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{2})", text.strip())
+    return f"20{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else ""
+
+
+def parse_naver_list(html: str) -> list[tuple[Report, str]]:
+    """company_list 표 → (리포트, 상세 페이지 주소). 목표가·투자의견은 상세 페이지에만 있다."""
+    soup = BeautifulSoup(html, "html.parser")
+    out = []
+    for tr in soup.select("table.type_1 tr"):
+        tds = tr.find_all("td", recursive=False)
+        link = tr.find("a", href=re.compile(r"company_read\.naver"))
+        item = tr.find("a", href=re.compile(r"code=([0-9A-Z]{6})"))
+        if len(tds) < 5 or not link or not item:
+            continue
+        pdf = tr.find("a", href=re.compile(r"\.pdf", re.I))
+        day = next((d for d in (_naver_day(td.get_text(strip=True)) for td in tds) if d), "")
+        out.append((Report(
+            day=day, title=link.get_text(" ", strip=True), company=item.get_text(strip=True),
+            code=re.search(r"code=([0-9A-Z]{6})", item["href"]).group(1), target=None, opinion="", analyst="",
+            broker=tds[2].get_text(strip=True), summary=[], pdf=pdf["href"] if pdf else "", source="네이버",
+        ), NAVER + link["href"].lstrip("/").split("research/")[-1]))
+    return out
+
+
+def fill_naver_detail(client: httpx.Client, rep: Report, url: str) -> Report:
+    """상세 페이지의 '목표가 560,000 | 투자의견 Buy' 를 읽어 채운다."""
+    try:
+        soup = BeautifulSoup(_naver_get(client, url), "html.parser")
+    except httpx.HTTPError as exc:
+        print(f"네이버 상세 실패 {rep.company}: {exc}")
+        return rep
+    money, coment = soup.select_one("em.money"), soup.select_one("em.coment")
+    text = soup.get_text(" ", strip=True)
+    m = re.search(r"목표가\s*([\d,]+)", text)
+    rep.target = _price(money.get_text()) if money else (_price(m.group(1)) if m else None)
+    m = re.search(r"투자의견\s*([가-힣]+|[A-Za-z]+(?: [A-Za-z]+)?)", text)
+    rep.opinion = coment.get_text(strip=True) if coment else (m.group(1) if m else "")
+    if not rep.pdf:
+        rep.pdf = url
+    time.sleep(0.2)
+    return rep
+
+
+def fetch_naver(client: httpx.Client, sdate: str, edate: str) -> list[tuple[Report, str]]:
+    out: list[tuple[Report, str]] = []
+    seen: set[str] = set()
+    for page in range(1, 30):
+        rows = parse_naver_list(_naver_get(client, NAVER + "company_list.naver", searchType="writeDate",
+                                           writeFromDate=sdate, writeToDate=edate, page=page))
+        fresh = [(r, u) for r, u in rows if u not in seen]
+        if not fresh:
+            break
+        seen.update(u for _, u in fresh)
+        out.extend(fresh)
+        time.sleep(0.3)
+    return out
+
+
+def naver_previous(client: httpx.Client, rep: Report) -> Report | None:
+    """네이버에서 같은 종목의 지난 리포트 목록을 보고, 같은 증권사의 직전 리포트 목표가를 읽는다."""
+    try:
+        rows = parse_naver_list(_naver_get(client, NAVER + "company_list.naver", searchType="itemCode",
+                                           itemCode=rep.code, page=1))
+    except httpx.HTTPError as exc:
+        print(f"네이버 지난 리포트 실패 {rep.company}: {exc}")
+        return None
+    same = [(r, u) for r, u in rows
+            if r.day and r.day < rep.day and _norm_broker(r.broker) == _norm_broker(rep.broker)]
+    if not same:
+        return None
+    prev, url = max(same, key=lambda x: x[0].day)
+    return fill_naver_detail(client, prev, url)
+
+
+def add_naver(client: httpx.Client, since: date, day: date, rows: list[Report]) -> list[Report]:
+    """한경 목록에 없는 네이버 리포트만 상세(목표가·투자의견)를 읽어 덧붙인다. 실패해도 한경 결과는 그대로."""
+    have = {(r.day, r.code, _norm_broker(r.broker)) for r in rows}
+    try:
+        listed = fetch_naver(client, since.isoformat(), day.isoformat())
+    except httpx.HTTPError as exc:
+        print(f"네이버 리서치 목록 실패 (한경만 사용): {exc}")
+        return []
+    extra = [fill_naver_detail(client, r, u) for r, u in listed
+             if r.day and (r.day, r.code, _norm_broker(r.broker)) not in have]
+    print(f"네이버 리서치 {len(listed)}건 중 한경에 없는 리포트 {len(extra)}건 추가")
+    return extra
+
+
 def load_history() -> list[Report]:
     """지난 실행에서 모아 둔 리포트 기록 (consensus/history.json) - 한경 목록 2달치보다 오래된 직전 리포트용."""
     try:
@@ -274,7 +375,7 @@ def build_text(day: date, changes: list[Change], made: datetime, since: date | N
     else:
         L.append("▶ 한 줄 요약: 목표주가를 바꾼 리포트가 없었습니다")
     L.append("")
-    L.append(f"(데이터: 한경 컨센서스 · 같은 증권사 직전 리포트 대비 · {made:%Y-%m-%d %H:%M} 기준)")
+    L.append(f"(데이터: 한경 컨센서스·네이버 증권 리서치 · 같은 증권사 직전 리포트 대비 · {made:%Y-%m-%d %H:%M} 기준)")
     return title, "\n".join(L)
 
 
@@ -304,7 +405,7 @@ def _item(c: Change) -> dict:
             "target": r.target, "prev_target": p.target if p else None, "prev_day": p.day if p else None,
             "pct": round(c.pct, 2) if c.pct is not None else None, "opinion": r.opinion,
             "prev_opinion": p.opinion if p else None, "opinion_changed": c.opinion_changed,
-            "summary": r.summary[:3], "pdf": r.pdf}
+            "summary": r.summary[:3], "pdf": r.pdf, "source": r.source}
 
 
 def save(day: date, title: str, body: str, changes: list[Change], made: datetime, since: date) -> list[Path]:
@@ -321,17 +422,23 @@ def save(day: date, title: str, body: str, changes: list[Change], made: datetime
     return paths
 
 
-def load_reported() -> set[str]:
+def load_reported() -> dict[str, str]:
+    """{리포트 키: 처음 정리한 날}. 같은 날 다시 돌리면(수동 재실행) 그날 리포트는 다시 넣는다."""
     try:
-        return set(json.loads(REPORTED.read_text(encoding="utf-8")))
+        data = json.loads(REPORTED.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return set()
+        return {}
+    if isinstance(data, list):  # 예전 형식(키 목록, 한 번의 실행분) → 그 실행일 = 가장 늦은 리포트 날짜
+        run = max((k[:10] for k in data), default="")
+        return {k: run for k in data}
+    return data
 
 
-def save_reported(keys: set[str], day: date) -> None:
+def save_reported(reported: dict[str, str], keys: set[str], day: date) -> None:
     cutoff = (day - timedelta(days=14)).isoformat()
-    REPORTED.write_text(json.dumps(sorted(k for k in keys if k[:10] >= cutoff), ensure_ascii=False, indent=0),
-                        encoding="utf-8")
+    merged = {**{k: day.isoformat() for k in keys}, **reported}  # 먼저 정리한 날을 유지
+    REPORTED.write_text(json.dumps({k: v for k, v in sorted(merged.items()) if k[:10] >= cutoff},
+                                   ensure_ascii=False, indent=0), encoding="utf-8")
 
 
 def git(*args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -376,7 +483,8 @@ def main() -> int:
 
     with httpx.Client(headers=HEADERS, timeout=30, follow_redirects=True) as client:
         rows = fetch_list(client, since.isoformat(), day.isoformat())
-        new = [r for r in rows if since.isoformat() <= r.day <= day.isoformat() and _key(r) not in reported]
+        rows += add_naver(client, since, day, rows)
+        new = [r for r in rows if since.isoformat() <= r.day <= day.isoformat() and reported.get(_key(r), "9999") >= day.isoformat()]
         print(f"{since}~{day} 기업 리포트 {len(rows)}건 중 새로 정리할 리포트 {len(new)}건")
         if not new:
             print("새로 올라온 기업 리포트가 없습니다 (휴일이거나 아직 업로드 전) - 보내지 않습니다.")
@@ -387,7 +495,14 @@ def main() -> int:
         recent = fetch_list(client, start, (since - timedelta(days=1)).isoformat())
         print(f"직전 비교용 최근 리포트 {len(recent)}건 (가장 오래된 날 {min((r.day for r in recent), default='-')})")
         pool = load_history() + recent + rows
-        changes = [Change(r, find_previous(r, pool)) for r in new]
+        changes = []
+        for r in new:
+            prev = find_previous(r, pool)
+            if (prev is None or not prev.target) and r.source == "네이버" and r.code:
+                prev = naver_previous(client, r) or prev  # 한경 기록에 없으면 네이버의 같은 증권사 직전 리포트
+                if prev:
+                    pool.append(prev)
+            changes.append(Change(r, prev))
     save_history(pool, day)
 
     title, body = build_text(day, changes, made, since)
@@ -395,7 +510,7 @@ def main() -> int:
     print(body)
     for p in save(day, title, body, changes, made, since):
         print(f"저장: {p}")
-    save_reported(reported | {_key(r) for r in new}, day)
+    save_reported(reported, {_key(r) for r in new}, day)
     if "--no-send" not in sys.argv:
         send_telegram_text(f"{title}\n\n{body}")
         print("텔레그램 전송 완료")
