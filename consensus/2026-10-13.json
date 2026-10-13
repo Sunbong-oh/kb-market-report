@@ -1,0 +1,513 @@
+{
+ "day": "2026-10-13",
+ "since": "2026-10-12",
+ "made": "2026-10-13 10:19",
+ "title": "26년 10월 13일 증권사 리포트 목표주가 변동",
+ "body": "■ 10월 13일(화) 신규 기업 리포트 28건 (전 섹터 · 10/12~10/13 10:19 발간분)\n- 목표주가 상향 6 / 하향 4 / 유지 4 / 신규·비교불가 14\n\n■ 목표주가 상향 (6건)\n1. 파인엠텍 13,000 → 15,000원 (+15.4%) · 메리츠증권 · Buy\n   「이제부터 말보다 숫자로」\n2. LG에너지솔루션 470,000 → 530,000원 (+12.8%) · 유진투자증권 · Buy\n   「보상금 제외해도 호실적」\n3. 한미약품 650,000 → 730,000원 (+12.3%) · 상상인증권 · Buy\n   「3분기 북경한미 이익개선세 전망」\n4. 원익IPS 153,000 → 169,000원 (+10.5%) · 메리츠증권 · Buy\n   「CAPEX 사이클이 실적으로 확인되는 국면」\n5. SK텔레콤 111,000 → 115,000원 (+3.6%) · 메리츠증권 · Buy\n   「완전 정상화된 실적」\n6. 두산테스나 164,000 → 169,000원 (+3.0%) · 메리츠증권 · Buy\n   「제품 포트폴리오 확장 초입」\n\n■ 목표주가 하향 (4건)\n1. 카카오 81,000 → 47,000원 (-42.0%) · 대신증권 · Buy\n   「광고 성장 숨 고르기, AI 전략 확인이 관건」\n2. 리노공업 140,000 → 109,000원 (-22.1%) · 메리츠증권 · Buy\n   「반가운 생산 정상화」\n3. LS ELECTRIC 330,000 → 300,000원 (-9.1%) · 대신증권 · Buy\n   「글로벌 종합 전력 솔루션 업체로의 진화는 계속된다」\n4. 현대모비스 810,000 → 800,000원 (-1.2%) · 한화투자증권 · Buy\n   「불리한 매크로 영향 지속, 구조적 수익성 개선도 지속」\n\n■ 신규 커버리지·직전 비교불가 (14건)\n- 에이피알(상상인증권, TP 560,000) · 심텍(메리츠증권, TP 200,000) · 아모텍(한국IR협의회) · 큐알티(한국IR협의회) · 하이브(상상인증권, TP 320,000) · 이엔에프테크놀로지(상상인증권, TP 70,000) · LS ELECTRIC(한화투자증권, TP 260,000) · HD현대일렉트릭(한화투자증권, TP 1,000,000) · 효성중공업(한화투자증권, TP 4,500,000) · 도우인시스(메리츠증권) · SK하이닉스(메리츠증권, TP 3,200,000) · 솔브레인(메리츠증권, TP 500,000) · 디아이(대신증권, TP 60,000) · 삼성에스디에스(대신증권, TP 370,000)\n\n▶ 한 줄 요약: 상향 우위(6:4), 최대 상향 파인엠텍 +15.4%, 최대 하향 카카오 -42.0%\n\n(데이터: 한경 컨센서스 · 같은 증권사 직전 리포트 대비 · 2026-10-13 10:19 기준)",
+ "items": [
+  {
+   "company": "세아베스틸지주",
+   "code": "001430",
+   "broker": "상상인증권",
+   "title": "구름 너머에는 푸른 하늘이 있다",
+   "day": "2026-10-13",
+   "target": 62000,
+   "prev_target": 62000,
+   "prev_day": "2026-07-31",
+   "pct": 0.0,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "구름 너머에는 푸른 하늘이 있다"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652907"
+  },
+  {
+   "company": "에이피알",
+   "code": "278470",
+   "broker": "상상인증권",
+   "title": "아쉽지만, 다시 볼 가격",
+   "day": "2026-10-13",
+   "target": 560000,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "아쉽지만, 다시 볼 가격"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652906"
+  },
+  {
+   "company": "현대글로비스",
+   "code": "086280",
+   "broker": "한화투자증권",
+   "title": "고유가로 이익 개선 가시성 둔화, 그러나 증익 방향성 명확",
+   "day": "2026-10-13",
+   "target": 380000,
+   "prev_target": 380000,
+   "prev_day": "2026-07-24",
+   "pct": 0.0,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "고유가로 이익 개선 가시성 둔화, 그러나 증익 방향성 명확"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652901"
+  },
+  {
+   "company": "현대모비스",
+   "code": "012330",
+   "broker": "한화투자증권",
+   "title": "불리한 매크로 영향 지속, 구조적 수익성 개선도 지속",
+   "day": "2026-10-13",
+   "target": 800000,
+   "prev_target": 810000,
+   "prev_day": "2026-07-27",
+   "pct": -1.23,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "불리한 매크로 영향 지속, 구조적 수익성 개선도 지속"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652900"
+  },
+  {
+   "company": "심텍",
+   "code": "222800",
+   "broker": "메리츠증권",
+   "title": "격차를 좁힐 이유는 충분하다",
+   "day": "2026-10-13",
+   "target": 200000,
+   "prev_target": null,
+   "prev_day": "2026-08-26",
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": "투자의견없음",
+   "opinion_changed": false,
+   "summary": [
+    "격차를 좁힐 이유는 충분하다"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652899"
+  },
+  {
+   "company": "아모텍",
+   "code": "052710",
+   "broker": "한국IR협의회",
+   "title": "AI 고도화가 이끄는 MLCC 시대",
+   "day": "2026-10-12",
+   "target": null,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "투자의견없음",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "AI 고도화가 이끄는 MLCC 시대"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652890"
+  },
+  {
+   "company": "큐알티",
+   "code": "405100",
+   "broker": "한국IR협의회",
+   "title": "신뢰성평가 성장 지속, 분석과 장비로 성장축 확대",
+   "day": "2026-10-12",
+   "target": null,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "투자의견없음",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "신뢰성평가 성장 지속, 분석과 장비로 성장축 확대"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652889"
+  },
+  {
+   "company": "한미약품",
+   "code": "128940",
+   "broker": "상상인증권",
+   "title": "3분기 북경한미 이익개선세 전망",
+   "day": "2026-10-12",
+   "target": 730000,
+   "prev_target": 650000,
+   "prev_day": "2026-08-25",
+   "pct": 12.31,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "3분기 북경한미 이익개선세 전망"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652887"
+  },
+  {
+   "company": "하이브",
+   "code": "352820",
+   "broker": "상상인증권",
+   "title": "3Q26 Preview: BTS 이후를 위한 빌드업",
+   "day": "2026-10-12",
+   "target": 320000,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "3Q26 Preview: BTS 이후를 위한 빌드업"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652886"
+  },
+  {
+   "company": "이엔에프테크놀로지",
+   "code": "102710",
+   "broker": "상상인증권",
+   "title": "3Q26 Preview: 판가 인상 본격 반영",
+   "day": "2026-10-12",
+   "target": 70000,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "3Q26 Preview: 판가 인상 본격 반영"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652885"
+  },
+  {
+   "company": "LS ELECTRIC",
+   "code": "010120",
+   "broker": "한화투자증권",
+   "title": "3Q26 Preview: 걸릴 것 하나 없다",
+   "day": "2026-10-12",
+   "target": 260000,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "3Q26 Preview: 걸릴 것 하나 없다"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652881"
+  },
+  {
+   "company": "HD현대일렉트릭",
+   "code": "267260",
+   "broker": "한화투자증권",
+   "title": "3Q26 Preview: 환율 부담이 아쉽지만",
+   "day": "2026-10-12",
+   "target": 1000000,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "3Q26 Preview: 환율 부담이 아쉽지만"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652880"
+  },
+  {
+   "company": "효성중공업",
+   "code": "298040",
+   "broker": "한화투자증권",
+   "title": "3Q26 Preview: 일회성은 지나가고",
+   "day": "2026-10-12",
+   "target": 4500000,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "3Q26 Preview: 일회성은 지나가고"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652879"
+  },
+  {
+   "company": "LG유플러스",
+   "code": "032640",
+   "broker": "메리츠증권",
+   "title": "평온한 실적",
+   "day": "2026-10-12",
+   "target": 18000,
+   "prev_target": 18000,
+   "prev_day": "2026-07-16",
+   "pct": 0.0,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "평온한 실적"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652876"
+  },
+  {
+   "company": "KT",
+   "code": "030200",
+   "broker": "메리츠증권",
+   "title": "본업은 주춤해도 든든한 자회사들",
+   "day": "2026-10-12",
+   "target": 74000,
+   "prev_target": 74000,
+   "prev_day": "2026-07-16",
+   "pct": 0.0,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "본업은 주춤해도 든든한 자회사들"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652875"
+  },
+  {
+   "company": "SK텔레콤",
+   "code": "017670",
+   "broker": "메리츠증권",
+   "title": "완전 정상화된 실적",
+   "day": "2026-10-12",
+   "target": 115000,
+   "prev_target": 111000,
+   "prev_day": "2026-07-16",
+   "pct": 3.6,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "완전 정상화된 실적"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652873"
+  },
+  {
+   "company": "도우인시스",
+   "code": "484120",
+   "broker": "메리츠증권",
+   "title": "더 많이 접힐수록, 더 크게 성장한다",
+   "day": "2026-10-12",
+   "target": null,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Not Rated",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "더 많이 접힐수록, 더 크게 성장한다"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652872"
+  },
+  {
+   "company": "파인엠텍",
+   "code": "441270",
+   "broker": "메리츠증권",
+   "title": "이제부터 말보다 숫자로",
+   "day": "2026-10-12",
+   "target": 15000,
+   "prev_target": 13000,
+   "prev_day": "2026-09-07",
+   "pct": 15.38,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "이제부터 말보다 숫자로"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652871"
+  },
+  {
+   "company": "SK하이닉스",
+   "code": "000660",
+   "broker": "메리츠증권",
+   "title": "3Q26 OP 80.1조원 실적 서프라이즈 예상",
+   "day": "2026-10-12",
+   "target": 3200000,
+   "prev_target": null,
+   "prev_day": "2026-05-06",
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": "투자의견없음",
+   "opinion_changed": false,
+   "summary": [
+    "3Q26 OP 80.1조원 실적 서프라이즈 예상"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652870"
+  },
+  {
+   "company": "리노공업",
+   "code": "058470",
+   "broker": "메리츠증권",
+   "title": "반가운 생산 정상화",
+   "day": "2026-10-12",
+   "target": 109000,
+   "prev_target": 140000,
+   "prev_day": "2026-05-11",
+   "pct": -22.14,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "반가운 생산 정상화"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652868"
+  },
+  {
+   "company": "두산테스나",
+   "code": "131970",
+   "broker": "메리츠증권",
+   "title": "제품 포트폴리오 확장 초입",
+   "day": "2026-10-12",
+   "target": 169000,
+   "prev_target": 164000,
+   "prev_day": "2026-07-20",
+   "pct": 3.05,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "제품 포트폴리오 확장 초입"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652867"
+  },
+  {
+   "company": "원익IPS",
+   "code": "240810",
+   "broker": "메리츠증권",
+   "title": "CAPEX 사이클이 실적으로 확인되는 국면",
+   "day": "2026-10-12",
+   "target": 169000,
+   "prev_target": 153000,
+   "prev_day": "2026-08-07",
+   "pct": 10.46,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "CAPEX 사이클이 실적으로 확인되는 국면"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652866"
+  },
+  {
+   "company": "솔브레인",
+   "code": "357780",
+   "broker": "메리츠증권",
+   "title": "환율 역풍에도 드러나는 물량 증가 효과",
+   "day": "2026-10-12",
+   "target": 500000,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "환율 역풍에도 드러나는 물량 증가 효과"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652864"
+  },
+  {
+   "company": "디아이",
+   "code": "003160",
+   "broker": "대신증권",
+   "title": "이제 시작",
+   "day": "2026-10-12",
+   "target": 60000,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "이제 시작"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652860"
+  },
+  {
+   "company": "LS ELECTRIC",
+   "code": "010120",
+   "broker": "대신증권",
+   "title": "글로벌 종합 전력 솔루션 업체로의 진화는 계속된다",
+   "day": "2026-10-12",
+   "target": 300000,
+   "prev_target": 330000,
+   "prev_day": "2026-07-24",
+   "pct": -9.09,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "글로벌 종합 전력 솔루션 업체로의 진화는 계속된다"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652859"
+  },
+  {
+   "company": "카카오",
+   "code": "035720",
+   "broker": "대신증권",
+   "title": "광고 성장 숨 고르기, AI 전략 확인이 관건",
+   "day": "2026-10-12",
+   "target": 47000,
+   "prev_target": 81000,
+   "prev_day": "2026-01-12",
+   "pct": -41.98,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "광고 성장 숨 고르기, AI 전략 확인이 관건"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652858"
+  },
+  {
+   "company": "삼성에스디에스",
+   "code": "018260",
+   "broker": "대신증권",
+   "title": "IT서비스와 물류 동반 성장 유리한 상황 지속",
+   "day": "2026-10-12",
+   "target": 370000,
+   "prev_target": null,
+   "prev_day": null,
+   "pct": null,
+   "opinion": "Buy",
+   "prev_opinion": null,
+   "opinion_changed": false,
+   "summary": [
+    "IT서비스와 물류 동반 성장 유리한 상황 지속"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652857"
+  },
+  {
+   "company": "LG에너지솔루션",
+   "code": "373220",
+   "broker": "유진투자증권",
+   "title": "보상금 제외해도 호실적",
+   "day": "2026-10-12",
+   "target": 530000,
+   "prev_target": 470000,
+   "prev_day": "2026-07-08",
+   "pct": 12.77,
+   "opinion": "Buy",
+   "prev_opinion": "Buy",
+   "opinion_changed": false,
+   "summary": [
+    "보상금 제외해도 호실적"
+   ],
+   "pdf": "https://consensus.hankyung.com/analysis/downpdf?report_idx=652850"
+  }
+ ]
+}
