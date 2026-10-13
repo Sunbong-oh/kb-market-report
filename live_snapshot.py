@@ -236,6 +236,20 @@ def market_map(per_sector: int = 30) -> dict | None:
         return None
 
 
+def drop_future_points(snap: dict, t: datetime) -> None:
+    """KB 지수 분봉에 가끔 아직 오지 않은 시각의 점(전날 같은 시각 값으로 보이는 15:14 등)이 섞여 온다
+    → 미니차트가 그 시각까지 늘어나며 선이 튄다. 오늘 자료에서 지금 시각보다 뒤의 점은 버린다."""
+    ix = snap.get("/api/indices/intraday") or {}
+    today, hm = t.strftime("%Y%m%d"), t.strftime("%H%M")
+    for code, d in ix.items():
+        pts = d.get("points") or []
+        if str(d.get("date")) == today and pts:
+            keep = [p for p in pts if str(p.get("t", "")) <= hm]
+            if len(keep) != len(pts):
+                print("  미래 시각 분봉 제거:", code, len(pts) - len(keep), "개", flush=True)
+                d["points"] = keep
+
+
 def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
     """KB 응답이 가끔 비거나 짧게 오면(예: 코스닥 분봉 0개) 화면 차트가 빈다 → 직전 스냅샷 값을 이어 쓴다."""
     if not remote or remote.get("date") != today:
@@ -298,7 +312,9 @@ def main() -> None:
                     iss = market_issues(last_map)  # 오늘의 핵심 이슈 (주요뉴스 묶음 + 관련 종목 등락)
                     if iss is not None:
                         extra["issues.json"] = json.dumps({"date": today, "time": hm, "data": iss}, ensure_ascii=False)
+                drop_future_points(snap, t)
                 keep_previous(snap, remote, today)
+                drop_future_points(snap, t)  # 직전 스냅샷에서 이어 받은 값에도
                 record_flows(snap, flows, t)
                 if not archived and t.strftime("%H%M") > "1546" and has_today(snap, today):
                     archived = save_archive(snap, t)
