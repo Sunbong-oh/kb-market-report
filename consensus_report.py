@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent
 OUT_DIR = ROOT / "consensus"
 HISTORY = OUT_DIR / "history.json"
+REPORTED = OUT_DIR / "reported.json"  # 이미 정리해 보낸 리포트 (다음 날 중복 방지)
 KST = timezone(timedelta(hours=9))
 BASE = "https://consensus.hankyung.com"
 LIST_URL = f"{BASE}/analysis/list"
@@ -223,7 +224,7 @@ def _line(no: int, c: Change) -> list[str]:
     return out
 
 
-def build_text(day: date, changes: list[Change], made: datetime) -> tuple[str, str]:
+def build_text(day: date, changes: list[Change], made: datetime, since: date | None = None) -> tuple[str, str]:
     up = sorted([c for c in changes if c.pct is not None and c.pct > 0], key=lambda c: -c.pct)
     down = sorted([c for c in changes if c.pct is not None and c.pct < 0], key=lambda c: c.pct)
     keep = [c for c in changes if c.pct == 0]
@@ -232,7 +233,8 @@ def build_text(day: date, changes: list[Change], made: datetime) -> tuple[str, s
     weekday = "월화수목금토일"[day.weekday()]
 
     title = f"{day:%y}년 {day.month}월 {day.day}일 증권사 리포트 목표주가 변동"
-    L = [f"■ {day.month}월 {day.day}일({weekday}) 신규 기업 리포트 {len(changes)}건",
+    span = f"{since.month}/{since.day}~{day.month}/{day.day} {made:%H:%M}" if since else f"{day.month}/{day.day}"
+    L = [f"■ {day.month}월 {day.day}일({weekday}) 신규 기업 리포트 {len(changes)}건 (전 섹터 · {span} 발간분)",
          f"- 목표주가 상향 {len(up)} / 하향 {len(down)} / 유지 {len(keep)} / 신규·비교불가 {len(new)}", ""]
 
     L.append(f"■ 목표주가 상향 ({len(up)}건)")
@@ -296,13 +298,40 @@ def send_telegram_text(text: str) -> None:
             raise RuntimeError(f"텔레그램 메시지 전송 실패: HTTP {res.status_code} {res.text[:200]}")
 
 
-def save(day: date, title: str, body: str) -> list[Path]:
+def _item(c: Change) -> dict:
+    r, p = c.now, c.prev
+    return {"company": r.company, "code": r.code, "broker": r.broker, "title": r.title, "day": r.day,
+            "target": r.target, "prev_target": p.target if p else None, "prev_day": p.day if p else None,
+            "pct": round(c.pct, 2) if c.pct is not None else None, "opinion": r.opinion,
+            "prev_opinion": p.opinion if p else None, "opinion_changed": c.opinion_changed,
+            "summary": r.summary[:3], "pdf": r.pdf}
+
+
+def save(day: date, title: str, body: str, changes: list[Change], made: datetime, since: date) -> list[Path]:
+    """사람이 읽는 .md 와 홈페이지(market-dashboard)가 읽는 .json 을 함께 저장한다."""
     OUT_DIR.mkdir(exist_ok=True)
     md = f"# {title}\n\n```\n{body}\n```\n"
-    paths = [OUT_DIR / "latest.md", OUT_DIR / f"{day:%Y-%m-%d}.md"]
-    for p in paths:
-        p.write_text(md, encoding="utf-8")
+    data = {"day": day.isoformat(), "since": since.isoformat(), "made": f"{made:%Y-%m-%d %H:%M}", "title": title,
+            "body": body, "items": [_item(c) for c in changes]}
+    js = json.dumps(data, ensure_ascii=False, indent=1)
+    paths = []
+    for name, text in ((f"latest.md", md), (f"{day:%Y-%m-%d}.md", md), ("latest.json", js), (f"{day:%Y-%m-%d}.json", js)):
+        (OUT_DIR / name).write_text(text, encoding="utf-8")
+        paths.append(OUT_DIR / name)
     return paths
+
+
+def load_reported() -> set[str]:
+    try:
+        return set(json.loads(REPORTED.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return set()
+
+
+def save_reported(keys: set[str], day: date) -> None:
+    cutoff = (day - timedelta(days=14)).isoformat()
+    REPORTED.write_text(json.dumps(sorted(k for k in keys if k[:10] >= cutoff), ensure_ascii=False, indent=0),
+                        encoding="utf-8")
 
 
 def git(*args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -323,34 +352,50 @@ def publish(day: date) -> str:
     return "GitHub 업로드 완료"
 
 
+def _key(r: Report) -> str:
+    return f"{r.day}|{r.code or r.company}|{_norm_broker(r.broker)}|{r.title}"
+
+
+def prev_business_day(day: date) -> date:
+    d = day - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
 def main() -> int:
     load_dotenv(ROOT / ".env")
     made = datetime.now(KST).replace(tzinfo=None)
     day = made.date()
     if "--date" in sys.argv:
         day = date.fromisoformat(sys.argv[sys.argv.index("--date") + 1])
+    # 오전 8시에는 그날 리포트가 거의 올라오지 않으므로, 전 영업일부터 지금까지 올라온 리포트 중
+    # 지난 정리에 아직 들어가지 않은 것을 모은다 (전날 아침 정리 뒤에 올라온 리포트 + 오늘 아침 리포트)
+    since = prev_business_day(day)
+    reported = load_reported()
 
     with httpx.Client(headers=HEADERS, timeout=30, follow_redirects=True) as client:
-        today = fetch_list(client, day.isoformat(), day.isoformat())
-        today = [r for r in today if r.day == day.isoformat()]
-        print(f"{day} 기업 리포트 {len(today)}건")
-        if not today:
-            print("오늘 올라온 기업 리포트가 없습니다 (휴일이거나 아직 업로드 전) - 보내지 않습니다.")
+        rows = fetch_list(client, since.isoformat(), day.isoformat())
+        new = [r for r in rows if since.isoformat() <= r.day <= day.isoformat() and _key(r) not in reported]
+        print(f"{since}~{day} 기업 리포트 {len(rows)}건 중 새로 정리할 리포트 {len(new)}건")
+        if not new:
+            print("새로 올라온 기업 리포트가 없습니다 (휴일이거나 아직 업로드 전) - 보내지 않습니다.")
             return 0
         # 종목별 검색은 한경이 조건을 무시해 종목마다 수십 쪽을 읽게 되므로(5건에 8분),
         # 최근 목록을 한 번만 받아 지난 기록과 합친 뒤 그 안에서 직전 리포트를 찾는다
         start = (day - timedelta(days=LOOKBACK_DAYS)).isoformat()
-        recent = fetch_list(client, start, (day - timedelta(days=1)).isoformat())
+        recent = fetch_list(client, start, (since - timedelta(days=1)).isoformat())
         print(f"직전 비교용 최근 리포트 {len(recent)}건 (가장 오래된 날 {min((r.day for r in recent), default='-')})")
-        pool = load_history() + recent
-        changes = [Change(r, find_previous(r, pool)) for r in today]
-    save_history(pool + today, day)
+        pool = load_history() + recent + rows
+        changes = [Change(r, find_previous(r, pool)) for r in new]
+    save_history(pool, day)
 
-    title, body = build_text(day, changes, made)
+    title, body = build_text(day, changes, made, since)
     print(title)
     print(body)
-    for p in save(day, title, body):
+    for p in save(day, title, body, changes, made, since):
         print(f"저장: {p}")
+    save_reported(reported | {_key(r) for r in new}, day)
     if "--no-send" not in sys.argv:
         send_telegram_text(f"{title}\n\n{body}")
         print("텔레그램 전송 완료")
@@ -360,7 +405,6 @@ def main() -> int:
         except Exception as exc:
             print(f"GitHub 업로드 실패: {getattr(exc, 'stderr', '') or exc}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
