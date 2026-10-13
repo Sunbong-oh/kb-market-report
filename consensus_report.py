@@ -172,89 +172,68 @@ def fetch_list(client: httpx.Client, sdate: str, edate: str, **extra: str) -> li
 
 
 # ── 네이버 증권 리서치 (종목분석 리포트) ─────────────────────────────────
-# 한경 컨센서스에 올라오지 않는 증권사 리포트가 있어(예: 2026-10-13 에이피알 하향) 두 번째 출처로 함께 본다.
-NAVER = "https://finance.naver.com/research/"
+# 한경 컨센서스에 올라오지 않는 증권사 리포트가 있어(예: 2026-10-13 에이피알 교보·신한) 두 번째 출처로 함께 본다.
+# 예전 finance.naver.com/research 는 Npay 증권 화면으로 옮겨져 표가 없으므로 Npay 증권 JSON API를 쓴다.
+#   목록   m.stock.naver.com/api/research/company?page=&pageSize=   (최신순, 날짜 조건 없음)
+#   종목별 m.stock.naver.com/api/research/stock/{종목코드}?page=&pageSize=
+#   상세   m.stock.naver.com/api/research/company/{researchId}      (opinion, goalPrice, attachUrl)
+NAVER_API = "https://m.stock.naver.com/api/research/"
 
 
-def _naver_get(client: httpx.Client, url: str, **params) -> str:
-    res = client.get(url, params=params or None, headers={"Referer": NAVER})  # 빈 params 는 주소의 ?nid= 를 지운다
+def _naver_json(client: httpx.Client, path: str, **params):
+    res = client.get(NAVER_API + path, params=params or None, headers={"Referer": "https://m.stock.naver.com/"})
     res.raise_for_status()
-    return res.content.decode("cp949", errors="replace")
+    return res.json()
 
 
-def _naver_day(text: str) -> str:
-    m = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{2})", text.strip())
-    return f"20{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else ""
+def _naver_report(x: dict) -> tuple[Report, int]:
+    return Report(day=x.get("writeDate", ""), title=x.get("title", ""), company=x.get("itemName", ""),
+                  code=x.get("itemCode", ""), target=None, opinion="", analyst="", broker=x.get("brokerName", ""),
+                  summary=[], pdf=x.get("endUrl", "") or f"https://m.stock.naver.com/research/company/{x['researchId']}",
+                  source="네이버"), x["researchId"]
 
 
-def parse_naver_list(html: str) -> list[tuple[Report, str]]:
-    """company_list 표 → (리포트, 상세 페이지 주소). 목표가·투자의견은 상세 페이지에만 있다."""
-    soup = BeautifulSoup(html, "html.parser")
-    out = []
-    for tr in soup.select("table.type_1 tr"):
-        tds = tr.find_all("td", recursive=False)
-        link = tr.find("a", href=re.compile(r"company_read\.naver"))
-        item = tr.find("a", href=re.compile(r"code=([0-9A-Z]{6})"))
-        if len(tds) < 5 or not link or not item:
-            continue
-        pdf = tr.find("a", href=re.compile(r"\.pdf", re.I))
-        day = next((d for d in (_naver_day(td.get_text(strip=True)) for td in tds) if d), "")
-        out.append((Report(
-            day=day, title=link.get_text(" ", strip=True), company=item.get_text(strip=True),
-            code=re.search(r"code=([0-9A-Z]{6})", item["href"]).group(1), target=None, opinion="", analyst="",
-            broker=tds[2].get_text(strip=True), summary=[], pdf=pdf["href"] if pdf else "", source="네이버",
-        ), NAVER + link["href"].lstrip("/").split("research/")[-1]))
-    return out
-
-
-def fill_naver_detail(client: httpx.Client, rep: Report, url: str) -> Report:
-    """상세 페이지의 '목표가 560,000 | 투자의견 Buy' 를 읽어 채운다."""
+def fill_naver_detail(client: httpx.Client, rep: Report, rid: int) -> Report:
+    """상세 API의 goalPrice·opinion 을 채운다 (원문 PDF 주소가 있으면 링크로 쓴다)."""
     try:
-        soup = BeautifulSoup(_naver_get(client, url), "html.parser")
-    except httpx.HTTPError as exc:
+        c = _naver_json(client, f"company/{rid}").get("researchContent") or {}
+    except (httpx.HTTPError, ValueError) as exc:
         print(f"네이버 상세 실패 {rep.company}: {exc}")
         return rep
-    money, coment = soup.select_one("em.money"), soup.select_one("em.coment")
-    text = soup.get_text(" ", strip=True)
-    m = re.search(r"목표가\s*([\d,]+)", text)
-    rep.target = _price(money.get_text()) if money else (_price(m.group(1)) if m else None)
-    m = re.search(r"투자의견\s*([가-힣]+|[A-Za-z]+(?: [A-Za-z]+)?)", text)
-    rep.opinion = coment.get_text(strip=True) if coment else (m.group(1) if m else "")
-    if not rep.pdf:
-        rep.pdf = url
+    rep.target = _price(str(c.get("goalPrice") or ""))
+    rep.opinion = (c.get("opinion") or "").strip()
+    rep.pdf = c.get("attachUrl") or rep.pdf
     time.sleep(0.2)
     return rep
 
 
-def fetch_naver(client: httpx.Client, sdate: str, edate: str) -> list[tuple[Report, str]]:
-    out: list[tuple[Report, str]] = []
-    seen: set[str] = set()
-    for page in range(1, 30):
-        rows = parse_naver_list(_naver_get(client, NAVER + "company_list.naver", searchType="writeDate",
-                                           writeFromDate=sdate, writeToDate=edate, page=page))
-        fresh = [(r, u) for r, u in rows if u not in seen]
-        if not fresh:
+def fetch_naver(client: httpx.Client, sdate: str, edate: str) -> list[tuple[Report, int]]:
+    """최신순 목록을 sdate 이전 날짜가 나올 때까지 넘긴다."""
+    out: list[tuple[Report, int]] = []
+    for page in range(1, 20):
+        items = _naver_json(client, "company", page=page, pageSize=100)
+        if not items:
             break
-        seen.update(u for _, u in fresh)
-        out.extend(fresh)
+        out += [_naver_report(x) for x in items if sdate <= x.get("writeDate", "") <= edate]
+        if min(x.get("writeDate", "") for x in items) < sdate:
+            break
         time.sleep(0.3)
     return out
 
 
 def naver_previous(client: httpx.Client, rep: Report) -> Report | None:
-    """네이버에서 같은 종목의 지난 리포트 목록을 보고, 같은 증권사의 직전 리포트 목표가를 읽는다."""
+    """네이버에서 같은 종목의 지난 리포트를 보고, 같은 증권사의 직전 리포트 목표가를 읽는다."""
     try:
-        rows = parse_naver_list(_naver_get(client, NAVER + "company_list.naver", searchType="itemCode",
-                                           itemCode=rep.code, page=1))
-    except httpx.HTTPError as exc:
+        items = _naver_json(client, f"stock/{rep.code}", page=1, pageSize=40)
+    except (httpx.HTTPError, ValueError) as exc:
         print(f"네이버 지난 리포트 실패 {rep.company}: {exc}")
         return None
-    same = [(r, u) for r, u in rows
-            if r.day and r.day < rep.day and _norm_broker(r.broker) == _norm_broker(rep.broker)]
+    same = [_naver_report(x) for x in items
+            if x.get("writeDate", "") < rep.day and _norm_broker(x.get("brokerName", "")) == _norm_broker(rep.broker)]
     if not same:
         return None
-    prev, url = max(same, key=lambda x: x[0].day)
-    return fill_naver_detail(client, prev, url)
+    prev, rid = max(same, key=lambda t: t[0].day)
+    return fill_naver_detail(client, prev, rid)
 
 
 def add_naver(client: httpx.Client, since: date, day: date, rows: list[Report]) -> list[Report]:
@@ -262,10 +241,10 @@ def add_naver(client: httpx.Client, since: date, day: date, rows: list[Report]) 
     have = {(r.day, r.code, _norm_broker(r.broker)) for r in rows}
     try:
         listed = fetch_naver(client, since.isoformat(), day.isoformat())
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, ValueError) as exc:
         print(f"네이버 리서치 목록 실패 (한경만 사용): {exc}")
         return []
-    extra = [fill_naver_detail(client, r, u) for r, u in listed
+    extra = [fill_naver_detail(client, r, rid) for r, rid in listed
              if r.day and (r.day, r.code, _norm_broker(r.broker)) not in have]
     print(f"네이버 리서치 {len(listed)}건 중 한경에 없는 리포트 {len(extra)}건 추가")
     return extra
