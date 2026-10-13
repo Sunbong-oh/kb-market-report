@@ -189,8 +189,14 @@ def market_issues(map_data: dict | None, keywords: list[str] | None = None) -> l
     try:
         with httpx.Client(headers=HEADERS, timeout=10, follow_redirects=True) as http:
             rows = fetch_news(http)
+            title = next((k[3:] for k in keywords or [] if k.startswith("제목:")), "")
+            keywords = [k for k in keywords or [] if not k.startswith("제목:")]
             karts = keyword_news(http, keywords, rows) if keywords else []
         res = build(rows, map_data, pinned=(keywords, karts) if keywords else None)
+        if keywords and res and res[0].get("pin"):  # 지정 키워드가 있으면 그 이슈 하나만
+            res = res[:1]
+            if title:
+                res[0]["headline"], res[0]["title"] = res[0]["title"], title
         print("  이슈:", [(g["title"][:30], g["n"], g["score"]) for g in res], flush=True)
         return res
     except Exception as e:

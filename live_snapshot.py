@@ -247,7 +247,11 @@ def issue_keywords(today: str) -> list[str]:
     if not names:
         return []
     body = git("show", f"origin/main:{sorted(names)[-1]}").stdout.decode("utf-8", "replace")
-    return [k.strip() for k in re.split(r"[,\n]", body) if k.strip()][:3]
+    # '제목: ...' 줄이 있으면 카드에 그 제목을 쓴다 (예: 제목: 창신메모리발 메모리주 급락)
+    title = next((ln.split(":", 1)[1].strip() for ln in body.splitlines() if re.match(r"\s*제목\s*:", ln)), "")
+    body = "\n".join(ln for ln in body.splitlines() if not re.match(r"\s*제목\s*:", ln))
+    kws = [k.strip() for k in re.split(r"[,\n]", body) if k.strip()][:3]
+    return kws + ([f"제목:{title}"] if title and kws else [])
 
 
 def drop_future_points(snap: dict, t: datetime) -> None:
