@@ -17,6 +17,8 @@ KEEP = ("t", "외국인", "기관계", "개인")
 
 def chart_data(raw: dict, market: dict | None) -> dict:
     fin = {r.get("name"): r.get("futures") for r in (market or {}).get("investors") or [] if r.get("futures") is not None}
+    if not any(fin.get(k) for k in KEEP[1:]):  # 장 마감 약 1시간 뒤 KB가 0으로 초기화 → 그때는 최종값으로 쓰지 않는다
+        fin = {}
     flows = [{k: r[k] for k in KEEP if k in r} for r in raw.get("flows") or []]
     cur = {k: v for k, v in (raw.get("current_flows") or {}).items() if k in KEEP}
     if fin:
