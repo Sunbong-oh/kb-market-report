@@ -1,0 +1,27 @@
+name: probe naver research
+on:
+  push:
+    branches: [probe/naver-research]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
+          for u in \
+            "https://finance.naver.com/research/company_list.naver?searchType=writeDate&writeFromDate=2026-10-13&writeToDate=2026-10-13&page=1" \
+            "https://m.stock.naver.com/api/research/company?page=1&pageSize=5" \
+            "https://m.stock.naver.com/api/research/list?category=company&page=1&pageSize=5" \
+            "https://m.stock.naver.com/front-api/research/list?category=company&page=1&pageSize=5" \
+            "https://m.stock.naver.com/api/stock/278470/research?page=1&pageSize=5" \
+            "https://m.stock.naver.com/front-api/research/stock?itemCode=278470&page=1&pageSize=5" \
+            "https://m.stock.naver.com/api/research/stock/278470?page=1&pageSize=5" \
+            "https://stock.naver.com/api/research/company?page=1&pageSize=5" \
+            "https://m.stock.naver.com/research/company" \
+            "https://m.stock.naver.com/domestic/stock/278470/research" ; do
+            echo "=== $u"
+            curl -sSL -A "$UA" -H "Referer: https://m.stock.naver.com/" -o /tmp/b -w "HTTP %{http_code} final=%{url_effective} type=%{content_type}\n" "$u" || true
+            head -c 600 /tmp/b | iconv -f cp949 -t utf-8 -c 2>/dev/null | tr '\n' ' ' | head -c 600; echo
+            grep -o -E '(/api|front-api)[^"'"'"' ]{0,80}research[^"'"'"' ]{0,80}' /tmp/b | sort -u | head -20
+          done
