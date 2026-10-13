@@ -35,6 +35,10 @@ SECTOR_KEYS = [
 ]
 
 
+ALIAS = {"삼전": "삼성전자", "SK하닉": "SK하이닉스", "하닉": "SK하이닉스", "하이닉스": "SK하이닉스", "삼바": "삼성바이오로직스",
+         "엔솔": "LG에너지솔루션", "현차": "현대차", "삼전닉스": "삼성전자 SK하이닉스"}
+
+
 def _tokens(text: str) -> set[str]:
     out = set()
     for w in re.findall(r"[A-Za-z][A-Za-z0-9&]+|[가-힣]{2,}", re.sub(r"\[[^\]]*\]", " ", text)):
@@ -70,28 +74,26 @@ def fetch_news(http: httpx.Client, hours: int = 18, pages: int = 3) -> list[dict
 
 
 def cluster(rows: list[dict]) -> list[list[int]]:
+    """씨앗 묶음(사슬처럼 번지지 않게): 이웃(같은 이야기)이 가장 많은 기사를 씨앗으로, 그 기사와 직접 겹치는 기사만 한 묶음."""
     toks = [_tokens(r["t"]) | _tokens(r["b"][:120]) for r in rows]
     df = Counter(t for ts in toks for t in ts)
     n = len(rows)
     sal = [{t for t in ts if 2 <= df[t] <= max(3, n // 3)} for ts in toks]
-    parent = list(range(n))
 
-    def find(x):
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
+    def same(i, j):
+        common = sal[i] & sal[j]
+        # 영문 대문자 고유명사(CXMT 등)는 하나만 겹쳐도, 한글은 세 단어 이상(제목끼리는 두 단어) 겹치면 같은 이야기
+        tcommon = _tokens(rows[i]["t"]) & _tokens(rows[j]["t"]) & common
+        return len(common) >= 3 or len(tcommon) >= 2 or any(re.fullmatch(r"[A-Z]{3,}[A-Z0-9]*", c) for c in common)
 
-    for i in range(n):
-        for j in range(i + 1, n):
-            common = sal[i] & sal[j]
-            # 영문 대문자 고유명사(CXMT 등)는 하나만 겹쳐도, 한글은 두 단어 이상 겹치면 같은 이야기
-            if len(common) >= 2 or any(re.match(r"[A-Z]{3,}", c) for c in common):
-                parent[find(j)] = find(i)
-    groups: dict[int, list[int]] = {}
-    for i in range(n):
-        groups.setdefault(find(i), []).append(i)
-    return list(groups.values())
+    nb = {i: {j for j in range(n) if j != i and same(i, j)} for i in range(n)}
+    left, groups = set(range(n)), []
+    while left:
+        seed = max(left, key=lambda i: (len(nb[i] & left), -i))
+        members = sorted({seed} | (nb[seed] & left))
+        groups.append(members)
+        left -= set(members)
+    return groups
 
 
 def _label(rows, members) -> str:
@@ -117,9 +119,12 @@ def build(rows: list[dict], map_data: dict | None, top: int = 3) -> list[dict]:
     for members in cluster(rows):
         text = " ".join(rows[i]["t"] + " " + rows[i]["b"] for i in members)
         offices = {rows[i]["o"] for i in members}
+        titles = " ".join(rows[i]["t"] for i in members)
+        for a, full in ALIAS.items():
+            titles = titles.replace(a, full)
         found = []
-        for nm in names:  # 긴 이름부터 (삼성전자우 → 삼성전자 중복 방지)
-            if nm in text and not any(nm in f for f in found):
+        for nm in names:  # 긴 이름부터 (삼성전자우 → 삼성전자 중복 방지), 제목에 나온 종목만
+            if re.search(r"(?<![가-힣A-Za-z])" + re.escape(nm) + r"(?![가-힣A-Za-z])", titles) and not any(nm in f for f in found):
                 found.append(nm)
         sec = None
         for pat, sname, reps in SECTOR_KEYS:
