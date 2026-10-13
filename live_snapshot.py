@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import re
 import os
 import subprocess
 import sys
@@ -236,6 +237,19 @@ def market_map(per_sector: int = 30) -> dict | None:
         return None
 
 
+def issue_keywords(today: str) -> list[str]:
+    """사이트(관리자)에서 입력해 main에 올린 오늘의 핵심 이슈 키워드: issue_keywords/YYYYMMDD-HHMM.txt 중 오늘 마지막 파일.
+    쉼표·줄바꿈으로 나눈 최대 3개. 빈 파일이면 지정 해제."""
+    if git("fetch", "-q", "origin", "main:refs/remotes/origin/main").returncode:
+        return []
+    names = [n for n in git("ls-tree", "--name-only", "origin/main", "issue_keywords/").stdout.decode().split()
+             if n.split("/")[-1].startswith(today)]
+    if not names:
+        return []
+    body = git("show", f"origin/main:{sorted(names)[-1]}").stdout.decode("utf-8", "replace")
+    return [k.strip() for k in re.split(r"[,\n]", body) if k.strip()][:3]
+
+
 def drop_future_points(snap: dict, t: datetime) -> None:
     """KB 지수 분봉에 가끔 아직 오지 않은 시각의 점(전날 같은 시각 값으로 보이는 15:14 등)이 섞여 온다
     → 미니차트가 그 시각까지 늘어나며 선이 튄다. 오늘 자료에서 지금 시각보다 뒤의 점은 버린다."""
@@ -274,6 +288,7 @@ def main() -> None:
     proc: subprocess.Popen | None = None
     flows: dict = {}
     last_map: dict | None = None
+    last_kws: list[str] | None = None
     day = ""
     seeded = archived = False
     try:
@@ -308,8 +323,12 @@ def main() -> None:
                     if m:  # 맵은 따로 map.json (용량이 커서 1분마다 받는 snapshot.json과 나눈다)
                         last_map = m
                         extra["map.json"] = json.dumps({"date": today, "time": hm, "data": m}, ensure_ascii=False)
-                if t.minute % 5 == 0 or not any(r.endswith("\tissues.json") for r in keep):
-                    iss = market_issues(last_map)  # 오늘의 핵심 이슈 (주요뉴스 묶음 + 관련 종목 등락)
+                kws = issue_keywords(today)
+                if t.minute % 5 == 0 or kws != last_kws or not any(r.endswith("\tissues.json") for r in keep):
+                    if kws != last_kws:
+                        print(hm, "핵심 이슈 키워드:", kws or "없음", flush=True)
+                    last_kws = kws
+                    iss = market_issues(last_map, kws)  # 오늘의 핵심 이슈 (지정 키워드 + 주요뉴스 묶음, 관련 종목 등락)
                     if iss is not None:
                         extra["issues.json"] = json.dumps({"date": today, "time": hm, "data": iss}, ensure_ascii=False)
                 drop_future_points(snap, t)
