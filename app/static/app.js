@@ -104,7 +104,7 @@ async function loadMarket() {
           ? `<p class="muted">선물·옵션 수급은 장 마감 약 1시간 뒤 KB에서 초기화되어, 지금은 표시할 값이 없습니다.</p>`
           : `${col("선물", "futures", big3)}
         <div class="inv-cols pair">${col("콜옵션", "call", big3)}${col("풋옵션", "put", big3)}</div>`}</div>
-      <p class="muted">IVSA0070 투자자별 순매수 · 단위 억원</p>` : `<div class="empty">수급 데이터 없음</div>`;
+      <p class="muted">IVSA0070 투자자별 매매동향 · 단위 억원</p>` : `<div class="empty">수급 데이터 없음</div>`;
   } catch (e) { fail($("#indices"), e); }
 }
 

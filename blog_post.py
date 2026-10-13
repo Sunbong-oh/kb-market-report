@@ -93,7 +93,7 @@ def build_body(api: dict, now: datetime) -> str:
         lines.append(f"- 국고채 10년 {_n(y, 3)}%{move}")
 
     if inv:
-        lines += ["", "■ 투자자별 순매수 (억원)",
+        lines += ["", "■ 투자자별 매매동향 (억원)",
                   f"- 코스피: {_flow_line(inv, 'kospi')}",
                   f"- 코스닥: {_flow_line(inv, 'kosdaq')}",
                   "", "■ 선물·옵션 (KOSPI200, 억원)"]
