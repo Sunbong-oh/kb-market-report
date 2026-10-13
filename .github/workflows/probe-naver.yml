@@ -9,19 +9,26 @@ jobs:
     steps:
       - run: |
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36"
+          echo "=== list item full"
+          curl -sS -A "$UA" "https://m.stock.naver.com/api/research/stock/278470?page=1&pageSize=8" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(json.dumps(x,ensure_ascii=False)[:500]) for x in d]"
+          echo "=== list params"
+          curl -sS -A "$UA" "https://m.stock.naver.com/api/research/company?page=1&pageSize=3&writeFromDate=2026-10-12&writeToDate=2026-10-12" | python3 -c "import json,sys; d=json.load(sys.stdin); print([ (x['writeDate'],x['itemName'],x['brokerName']) for x in d])"
+          curl -sS -A "$UA" "https://m.stock.naver.com/api/research/company?page=3&pageSize=100" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d), d[0]['writeDate'], d[-1]['writeDate'])"
+          ID=$(curl -sS -A "$UA" "https://m.stock.naver.com/api/research/stock/278470?page=1&pageSize=1" | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['researchId'])")
+          echo "ID=$ID"
           for u in \
-            "https://finance.naver.com/research/company_list.naver?searchType=writeDate&writeFromDate=2026-10-13&writeToDate=2026-10-13&page=1" \
-            "https://m.stock.naver.com/api/research/company?page=1&pageSize=5" \
-            "https://m.stock.naver.com/api/research/list?category=company&page=1&pageSize=5" \
-            "https://m.stock.naver.com/front-api/research/list?category=company&page=1&pageSize=5" \
-            "https://m.stock.naver.com/api/stock/278470/research?page=1&pageSize=5" \
-            "https://m.stock.naver.com/front-api/research/stock?itemCode=278470&page=1&pageSize=5" \
-            "https://m.stock.naver.com/api/research/stock/278470?page=1&pageSize=5" \
-            "https://stock.naver.com/api/research/company?page=1&pageSize=5" \
-            "https://m.stock.naver.com/research/company" \
-            "https://m.stock.naver.com/domestic/stock/278470/research" ; do
+            "https://m.stock.naver.com/api/research/company/$ID" \
+            "https://m.stock.naver.com/api/research/$ID" \
+            "https://m.stock.naver.com/api/research/detail/$ID" \
+            "https://m.stock.naver.com/api/research/company/detail/$ID" \
+            "https://m.stock.naver.com/front-api/research/detail?researchId=$ID" \
+            "https://m.stock.naver.com/front-api/research/company/$ID" \
+            "https://m.stock.naver.com/front-api/research/detail?category=company&researchId=$ID" \
+            "https://m.stock.naver.com/research/company/$ID" \
+            "https://finance.naver.com/research/company_read.naver?nid=$ID" ; do
             echo "=== $u"
             curl -sSL -A "$UA" -H "Referer: https://m.stock.naver.com/" -o /tmp/b -w "HTTP %{http_code} final=%{url_effective} type=%{content_type}\n" "$u" || true
-            head -c 600 /tmp/b | iconv -f cp949 -t utf-8 -c 2>/dev/null | tr '\n' ' ' | head -c 600; echo
-            grep -o -E '(/api|front-api)[^"'"'"' ]{0,80}research[^"'"'"' ]{0,80}' /tmp/b | sort -u | head -20
+            head -c 700 /tmp/b | tr '\n' ' '; echo
+            grep -o -E '.{0,60}(목표가|목표주가|goalPrice|targetPrice|opinion|투자의견).{0,80}' /tmp/b | head -8
+            grep -o -E '(/api|front-api)[^"'"'"' ]{0,60}research[^"'"'"' ]{0,60}' /tmp/b | sort -u | head -10
           done
