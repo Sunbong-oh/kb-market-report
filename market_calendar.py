@@ -11,6 +11,8 @@ import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+from calendar_values import annotate
+
 CAL_DIR = Path(__file__).resolve().parent / "calendar"
 FIELDS = (("earnings_kr", "국내 실적"), ("earnings_us", "미국 실적(한국시간 밤~새벽)"), ("macro", "경제지표·이슈"), ("events", "행사"))
 _cache: dict[str, dict] = {}
@@ -28,7 +30,12 @@ def _month(d: date) -> dict:
 
 
 def _day(d: date) -> dict:
-    return (_month(d).get("days") or {}).get(d.isoformat()) or {}
+    """그날 일정. ★ 핵심 항목에는 예상치·발표치가 있으면 붙인다(calendar_values)."""
+    key = f"day:{d.isoformat()}"
+    if key not in _cache:
+        raw = (_month(d).get("days") or {}).get(d.isoformat()) or {}
+        _cache[key] = {k: [annotate(d, k, v) for v in vals] if isinstance(vals, list) else vals for k, vals in raw.items()}
+    return _cache[key]
 
 
 def _is_holiday(d: date) -> bool:
