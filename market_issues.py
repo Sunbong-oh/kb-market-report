@@ -185,18 +185,27 @@ def keyword_news(http: httpx.Client, keywords: list[str], rows: list[dict], hour
     return out
 
 
-def market_issues(map_data: dict | None, keywords: list[str] | None = None) -> list[dict] | None:
+def market_issues(map_data: dict | None, keywords: list | None = None) -> list[dict] | None:
+    """keywords: 지정 이슈 목록 [[키워드…, '제목:…'], …] (최대 2개). 지정이 있으면 그 이슈들만 보여준다."""
+    issues = [k for k in (keywords or []) if k]
+    if issues and isinstance(issues[0], str):  # 예전 형식(이슈 하나)
+        issues = [issues]
     try:
         with httpx.Client(headers=HEADERS, timeout=10, follow_redirects=True) as http:
             rows = fetch_news(http)
-            title = next((k[3:] for k in keywords or [] if k.startswith("제목:")), "")
-            keywords = [k for k in keywords or [] if not k.startswith("제목:")]
-            karts = keyword_news(http, keywords, rows) if keywords else []
-        res = build(rows, map_data, pinned=(keywords, karts) if keywords else None)
-        if keywords and res and res[0].get("pin"):  # 지정 키워드가 있으면 그 이슈 하나만
-            res = res[:1]
-            if title:
-                res[0]["headline"], res[0]["title"] = res[0]["title"], title
+            pins = []
+            for iss in issues[:2]:
+                title = next((k[3:] for k in iss if k.startswith("제목:")), "")
+                kws = [k for k in iss if not k.startswith("제목:")]
+                karts = keyword_news(http, kws, rows)
+                res = build(rows, map_data, pinned=(kws, karts))
+                if res and res[0].get("pin"):
+                    g = res[0]
+                    g["src"] = (title + " | " if title else "") + ", ".join(kws)  # 관리자 입력칸에 다시 채울 원문
+                    if title:
+                        g["headline"], g["title"] = g["title"], title
+                    pins.append(g)
+        res = pins or build(rows, map_data)
         print("  이슈:", [(g["title"][:30], g["n"], g["score"]) for g in res], flush=True)
         return res
     except Exception as e:
