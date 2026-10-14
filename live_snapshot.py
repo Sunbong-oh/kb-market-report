@@ -327,20 +327,23 @@ def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
         snap["/api/indices/intraday"] = new_ix
 
 
-_kicked = {"day": ""}
+_kicked: dict = {"day": "", "slots": set()}
+CONSENSUS_SLOTS = ("07:00", "07:40", "08:20")
 
 
 def kick_consensus(t: datetime) -> None:
-    """평일 07:00에 목표주가 변동 리포트(consensus-report.yml)를 띄운다. 이 작업은 이어달리기로 늘 떠 있어서
-    GitHub 예약(몇 시간씩 늦음)이나 루틴보다 확실하다. 그날 리포트가 이미 있으면 건너뛴다."""
+    """평일 07:00·07:40·08:20에 목표주가 변동 리포트(consensus-report.yml)를 띄운다.
+    증권사 리포트는 7~8시 반 사이에 주로 올라오므로 세 번 돌린다(다시 돌리면 그날 리포트에 새 것이 더해진다).
+    이 작업은 이어달리기로 늘 떠 있어서 GitHub 예약(몇 시간씩 늦음)이나 루틴보다 확실하다."""
     hm, d = t.strftime("%H:%M"), t.strftime("%Y-%m-%d")
-    if t.weekday() >= 5 or not ("07:00" <= hm < "09:00") or _kicked["day"] == d:
+    if t.weekday() >= 5:
         return
-    _kicked["day"] = d
-    if git("fetch", "-q", "origin", "main:refs/remotes/origin/main").returncode == 0 \
-            and git("cat-file", "-e", f"origin/main:consensus/{d}.md").returncode == 0:
-        print(hm, "목표주가 리포트 이미 있음", flush=True)
+    if _kicked["day"] != d:
+        _kicked["day"], _kicked["slots"] = d, set()
+    due = [s for s in CONSENSUS_SLOTS if s <= hm < "09:00" and s not in _kicked["slots"]]
+    if not due:
         return
+    _kicked["slots"].update(due)
     try:
         r = subprocess.run(["gh", "workflow", "run", "consensus-report.yml", "--ref", "main"], cwd=ROOT,
                            capture_output=True, timeout=60)
