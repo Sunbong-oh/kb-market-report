@@ -56,9 +56,12 @@ SEMI = {"ASML", "TSMC", "마이크론", "엔비디아", "브로드컴", "AMD", "
         "텍사스인스트루먼트", "ARM", "도쿄일렉트론", "샌디스크", "웨스턴디지털", "삼성전자", "SK하이닉스", "한미반도체", "DB하이텍", "리노공업"}
 
 PREVIEW = re.compile(r"preview|expect|ahead of|what to watch|to report|will report|set to|due to|options|implied|week ahead|"
-                     r"should you|how to play|before (?:its |the )?earnings|on deck|look for|watch for|could|calendar", re.I)
+                     r"this week|should you|how to play|before (?:its |the )?earnings|on deck|look for|watch for|could|calendar|"
+                     r"chatter|rumou?r|\?", re.I)
+# 실적 기사로 보려면 실적 단어 + 결과 동사가 함께 있어야 한다 ('ASML Raises Sales Forecast', 'ASML reports €11.7 billion net sales')
+EARN_WORD = re.compile(r"\b(?:Q[1-4]|quarter(?:ly)?|earnings|results|revenue|sales|profit|EPS|net income|outlook|forecast|guidance)\b", re.I)
 RESULT = re.compile(r"\b(?:reports?|reported|posts?|posted|beats?|miss(?:es|ed)?|tops?|topped|raises?|raised|lifts?|lifted|"
-                    r"cuts?|lowers?|lowered|surpass\w*|exceed\w*|record|guides?|guidance|results?|forecast)\b", re.I)
+                    r"cuts?|lowers?|lowered|surpass\w*|exceed\w*|falls? short|boosts?|hikes?|trims?|slashes)\b", re.I)
 KO_PREVIEW = re.compile(r"전망|예상|앞두고|기대|추정|컨센|프리뷰|관전|주목")
 
 
@@ -122,16 +125,23 @@ def google_ko(query: str, after: datetime, n: int = 3) -> list[dict]:
 
 def detect_foreign(t: dict) -> dict | None:
     after = since(t)
-    j = get("https://query2.finance.yahoo.com/v1/finance/search?q=" + urllib.parse.quote(t["sym"] or t["q"]) + "&newsCount=15&quotesCount=0") or {}
     key = t["q"].split()[0].lower()
-    hits = []
-    for n in j.get("news") or []:
+    hits, seen = [], set()
+    news = []
+    for q in (t["sym"] or t["q"], t["q"] + " earnings"):  # 심볼 검색만으로는 보도자료가 빠질 때가 있다
+        j = get("https://query2.finance.yahoo.com/v1/finance/search?q=" + urllib.parse.quote(q) + "&newsCount=20&quotesCount=0") or {}
+        news += [n for n in j.get("news") or [] if n.get("uuid") not in seen and not seen.add(n.get("uuid"))]
+    for n in news:
         title = n.get("title") or ""
         dt = datetime.fromtimestamp(n.get("providerPublishTime") or 0, KST)
-        if dt < after or key not in title.lower() or PREVIEW.search(title) or not RESULT.search(title):
+        if dt < after or key not in title.lower() or PREVIEW.search(title) or not (RESULT.search(title) and EARN_WORD.search(title)):
             continue
         hits.append({"t": title, "u": n.get("link") or "", "o": n.get("publisher") or "", "dt": dt.strftime("%m/%d %H:%M")})
-    if not hits:
+    ko = google_ko(f"{t['name']} 실적", after, 6)
+    # 한국 기사로도 감지: 회사명 + 분기/실적 + 매출·영업이익·가이던스 + 숫자
+    ko_hits = [a for a in ko if t["name"].lower() in a["t"].lower()
+               and re.search(r"(?:분기|실적).{0,25}(?:매출|영업이익|순이익|EPS|가이던스|전망치)", a["t"]) and re.search(r"\d", a["t"])]
+    if not hits and len(ko_hits) < 2:
         return None
     hits.sort(key=lambda a: a["dt"])
     cons = []
@@ -145,7 +155,8 @@ def detect_foreign(t: dict) -> dict | None:
                 if r.get("eps"):
                     cons.append(f"EPS 발표 {r['eps']}" + (f" (서프라이즈 {float(r['surprise']):+.1f}%)" if r.get("surprise") else ""))
                 break
-    return {"first": hits[0]["dt"], "en": hits[-3:][::-1], "ko": google_ko(f"{t['name']} 실적", after), "cons": cons}
+    first = min([a["dt"] for a in hits] + [a["dt"] for a in ko_hits])
+    return {"first": first, "en": hits[-3:][::-1], "ko": ko[:3], "cons": cons}
 
 
 def naver_consensus(code: str) -> list[str]:
