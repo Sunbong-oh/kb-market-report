@@ -49,6 +49,8 @@ FOREIGN = {
     "메타": ("Meta", "META"), "애플": ("Apple", "AAPL"), "아마존": ("Amazon", "AMZN"), "넷플릭스": ("Netflix", "NFLX"),
     "오라클": ("Oracle", "ORCL"), "팔란티어": ("Palantir", "PLTR"),
 }
+# 미국 외 본국 상장 (야후 심볼, 시장 이름) — 실적 후 주가 반응을 함께 본다
+HOME = {"ASML": ("ASML.AS", "암스테르담"), "TSMC": ("2330.TW", "대만"), "도쿄일렉트론": ("8035.T", "도쿄")}
 DOMESTIC = {"삼성전자": "005930", "SK하이닉스": "000660", "한미반도체": "042700", "삼성전기": "009150", "LG에너지솔루션": "373220",
             "삼성SDI": "006400", "현대차": "005380", "기아": "000270", "NAVER": "035420", "카카오": "035720", "LG전자": "066570",
             "삼성바이오로직스": "207940", "셀트리온": "068270", "POSCO홀딩스": "005490", "DB하이텍": "000990", "리노공업": "058470"}
@@ -204,15 +206,123 @@ def detect_domestic(t: dict) -> dict | None:
     return {"first": first, "en": [disc] if disc else [], "ko": news[:3], "cons": naver_consensus(t["code"])}
 
 
+CUR = {"USD": "$", "EUR": "€", "TWD": "NT$", "JPY": "¥", "KRW": ""}
+
+
+def fmt_px(v: float, cur: str | None) -> str:
+    sign = CUR.get(cur or "", "")
+    return f"{sign}{v:,.0f}" + ("원" if cur == "KRW" else "") if v >= 1000 and cur in ("KRW", "JPY", "TWD") else f"{sign}{v:,.2f}"
+
+
+def yahoo_reaction(sym: str, label: str, since: datetime) -> dict | None:
+    """야후 차트(5일·5분, 장전·시간외 포함)로 '발표 전 종가 대비' 등락과 지금 세션, 발표 후 첫 정규장 종가 등락."""
+    j = get(f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(sym)}?range=5d&interval=5m&includePrePost=true") or {}
+    try:
+        r = j["chart"]["result"][0]
+    except (KeyError, IndexError, TypeError):
+        return None
+    closes = r["indicators"]["quote"][0].get("close") or []
+    pts = [(t, c) for t, c in zip(r.get("timestamp") or [], closes) if c is not None]
+    tp = r["meta"].get("tradingPeriods") or {}
+    reg = tp.get("regular") if isinstance(tp, dict) else tp
+    periods = sorted((p[0]["start"], p[0]["end"]) for p in reg or [] if p)
+    if not pts or not periods:
+        return None
+    s_ts, n_ts = since.timestamp(), NOW.timestamp()
+    pts = [(t, c) for t, c in pts if t <= n_ts]
+    if not pts:
+        return None
+
+    def close_of(p):
+        v = [c for t, c in pts if p[0] <= t <= p[1]]
+        return v[-1] if v else None
+    if any(p[0] <= s_ts < p[1] for p in periods):  # 정규장 중 발표 → 발표 시점 가격 기준
+        v = [c for t, c in pts if t <= s_ts]
+        ref, ref_l = (v[-1] if v else None), "발표 시점"
+    else:
+        done = [p for p in periods if p[1] <= s_ts]
+        ref, ref_l = (close_of(done[-1]) if done else None), "발표 전 종가"
+    t, price = pts[-1]
+    when = datetime.fromtimestamp(t, KST).strftime("%m/%d %H:%M")
+    cur = r["meta"].get("currency")
+    if t < s_ts:  # 발표 뒤 아직 거래가 없음 (예: ASML 14시 발표 → 미국 장전 거래는 17시부터)
+        return {"l": label, "s": "발표 후 거래 전", "t": when, "p": fmt_px(price, cur), "c": None, "ref": ref_l, "d1": None}
+    i = max((k for k, p in enumerate(periods) if p[0] <= t), default=None)
+    if i is not None and t < periods[i][1]:
+        sess = "정규장"
+    elif "." in sym:
+        sess = "종가"
+    elif i is not None and t - periods[i][1] <= 4 * 3600 + 600:
+        sess = "애프터마켓"
+    else:
+        sess = "프리마켓"
+    d1p = next((p for p in periods if p[0] >= s_ts and p[1] <= n_ts), None)  # 발표 후 첫 정규장 (끝난 것)
+    d1 = close_of(d1p) if d1p else None
+    pct = lambda v: round((v / ref - 1) * 100, 2) if ref and v else None
+    return {"l": label, "s": sess, "t": when, "p": fmt_px(price, cur), "c": pct(price), "ref": ref_l, "d1": pct(d1)}
+
+
+def naver_reaction(code: str, label: str, since: datetime) -> dict | None:
+    j = get(f"https://m.stock.naver.com/api/stock/{code}/basic") or {}
+    try:
+        price, chg = float(j["closePrice"].replace(",", "")), float(j["fluctuationsRatio"])
+    except (KeyError, ValueError, AttributeError):
+        return None
+    open_ = j.get("marketStatus") == "OPEN"
+    # 장 마감(15:30) 뒤 발표면 오늘 등락은 발표 전 → 다음 거래일부터 반응
+    d1_day = since.date() if since.strftime("%H%M") < "1530" else since.date() + timedelta(days=1)
+    while d1_day.weekday() >= 5:
+        d1_day += timedelta(days=1)
+    if NOW.date() < d1_day:
+        return {"l": label, "s": "발표 후 정규장 전", "t": NOW.strftime("%m/%d %H:%M"), "p": f"{price:,.0f}원", "c": None, "ref": "전일 종가", "d1": None}
+    d1 = chg if NOW.date() == d1_day and not open_ and NOW.strftime("%H%M") >= "1535" else None
+    return {"l": label, "s": "장중" if open_ else "종가", "t": NOW.strftime("%m/%d %H:%M"), "p": f"{price:,.0f}원", "c": chg, "ref": "전일 종가", "d1": d1}
+
+
+def reactions(it: dict) -> list[dict]:
+    since = datetime.fromisoformat(it["first_iso"])
+    if it.get("kr"):
+        r = naver_reaction(it["code"], it["name"], since)
+        return [r] if r else []
+    out = []
+    if it.get("sym"):
+        out.append(yahoo_reaction(it["sym"], f"{it['name']}(미국 {it['sym']})", since))
+    if it["name"] in HOME:
+        hs, market = HOME[it["name"]]
+        out.append(yahoo_reaction(hs, f"{it['name']}({market})", since))
+    return [r for r in out if r]
+
+
+def px_line(r: dict) -> str:
+    s = f"{r['l']} {r['s']}({r.get('t', '')}) {r['p']}"
+    if r.get("c") is not None:
+        s += f" ({r['ref']} 대비 {r['c']:+.2f}%)"
+    if r.get("d1") is not None:
+        s += f" · 발표 후 첫 정규장 {r['d1']:+.2f}%"
+    return s
+
+
 def message(t: dict, res: dict) -> str:
     lines = [f"📊 실적 발표 · {t['name']}", f"(캘린더: {t['item'].lstrip('★')} · {t['day'][5:].replace('-', '/')})", ""]
     lines += [f"▶ {c}" for c in res["cons"]]
-    if res["cons"]:
+    lines += [f"📈 {px_line(r)}" for r in res.get("px") or []]
+    if res["cons"] or res.get("px"):
         lines.append("")
     for a in res["en"] + res["ko"]:
         lines.append(f"• {a['t']} ({a['o']} {a['dt']})")
     lines += ["", f"홈페이지: {SITE}"]
     return "\n".join(lines)
+
+
+def merge_px(old: list | None, new: list) -> list:
+    """새로 받은 주가로 바꾸되, 한 번 잡은 '발표 후 첫 정규장' 등락은 유지한다 (날이 지나면 다시 못 구하므로)."""
+    if not new:
+        return old or []
+    prev = {r["l"]: r for r in old or []}
+    for r in new:
+        if r.get("d1") is None and prev.get(r["l"], {}).get("d1") is not None:
+            r["d1"] = prev[r["l"]]["d1"]
+    return new
 
 
 def previous() -> dict:
@@ -236,12 +346,27 @@ def run(now: datetime, dry: bool = False) -> None:
         if not res:
             continue
         prev = items.get(t["key"]) or {}
-        items[t["key"]] = {"key": t["key"], "day": t["day"], "name": t["name"], "item": t["item"].lstrip("★"),
-                           "detected": prev.get("detected") or now.strftime("%Y-%m-%d %H:%M"), "first": res["first"],
-                           "cons": res["cons"], "news": (res["en"] + res["ko"])[:6], "sent": True}
+        first_iso = prev.get("first_iso") or datetime.strptime(f"{t['day'][:4]}/{res['first']}", "%Y/%m/%d %H:%M").replace(tzinfo=KST).isoformat()
+        it = dict(prev)
+        it.update({"key": t["key"], "day": t["day"], "name": t["name"], "item": t["item"].lstrip("★"),
+                   "detected": prev.get("detected") or now.strftime("%Y-%m-%d %H:%M"), "first": res["first"], "first_iso": first_iso,
+                   "kr": t["kr"], "code": t.get("code"), "sym": t.get("sym"),
+                   "cons": res["cons"], "news": (res["en"] + res["ko"])[:6], "sent": True})
+        it["px"] = merge_px(prev.get("px"), reactions(it))
+        items[t["key"]] = it
         if not prev.get("sent"):
+            res["px"] = it["px"]
             msgs.append(message(t, res))
-        print("  감지:", res["first"], [a["t"][:50] for a in res["en"]], flush=True)
+        print("  감지:", res["first"], [a["t"][:50] for a in res["en"]], it["px"], flush=True)
+    # 감시 기간이 끝난 항목도 사흘 동안 주가 반응을 갱신하고, 발표 후 첫 정규장이 끝나면 한 번 알린다
+    seen = {t["key"] for t in targets(now)}
+    for it in items.values():
+        if it["key"] not in seen and it.get("first_iso"):
+            it["px"] = merge_px(it.get("px"), reactions(it))
+        main = (it.get("px") or [None])[0]
+        if main and main.get("d1") is not None and not it.get("react_sent"):
+            it["react_sent"] = True
+            msgs.append("\n".join([f"📈 실적 후 주가 반응 · {it['name']}", ""] + [px_line(r) for r in it["px"]] + ["", f"홈페이지: {SITE}"]))
     data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": sorted(items.values(), key=lambda i: i["detected"], reverse=True)}
     if dry:
         print(json.dumps(data, ensure_ascii=False, indent=1))
