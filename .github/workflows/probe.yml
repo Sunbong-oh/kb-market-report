@@ -1,0 +1,8 @@
+name: probe
+on: { push: { branches: ["probe/**"] } }
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 earnings_watch.py --dry 2026-10-14T15:30 && python3 earnings_watch.py --dry 2026-10-09T10:00
