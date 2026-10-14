@@ -82,10 +82,12 @@ def _macro(d: date, text: str) -> str:
             continue
         fc, prev = _clean(e.get("forecast")), _clean(e.get("previous"))
         actual = ""
-        rows = ((_get(NQ_ECON.format(e["date"][:10])) or {}).get("data") or {}).get("rows") or []
+        # 나스닥 경제지표 일정은 미국 발표가 하루 뒤 날짜에 실리기도 한다 (9월 CPI 10/14 발표 → 10/15 목록)
+        d0 = date.fromisoformat(e["date"][:10])
+        rows = [r for k in (0, 1) for r in (((_get(NQ_ECON.format((d0 + timedelta(days=k)).isoformat())) or {}).get("data") or {}).get("rows") or [])]
         for r in rows:
             if r.get("country") == "United States" and _clean(r.get("eventName")) == nq_name \
-                    and _clean(r.get("previous")) == prev and (not fc or _clean(r.get("consensus")) in (fc, "")):
+                    and _clean(r.get("previous")) == prev and _clean(r.get("actual")):
                 actual = _clean(r.get("actual"))
                 break
         if actual:
