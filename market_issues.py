@@ -132,7 +132,11 @@ def build(rows: list[dict], map_data: dict | None, top: int = 3, pinned: tuple[l
         for a, full in ALIAS.items():
             titles = titles.replace(a, full)
         found = []
+        # 증권사 이름은 대개 '○○증권 "목표가 상향"'처럼 전망을 낸 곳으로 나온다 → 증권주가 이슈일 때만 관련 종목으로
+        brokers_ok = "증권주" in titles or bool(is_pin and any("증권" in k for k in pinned[0]))
         for nm in names:  # 긴 이름부터 (삼성전자우 → 삼성전자 중복 방지), 제목에 나온 종목만
+            if nm.endswith("증권") and not brokers_ok:
+                continue
             if re.search(r"(?<![가-힣A-Za-z])" + re.escape(nm) + r"(?![가-힣A-Za-z])", titles) and not any(nm in f for f in found):
                 found.append(nm)
         sec = None
