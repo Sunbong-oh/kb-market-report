@@ -243,6 +243,10 @@ def yahoo_reaction(sym: str, label: str, since: datetime) -> dict | None:
         done = [p for p in periods if p[1] <= s_ts]
         ref, ref_l = (close_of(done[-1]) if done else None), "발표 전 종가"
     t, price = pts[-1]
+    when = datetime.fromtimestamp(t, KST).strftime("%m/%d %H:%M")
+    cur = r["meta"].get("currency")
+    if t < s_ts:  # 발표 뒤 아직 거래가 없음 (예: ASML 14시 발표 → 미국 장전 거래는 17시부터)
+        return {"l": label, "s": "발표 후 거래 전", "t": when, "p": fmt_px(price, cur), "c": None, "ref": ref_l, "d1": None}
     i = max((k for k, p in enumerate(periods) if p[0] <= t), default=None)
     if i is not None and t < periods[i][1]:
         sess = "정규장"
@@ -255,8 +259,7 @@ def yahoo_reaction(sym: str, label: str, since: datetime) -> dict | None:
     d1p = next((p for p in periods if p[0] >= s_ts and p[1] <= n_ts), None)  # 발표 후 첫 정규장 (끝난 것)
     d1 = close_of(d1p) if d1p else None
     pct = lambda v: round((v / ref - 1) * 100, 2) if ref and v else None
-    return {"l": label, "s": sess, "p": fmt_px(price, r["meta"].get("currency")), "c": pct(price), "ref": ref_l,
-            "d1": pct(d1)}
+    return {"l": label, "s": sess, "t": when, "p": fmt_px(price, cur), "c": pct(price), "ref": ref_l, "d1": pct(d1)}
 
 
 def naver_reaction(code: str, label: str, since: datetime) -> dict | None:
@@ -271,9 +274,9 @@ def naver_reaction(code: str, label: str, since: datetime) -> dict | None:
     while d1_day.weekday() >= 5:
         d1_day += timedelta(days=1)
     if NOW.date() < d1_day:
-        return {"l": label, "s": "발표 후 정규장 전", "p": f"{price:,.0f}원", "c": None, "ref": "전일 종가", "d1": None}
+        return {"l": label, "s": "발표 후 정규장 전", "t": NOW.strftime("%m/%d %H:%M"), "p": f"{price:,.0f}원", "c": None, "ref": "전일 종가", "d1": None}
     d1 = chg if NOW.date() == d1_day and not open_ and NOW.strftime("%H%M") >= "1535" else None
-    return {"l": label, "s": "장중" if open_ else "종가", "p": f"{price:,.0f}원", "c": chg, "ref": "전일 종가", "d1": d1}
+    return {"l": label, "s": "장중" if open_ else "종가", "t": NOW.strftime("%m/%d %H:%M"), "p": f"{price:,.0f}원", "c": chg, "ref": "전일 종가", "d1": d1}
 
 
 def reactions(it: dict) -> list[dict]:
@@ -291,7 +294,7 @@ def reactions(it: dict) -> list[dict]:
 
 
 def px_line(r: dict) -> str:
-    s = f"{r['l']} {r['s']} {r['p']}"
+    s = f"{r['l']} {r['s']}({r.get('t', '')}) {r['p']}"
     if r.get("c") is not None:
         s += f" ({r['ref']} 대비 {r['c']:+.2f}%)"
     if r.get("d1") is not None:
