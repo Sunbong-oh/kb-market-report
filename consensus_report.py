@@ -5,7 +5,7 @@
 3. 상향 / 하향 / 투자의견 변경 / 신규·비교불가로 나눠 KB 스타일 글로 만든다.
 4. consensus/latest.md, consensus/YYYY-MM-DD.md 에 저장하고 텔레그램으로 보낸다.
 
-실행: python consensus_report.py [--date 2026-10-12] [--no-send] [--no-publish]
+실행: python consensus_report.py [--date 2026-10-12] [--no-publish]   (텔레그램은 --send 를 줄 때만)
 필요한 환경변수(.env 또는 GitHub Secrets): TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 """
 
@@ -490,7 +490,7 @@ def main() -> int:
     for p in save(day, title, body, changes, made, since):
         print(f"저장: {p}")
     save_reported(reported, {_key(r) for r in new}, day)
-    if "--no-send" not in sys.argv:
+    if "--send" in sys.argv:  # 기본은 보내지 않음 (2026-10-14 사용자 요청: 홈페이지에서만 확인)
         send_telegram_text(f"{title}\n\n{body}")
         print("텔레그램 전송 완료")
     if "--no-publish" not in sys.argv:
