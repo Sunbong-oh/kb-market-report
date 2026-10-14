@@ -1,0 +1,50 @@
+name: 실적 속보 감시
+
+# 증시 캘린더의 ★ 실적 + 주요 반도체 회사 실적 발표를 10분마다 확인한다.
+# 발표가 감지되면 텔레그램(내 채팅)으로 한 번 알리고, earnings-live 브랜치의 earnings.json 을 갱신한다
+# (홈페이지가 이 파일을 읽어 '실적 속보' 카드로 보여준다). 감시 대상이 없는 날은 바로 끝난다.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: earnings-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      PYTHONUTF8: "1"
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: 감지
+        run: |
+          git fetch -q origin earnings-live:refs/remotes/origin/earnings-live || true
+          python3 earnings_watch.py
+
+      - name: earnings-live 브랜치에 올리기
+        id: push
+        run: |
+          if [ ! -f out/earnings.json ]; then echo "변경 없음"; exit 0; fi
+          cd out
+          git init -q -b earnings-live
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add earnings.json
+          git commit -qm "실적 속보 $(TZ=Asia/Seoul date '+%F %H:%M')"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" earnings-live
+
+      - name: 텔레그램 알림
+        if: steps.push.outcome == 'success'
+        run: python3 earnings_watch.py --send
