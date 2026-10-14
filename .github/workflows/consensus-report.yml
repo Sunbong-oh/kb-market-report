@@ -1,10 +1,10 @@
 name: 목표주가 변동 리포트
 
-# 평일 08:00(KST) 한경 컨센서스에 올라온 기업 리포트(전 섹터)의 목표주가 상향·하향을 정리해 텔레그램으로 보내고
-# consensus/ 에 저장한다 → 홈페이지(market-dashboard)가 08:20 빌드 때 '목표주가' 메뉴로 보여 준다.
+# 평일 08:00(KST) 한경 컨센서스·네이버 증권 리서치의 기업 리포트(전 섹터) 목표주가 상향·하향을 정리해
+# consensus/ 에 저장한다 (텔레그램은 보내지 않음 - 2026-10-14 사용자 요청, 홈페이지에서만 본다) → 홈페이지(market-dashboard)가 08:20 빌드 때 '목표주가' 메뉴로 보여 준다.
 #   0) Claude 루틴이 평일 08:00에 trigger-consensus/request.txt 를 main에 push → 바로 실행
 #   1) GitHub 예약은 늦어지는 일이 있어 예비로만 걸어 둔다.
-# 예약·루틴 실행은 그날 이미 정리했으면(consensus/날짜.md) 건너뛴다. 수동 실행(workflow_dispatch)은 언제든 다시 보낸다.
+# 예약·루틴 실행은 그날 이미 정리했으면(consensus/날짜.md) 건너뛴다. 수동 실행(workflow_dispatch)은 언제든 다시 정리한다.
 on:
   schedule:
     - cron: "2 23 * * 0-4"    # 08:02 KST (월~금) 예비
@@ -18,10 +18,6 @@ on:
         description: "정리할 날짜 (YYYY-MM-DD, 비우면 오늘)"
         type: string
         default: ""
-      send:
-        description: 텔레그램으로 전송
-        type: boolean
-        default: true
 
 permissions:
   contents: write   # consensus/ 갱신
@@ -35,8 +31,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
@@ -69,16 +63,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config core.quotepath false
 
-      - name: 리포트 생성·전송
+      - name: 리포트 생성 (텔레그램 없음)
         if: steps.gate.outputs.skip != 'true'
         run: >
           python consensus_report.py
           ${{ inputs.day && format('--date {0}', inputs.day) || '' }}
-          ${{ (github.event_name == 'workflow_dispatch' && !inputs.send) && '--no-send' || '' }}
-
-      - name: 실패 알림 (텔레그램)
-        if: failure()
-        run: |
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            --data-urlencode chat_id="$TELEGRAM_CHAT_ID" \
-            --data-urlencode text="⚠️ 목표주가 변동 리포트 실패 (GitHub Actions) $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > /dev/null
+          --no-send
