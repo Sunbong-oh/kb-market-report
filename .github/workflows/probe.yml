@@ -1,0 +1,15 @@
+name: probe
+on: { push: { branches: ["probe/**"] } }
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    env:
+      KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
+      KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: python probe.py
