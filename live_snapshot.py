@@ -327,6 +327,28 @@ def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
         snap["/api/indices/intraday"] = new_ix
 
 
+_kicked = {"day": ""}
+
+
+def kick_consensus(t: datetime) -> None:
+    """평일 07:00에 목표주가 변동 리포트(consensus-report.yml)를 띄운다. 이 작업은 이어달리기로 늘 떠 있어서
+    GitHub 예약(몇 시간씩 늦음)이나 루틴보다 확실하다. 그날 리포트가 이미 있으면 건너뛴다."""
+    hm, d = t.strftime("%H:%M"), t.strftime("%Y-%m-%d")
+    if t.weekday() >= 5 or not ("07:00" <= hm < "09:00") or _kicked["day"] == d:
+        return
+    _kicked["day"] = d
+    if git("fetch", "-q", "origin", "main:refs/remotes/origin/main").returncode == 0 \
+            and git("cat-file", "-e", f"origin/main:consensus/{d}.md").returncode == 0:
+        print(hm, "목표주가 리포트 이미 있음", flush=True)
+        return
+    try:
+        r = subprocess.run(["gh", "workflow", "run", "consensus-report.yml", "--ref", "main"], cwd=ROOT,
+                           capture_output=True, timeout=60)
+        print(hm, "목표주가 리포트 실행 요청:", r.returncode, r.stderr.decode(errors="replace")[-200:], flush=True)
+    except Exception as e:
+        print(hm, "목표주가 리포트 실행 요청 실패:", type(e).__name__, e, flush=True)
+
+
 def main() -> None:
     """한 번 실행은 최대 MAX_RUN. 장 시간이 아니면 기다리고, 끝나면 워크플로가 다음 실행을 이어 띄운다(이어달리기).
     그래서 예약 실행이 늦거나 시작 루틴이 실패해도 매일 08:00부터 돈다."""
@@ -341,6 +363,7 @@ def main() -> None:
         while now() - began < MAX_RUN:
             t = now()
             hm, today = t.strftime("%H:%M"), t.strftime("%Y%m%d")
+            kick_consensus(t)
             if t.weekday() >= 5 or not (START <= hm <= END):
                 if proc:  # 장 끝: 서버를 내렸다가 다음 날 새로 띄운다 (KB 접속 토큰도 새로)
                     proc.terminate()

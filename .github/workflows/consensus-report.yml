@@ -1,14 +1,15 @@
 name: 목표주가 변동 리포트
 
-# 평일 08:00(KST) 한경 컨센서스·네이버 증권 리서치의 기업 리포트(전 섹터) 목표주가 상향·하향을 정리해
-# consensus/ 에 저장한다 (텔레그램은 보내지 않음 - 2026-10-14 사용자 요청, 홈페이지에서만 본다) → 홈페이지(market-dashboard)가 08:20 빌드 때 '목표주가' 메뉴로 보여 준다.
-#   0) Claude 루틴이 평일 08:00에 trigger-consensus/request.txt 를 main에 push → 바로 실행
+# 평일 07:00(KST) 한경 컨센서스·네이버 증권 리서치의 기업 리포트(전 섹터) 목표주가 상향·하향을 정리해
+# consensus/ 에 저장한다 (텔레그램은 보내지 않음 - 2026-10-14 사용자 요청, 홈페이지에서만 본다) → 홈페이지(market-dashboard)가 이 파일이 생기면 바로 빌드해 '목표주가' 메뉴로 보여 준다(us-live 작업이 감지).
+#   0) 늘 떠 있는 실시간 수급 작업(live_snapshot.py)이 평일 07:00에 이 워크플로를 실행 요청한다(gh workflow run)
+#      (trigger-consensus/ push 로도 실행된다)
 #   1) GitHub 예약은 늦어지는 일이 있어 예비로만 걸어 둔다.
 # 예약·루틴 실행은 그날 이미 정리했으면(consensus/날짜.md) 건너뛴다. 수동 실행(workflow_dispatch)은 언제든 다시 정리한다.
 on:
   schedule:
-    - cron: "2 23 * * 0-4"    # 08:02 KST (월~금) 예비
-    - cron: "12 23 * * 0-4"   # 08:12 예비
+    - cron: "2 22 * * 0-4"    # 07:02 KST (월~금) 예비
+    - cron: "12 22 * * 0-4"   # 07:12 예비
   push:
     branches: [main]
     paths: ["trigger-consensus/**"]
