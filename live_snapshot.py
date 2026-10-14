@@ -270,21 +270,30 @@ def watch_prices() -> dict | None:
         return None
 
 
-def issue_keywords(today: str) -> list[str]:
+def parse_issue_keywords(body: str) -> list[list[str]]:
+    """키워드 파일 → 이슈 최대 2개. '---' 줄로 이슈를 나누고, 각 이슈는 키워드 최대 3개 + ('제목:...')."""
+    issues = []
+    for block in re.split(r"(?m)^\s*-{3,}\s*$", body):
+        lines = block.splitlines()
+        # '제목: ...' 줄이 있으면 카드에 그 제목을 쓴다 (예: 제목: 창신메모리발 메모리주 급락)
+        title = next((ln.split(":", 1)[1].strip() for ln in lines if re.match(r"\s*제목\s*:", ln)), "")
+        rest = "\n".join(ln for ln in lines if not re.match(r"\s*제목\s*:", ln))
+        kws = [k.strip() for k in re.split(r"[,\n]", rest) if k.strip()][:3]
+        if kws:
+            issues.append(kws + ([f"제목:{title}"] if title else []))
+    return issues[:2]
+
+
+def issue_keywords(today: str) -> list[list[str]]:
     """사이트(관리자)에서 입력해 main에 올린 오늘의 핵심 이슈 키워드: issue_keywords/YYYYMMDD-HHMM.txt 중 오늘 마지막 파일.
-    쉼표·줄바꿈으로 나눈 최대 3개. 빈 파일이면 지정 해제."""
+    파일 하나가 그 시점의 전체 지정(최대 2개 이슈). 빈 파일이면 지정 해제."""
     if git("fetch", "-q", "origin", "main:refs/remotes/origin/main").returncode:
         return []
     names = [n for n in git("ls-tree", "--name-only", "origin/main", "issue_keywords/").stdout.decode().split()
              if n.split("/")[-1].startswith(today)]
     if not names:
         return []
-    body = git("show", f"origin/main:{sorted(names)[-1]}").stdout.decode("utf-8", "replace")
-    # '제목: ...' 줄이 있으면 카드에 그 제목을 쓴다 (예: 제목: 창신메모리발 메모리주 급락)
-    title = next((ln.split(":", 1)[1].strip() for ln in body.splitlines() if re.match(r"\s*제목\s*:", ln)), "")
-    body = "\n".join(ln for ln in body.splitlines() if not re.match(r"\s*제목\s*:", ln))
-    kws = [k.strip() for k in re.split(r"[,\n]", body) if k.strip()][:3]
-    return kws + ([f"제목:{title}"] if title and kws else [])
+    return parse_issue_keywords(git("show", f"origin/main:{sorted(names)[-1]}").stdout.decode("utf-8", "replace"))
 
 
 def drop_future_points(snap: dict, t: datetime) -> None:
