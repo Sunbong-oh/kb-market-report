@@ -328,19 +328,19 @@ def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
 
 
 _kicked: dict = {"day": "", "slots": set()}
-CONSENSUS_SLOTS = ("07:00", "07:40", "08:20")
+CONSENSUS_SLOTS = (("08:40", "09:40"), ("21:00", "22:00"))  # (시작, 이 시각 넘으면 건너뜀)
 
 
 def kick_consensus(t: datetime) -> None:
-    """평일 07:00·07:40·08:20에 목표주가 변동 리포트(consensus-report.yml)를 띄운다.
-    증권사 리포트는 7~8시 반 사이에 주로 올라오므로 세 번 돌린다(다시 돌리면 그날 리포트에 새 것이 더해진다).
+    """평일 08:40·21:00에 목표주가 변동 리포트(consensus-report.yml)를 띄운다.
+    아침 판은 전날 밤 이후 새로 나온 리포트, 밤 판은 오후 발간분까지 더한 그날 전체.
     이 작업은 이어달리기로 늘 떠 있어서 GitHub 예약(몇 시간씩 늦음)이나 루틴보다 확실하다."""
     hm, d = t.strftime("%H:%M"), t.strftime("%Y-%m-%d")
     if t.weekday() >= 5:
         return
     if _kicked["day"] != d:
         _kicked["day"], _kicked["slots"] = d, set()
-    due = [s for s in CONSENSUS_SLOTS if s <= hm < "09:00" and s not in _kicked["slots"]]
+    due = [a for a, b in CONSENSUS_SLOTS if a <= hm < b and a not in _kicked["slots"]]
     if not due:
         return
     _kicked["slots"].update(due)
