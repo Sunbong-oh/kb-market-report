@@ -5,4 +5,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 earnings_watch.py --dry 2026-10-14T15:30 && python3 earnings_watch.py --dry 2026-10-09T10:00
+      - run: |
+          python3 - <<'PY'
+          import earnings_watch as e, urllib.parse
+          from datetime import datetime
+          for s in ("ASML", "TSM", "MU", "NVDA"):
+              j = e.get("https://query2.finance.yahoo.com/v1/finance/search?q=" + s + "&newsCount=20&quotesCount=0") or {}
+              for n in j.get("news") or []:
+                  t = n["title"]; dt = datetime.fromtimestamp(n["providerPublishTime"], e.KST)
+                  print(s, dt.strftime("%m/%d %H:%M"), "P" if e.PREVIEW.search(t) else "-", "R" if e.RESULT.search(t) else "-", t)
+          PY
