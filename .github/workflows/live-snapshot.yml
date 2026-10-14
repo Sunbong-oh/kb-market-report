@@ -49,6 +49,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - run: python live_snapshot.py
+        env:
+          GH_TOKEN: ${{ github.token }}   # 평일 07:00 목표주가 리포트 실행 요청(gh workflow run)
       - name: 다음 작업 이어 띄우기 (취소된 경우 제외)
         if: ${{ !cancelled() }}
         env:
