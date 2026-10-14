@@ -62,6 +62,7 @@ PREVIEW = re.compile(r"preview|expect|ahead of|what to watch|to report|will repo
 EARN_WORD = re.compile(r"\b(?:Q[1-4]|quarter(?:ly)?|earnings|results|revenue|sales|profit|EPS|net income|outlook|forecast|guidance)\b", re.I)
 RESULT = re.compile(r"\b(?:reports?|reported|posts?|posted|beats?|miss(?:es|ed)?|tops?|topped|raises?|raised|lifts?|lifted|"
                     r"cuts?|lowers?|lowered|surpass\w*|exceed\w*|falls? short|boosts?|hikes?|trims?|slashes)\b", re.I)
+NOW = datetime.now(KST)  # run()에서 기준 시각으로 바꾼다 (--dry 재현용: 그 뒤 기사는 안 본다)
 KO_PREVIEW = re.compile(r"전망|예상|앞두고|기대|추정|컨센|프리뷰|관전|주목")
 
 
@@ -115,7 +116,7 @@ def google_ko(query: str, after: datetime, n: int = 3) -> list[dict]:
             title, src = it.findtext("title") or "", it.findtext("source") or ""
             dt = parsedate_to_datetime(it.findtext("pubDate")).astimezone(KST)
             title = re.sub(r"\s+-\s+[^-]+$", "", title).strip()
-            if dt >= after and not KO_PREVIEW.search(title):
+            if after <= dt <= NOW and not KO_PREVIEW.search(title):
                 out.append({"t": title, "u": it.findtext("link") or "", "o": src, "dt": dt.strftime("%m/%d %H:%M")})
     except ET.ParseError:
         pass
@@ -134,7 +135,7 @@ def detect_foreign(t: dict) -> dict | None:
     for n in news:
         title = n.get("title") or ""
         dt = datetime.fromtimestamp(n.get("providerPublishTime") or 0, KST)
-        if dt < after or key not in title.lower() or PREVIEW.search(title) or not (RESULT.search(title) and EARN_WORD.search(title)):
+        if not after <= dt <= NOW or key not in title.lower() or PREVIEW.search(title) or not (RESULT.search(title) and EARN_WORD.search(title)):
             continue
         hits.append({"t": title, "u": n.get("link") or "", "o": n.get("publisher") or "", "dt": dt.strftime("%m/%d %H:%M")})
     ko = google_ko(f"{t['name']} 실적", after, 6)
@@ -181,7 +182,7 @@ def detect_domestic(t: dict) -> dict | None:
     after = since(t)
     rows = get(f"https://m.stock.naver.com/api/stock/{t['code']}/disclosure?pageSize=10&page=1") or []
     hits = [r for r in rows if "실적" in (r.get("title") or "")
-            and datetime.fromisoformat(r["datetime"]).replace(tzinfo=KST) >= after]
+            and after <= datetime.fromisoformat(r["datetime"]).replace(tzinfo=KST) <= NOW]
     disc = None
     if hits:
         r = hits[-1]
@@ -192,7 +193,7 @@ def detect_domestic(t: dict) -> dict | None:
         for a in blk.get("items") or []:
             dt = datetime.strptime(a["datetime"], "%Y%m%d%H%M").replace(tzinfo=KST)
             title = html.unescape(a.get("titleFull") or a.get("title") or "")
-            if dt >= after and re.search(r"실적|영업이익|영업익|매출", title) and not KO_PREVIEW.search(title):
+            if after <= dt <= NOW and re.search(r"실적|영업이익|영업익|매출", title) and not KO_PREVIEW.search(title):
                 news.append({"t": title, "u": a.get("mobileNewsUrl") or "", "o": a.get("officeName") or "", "dt": dt.strftime("%m/%d %H:%M")})
     news.sort(key=lambda a: a["dt"], reverse=True)
     # 확정실적처럼 공시 제목에 '실적'이 없을 때: 그날 실적 발표 기사가 2건 이상이면 발표로 본다
@@ -223,6 +224,8 @@ def previous() -> dict:
 
 
 def run(now: datetime, dry: bool = False) -> None:
+    global NOW
+    NOW = now
     old = {} if dry else previous()
     items = {i["key"]: i for i in old.get("items") or []
              if now - datetime.fromisoformat(i["day"]).replace(tzinfo=KST) < timedelta(days=3)}
