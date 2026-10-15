@@ -55,6 +55,7 @@ SLOW, SLOW_END = "⟪", "⟫"  # 이 사이는 천천히(SLOW_RATE) 읽는다. �
 SLOW_RATE = "+0%"
 SOUND = (("신고가", "신고까"), ("주가", "주까"))  # 소리 나는 대로 읽힐 낱말(원고 파일에는 원래 표기)
 THEMES_READ = 5
+OPT_LEAN = 10  # 외국인 옵션 순매수가 이 금액(억원) 이상일 때만 방향(상승·하락 대비)을 말한다
 NAMES = {"BoA": "뱅크오브아메리카", "JP모간": "제이피모건", "GS": "골드만삭스", "MS": "모건스탠리", "J&J": "존슨앤존슨"}
 
 
@@ -382,6 +383,19 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
         fo = inv.get("외국인") or {}
         lines = [f"{SLOW}{label}, {eok(fo[key])} {'순매수' if fo[key] > 0 else '순매도'}.{SLOW_END}"
                  for label, key in (("코스피", "kospi"), ("코스닥", "kosdaq"), ("코스피 200 선물", "futures")) if fo.get(key)]
+        # 옵션(콜·풋 순매수, 억원 프리미엄 기준): 다른 줄과 같은 형식으로 읽고, 방향이 뚜렷하면 한 줄로 풀어 준다.
+        # 콜 순매수·풋 순매도 = 상승 쪽, 콜 순매도·풋 순매수 = 하락 쪽. OPT_LEAN억 원 미만은 방향으로 치지 않는다.
+        call, put = fo.get("call"), fo.get("put")
+        if call is not None and put is not None and (call or put or fo.get("futures")):  # 전부 0 = 장 마감 뒤 KB 초기화
+            for label, v in (("콜옵션", call), ("풋옵션", put)):
+                lines.append(f"{SLOW}{label}, " + ("변동 거의 없음." if abs(v) < 1 else f"{eok(v)} {'순매수' if v > 0 else '순매도'}.")
+                             + SLOW_END)
+            bull = (call >= OPT_LEAN) + (put <= -OPT_LEAN)
+            bear = (call <= -OPT_LEAN) + (put >= OPT_LEAN)
+            if bull and not bear:
+                lines.append("옵션에서는 상승 쪽에 무게를 둔 모습입니다.")
+            elif bear and not bull:
+                lines.append("옵션에서는 하락에 대비한 모습입니다.")
         if lines:
             say(f"먼저 외국인입니다.{P}" + P.join(lines) + f"{GAP}이어서 기관과 개인입니다.{P}")
         for label, key in (("코스피", "kospi"), ("코스닥", "kosdaq")):
