@@ -9,7 +9,7 @@
 원고는 reports/close_briefing.txt, 음성은 reports/close_briefing.mp3.
 
 순서: 시장 지수 등락률 -> 투자자별 수급 -> 오늘 상승·하락 요인(마감 시황 기사·핵심 이슈) -> 강세 테마
--> 오늘 저녁 미국 주요 일정·실적 발표.
+-> 목표주가 상향 리포트(종목·제목·현재가 대비 상승여력) -> 오늘 저녁 미국 주요 일정·실적 발표.
 음성: ElevenLabs 키가 있으면 내 목소리(음성 복제), 없으면 Microsoft Edge 온라인 TTS(edge-tts, 키 불필요).
 차에서는 팟캐스트 앱(AntennaPod 등)에 FEED_URL을 구독해 두면 안드로이드 오토에서 바로 재생된다.
 """
@@ -236,6 +236,28 @@ def tonight_us(now: datetime) -> dict:
     return {"earnings": day.get("earnings_us") or [], "macro": day.get("macro") or []}
 
 
+def target_ups(now: datetime, limit: int = 5) -> list[dict]:
+    """오늘 목표주가 상향 리포트(consensus_report.py가 오전에 올린 consensus/YYYY-MM-DD.json), 상향 폭 큰 순.
+    현재가(네이버 증권, 장 마감 뒤면 종가)와 목표주가까지 상승여력을 붙인다."""
+    try:
+        items = json.loads((ROOT / "consensus" / f"{now:%Y-%m-%d}.json").read_text(encoding="utf-8")).get("items") or []
+    except (OSError, ValueError):
+        return []
+    ups = sorted((i for i in items if (i.get("pct") or 0) > 0 and i.get("target")), key=lambda i: -i["pct"])
+    from market_issues import HEADERS
+    with httpx.Client(headers=HEADERS, timeout=10) as http:
+        for i in ups[:limit]:
+            try:
+                j = http.get(f"https://m.stock.naver.com/api/stock/{i['code']}/basic").json()
+                i["price"] = int(str(j["closePrice"]).replace(",", ""))
+                i["upside"] = (i["target"] / i["price"] - 1) * 100
+            except Exception as e:  # 현재가를 못 받으면 상승여력만 빼고 읽는다
+                print("현재가 실패:", i.get("company"), type(e).__name__, e, file=sys.stderr)
+    for i in ups:
+        i["more"] = len(ups) - limit
+    return ups[:limit]
+
+
 EXTRA = re.compile(r"^(.*?)\s\(([^()]*(?:예상|실제|이전)[^()]*)\)$")
 
 
@@ -266,7 +288,8 @@ def theme_name(name: str) -> str:
 
 
 # ---------- 원고 ----------
-def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str], notes: str | None, cal: dict) -> str:
+def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str], notes: str | None, cal: dict,
+                 ups: list[dict]) -> str:
     market = api.get("/api/market") or {}
     macro = api.get("/api/macro") or {}
     idx = {i.get("id"): i for i in market.get("indices", [])}
@@ -361,7 +384,22 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
                 s += "."
             say(s)
 
-    # 5) 오늘 저녁 미국 주요 일정·실적 발표
+    # 5) 목표주가 상향 리포트: 종목·증권사·상향 폭 -> 리포트 제목 -> 현재가 대비 상승여력
+    if ups:
+        say(f"{GAP}오늘 목표주가 상향 리포트입니다.{P}")
+        for u in ups:
+            s = (f"{u['company']}. {speakable(u['broker'])}{josa(speakable(u['broker']), '이', '가')} 목표주가를 {u['prev_target']}원에서 {u['target']}원으로 "
+                 f"{pct(u['pct'], 1)} 올렸습니다.")
+            if u.get("title"):
+                s += f" 리포트 제목은 {speakable(u['title'])}."
+            if u.get("upside") is not None:
+                s += (f" 현재 주가 {u['price']}원 기준 상승여력은 {pct(u['upside'], 1)}입니다." if u["upside"] >= 0
+                      else f" 현재 주가 {u['price']}원은 이미 목표주가를 {pct(u['upside'], 1)} 웃돌고 있습니다.")
+            say(s + P)
+        if ups[0]["more"] > 0:
+            say(f"이 밖에 {ups[0]['more']}건의 상향 리포트가 더 있었습니다.")
+
+    # 6) 오늘 저녁 미국 주요 일정·실적 발표
     earn = [event_text(e) for e in sorted(cal["earnings"], key=lambda e: not e.startswith("★"))]
     mac = [event_text(e) for e in sorted(cal["macro"], key=lambda e: not e.startswith("★"))]
     say(f"{GAP}오늘 저녁 미국 일정입니다.{P}")
@@ -493,7 +531,7 @@ def update_feed(pod: Path, mp3: Path, text: str, now: datetime, kbps: int) -> No
   <link>https://github.com/Sunbong-oh/kb-market-report</link>
   <atom:link href="{FEED_URL}" rel="self" type="application/rss+xml"/>
   <language>ko-kr</language>
-  <description>평일 오후 4시, 코스피·코스닥 등락률, 투자자별 수급, 오늘의 상승·하락 요인, 강세 테마, 오늘 밤 미국 일정·실적을 음성으로 짚어 드립니다. 투자 판단의 참고용입니다.</description>
+  <description>평일 오후 4시, 코스피·코스닥 등락률, 투자자별 수급, 오늘의 상승·하락 요인, 강세 테마, 목표주가 상향 리포트, 오늘 밤 미국 일정·실적을 음성으로 짚어 드립니다. 투자 판단의 참고용입니다.</description>
   <itunes:author>kb-market-report</itunes:author>
   <itunes:explicit>false</itunes:explicit>
   <itunes:block>Yes</itunes:block>
@@ -536,7 +574,12 @@ def main() -> int:
     except Exception as e:  # 캘린더가 없어도 나머지 브리핑은 나간다
         print("캘린더 실패:", type(e).__name__, e, file=sys.stderr)
         cal = {"earnings": [], "macro": []}
-    text = build_script(api, now, reasons, issues, close_notes(now), cal)
+    try:
+        ups = target_ups(now)
+    except Exception as e:  # 목표주가 칸이 빠져도 나머지 브리핑은 나간다
+        print("목표주가 상향 실패:", type(e).__name__, e, file=sys.stderr)
+        ups = []
+    text = build_script(api, now, reasons, issues, close_notes(now), cal, ups)
     plain = re.sub(f"{PAUSE}+", " ", text).replace(" \n", "\n").strip()
     TXT.parent.mkdir(exist_ok=True)
     TXT.write_text(plain, encoding="utf-8")

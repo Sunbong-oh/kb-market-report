@@ -86,6 +86,6 @@ app/
 - 구독 주소(팟캐스트 앱 → URL로 추가): `https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/feed.xml`
 - 순서: 코스피·코스닥 등락률(환율·금리·나스닥 선물) → 투자자별 수급(현물·선물) → 상승·하락 요인
   (오늘 마감 시황 기사들이 꼽은 원인 구절을 매체 수 순으로 + 네이버 주요뉴스 핵심 이슈 + `close_notes/` 해설)
-  → 강세 테마 상위 5개 → 오늘 밤 미국 경제지표·실적(증시 캘린더)
+  → 강세 테마 상위 5개 → 목표주가 상향 리포트(`consensus/날짜.json`, 종목·증권사·제목·현재가 대비 상승여력) → 오늘 밤 미국 경제지표·실적(증시 캘린더)
 - 음성: Secrets에 `ELEVENLABS_API_KEY`·`ELEVENLABS_VOICE_ID`가 있으면 내 목소리, 없으면 edge-tts
 - 원고만 보기: `python close_briefing.py --text-only --html "latest/장마감 수급체크.html"`
