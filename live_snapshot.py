@@ -352,6 +352,36 @@ def kick_consensus(t: datetime) -> None:
         print(hm, "목표주가 리포트 실행 요청 실패:", type(e).__name__, e, flush=True)
 
 
+_ew = {"last": ""}
+
+
+def earnings_tick(t: datetime) -> None:
+    """10분마다 실적 속보 감시(earnings_watch.py): earnings-live 브랜치 갱신 → 텔레그램 알림.
+    GitHub 예약(10분)이 하루 몇 번밖에 안 돌아 알림이 몇 시간씩 늦었기 때문에 늘 떠 있는 이 작업에서 돌린다."""
+    key = t.strftime("%Y%m%d%H") + str(t.minute // 10)
+    if _ew["last"] == key:
+        return
+    _ew["last"] = key
+    out = ROOT / "out"
+    for n in ("earnings.json", "messages.json"):
+        (out / n).unlink(missing_ok=True)
+    git("fetch", "-q", "origin", "+earnings-live:refs/remotes/origin/earnings-live")
+    r = subprocess.run([sys.executable, "earnings_watch.py"], cwd=ROOT, capture_output=True, timeout=300)
+    log = (r.stdout + r.stderr).decode(errors="replace").strip().splitlines()
+    print(t.strftime("%H:%M"), "실적 감시:", r.returncode, log[-1] if log else "", flush=True)
+    if (out / "earnings.json").exists():
+        blob = git("hash-object", "-w", "--stdin", inp=(out / "earnings.json").read_bytes()).stdout.decode().strip()
+        tree = git("mktree", inp=f"100644 blob {blob}\tearnings.json\n".encode()).stdout.decode().strip()
+        commit = git("commit-tree", tree, "-m", f"실적 속보 {t:%Y-%m-%d %H:%M}").stdout.decode().strip()
+        res = git("push", "-f", "-q", "origin", f"{commit}:refs/heads/earnings-live")
+        if res.returncode:  # 저장 못 했으면 알림도 보내지 않는다 (다음에 다시 감지해 보냄)
+            print("  earnings-live 올리기 실패:", res.stderr.decode(errors="replace")[:200], flush=True)
+            return
+    r = subprocess.run([sys.executable, "earnings_watch.py", "--send"], cwd=ROOT, capture_output=True, timeout=120)
+    if r.stdout.strip():
+        print("  ", r.stdout.decode(errors="replace").strip()[-200:], flush=True)
+
+
 def main() -> None:
     """한 번 실행은 최대 MAX_RUN. 장 시간이 아니면 기다리고, 끝나면 워크플로가 다음 실행을 이어 띄운다(이어달리기).
     그래서 예약 실행이 늦거나 시작 루틴이 실패해도 매일 08:00부터 돈다."""
@@ -367,6 +397,10 @@ def main() -> None:
             t = now()
             hm, today = t.strftime("%H:%M"), t.strftime("%Y%m%d")
             kick_consensus(t)
+            try:
+                earnings_tick(t)
+            except Exception as e:
+                print(hm, "실적 감시 실패:", type(e).__name__, e, flush=True)
             if t.weekday() >= 5 or not (START <= hm <= END):
                 if proc:  # 장 끝: 서버를 내렸다가 다음 날 새로 띄운다 (KB 접속 토큰도 새로)
                     proc.terminate()

@@ -50,7 +50,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - run: python live_snapshot.py
         env:
-          GH_TOKEN: ${{ github.token }}   # 평일 07:00 목표주가 리포트 실행 요청(gh workflow run)
+          GH_TOKEN: ${{ github.token }}   # 목표주가 리포트 실행 요청(gh workflow run)
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}   # 실적 속보 알림 (earnings_watch.py, 10분마다)
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       - name: 다음 작업 이어 띄우기 (취소된 경우 제외)
         if: ${{ !cancelled() }}
         env:
