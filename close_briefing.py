@@ -165,7 +165,10 @@ def causes_of(title: str) -> list[str]:
             c = m.group(1).strip(" '\"‘’“”")
             if not NOT_CAUSE.search(c) and len(re.findall(r"[가-힣A-Za-z]{2,}", c)) >= 1 and len(c) >= 4:
                 # 읽을 말로 바꿔 둔다('美'->'미국'): 비슷한 구절끼리 묶을 때 한자가 빠져 덜 비슷해 보이지 않게
-                out.append(speakable(c.replace("외인", "외국인").replace("매도세", "매도").replace("매수세", "매수")))
+                c = c.replace("외인", "외국인").replace("매도세", "매도").replace("매수세", "매수")
+                # '美 물가·AI 쇼크' -> '미국 물가와 AI 쇼크' (쉼표로 읽으면 원인 개수가 헷갈린다)
+                c = re.sub(r"\s*[·ㆍ・]\s*", lambda m: josa(c[:m.start()], "과", "와") + " ", c)
+                out.append(speakable(c))
     return out
 
 
@@ -427,7 +430,8 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
             rs = [speakable(r) for r in reasons]
             say("마감 시황 기사들이 꼽은 이유는 " + ", ".join(rs[:-1]) + (", 그리고 " if len(rs) > 1 else "") + rs[-1] + "입니다.")
         if issues:
-            say(f"{P}오늘 기사가 가장 많이 몰린 이슈는 " + ", 그리고 ".join(speakable(t) for t in issues) + "입니다.")
+            # 제목은 물음표·조사로 끝나기도 해서('반등 조건은') '…입니다'로 잇지 않고 한 문장씩 읽는다
+            say(f"{P}오늘 기사가 가장 많이 몰린 이슈입니다. " + " ".join(speakable(t) + "." for t in issues))
         if notes:
             say(f"{P}자세히 짚어 보겠습니다.{P}{notes}")
 
