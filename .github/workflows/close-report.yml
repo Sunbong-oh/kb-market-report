@@ -95,6 +95,31 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         run: python report.py ${{ (github.event_name == 'workflow_dispatch' && !inputs.send) && '--no-send' || '' }}
 
+      - name: 퇴근길 음성 브리핑 (MP3 + 팟캐스트 피드 -> podcast 브랜치)
+        # 방금 만든 리포트 스냅샷(reports/latest.html)을 3분 안팎 음성으로 만들어 podcast 브랜치에 최근 14회차만 둔다.
+        # 브랜치는 매번 커밋 하나로 덮어써(force push) MP3가 저장소 기록에 쌓이지 않게 한다.
+        # 휴대폰 팟캐스트 앱이 https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/feed.xml 을 구독한다.
+        # 장마감(close) 실행에서만 만든다(장중 '지금 수급' 실행 제외). 실패해도 리포트 발송에는 영향 없음.
+        if: steps.gate.outputs.skip != 'true' && (env.REPORT_MODE == 'close' || contains(github.event.head_commit.message, '[test]'))
+        continue-on-error: true
+        shell: bash
+        env:
+          # 내 목소리(선택): 둘 다 있으면 ElevenLabs 복제 음성, 없으면 기본 음성(출근길 브리핑과 같은 목소리)
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+        run: |
+          [ -f reports/latest.html ] || { echo "리포트 스냅샷 없음(휴장일 등) -> 건너뜀"; exit 0; }
+          pip install -q edge-tts
+          mkdir -p _pod
+          if git fetch --depth 1 origin podcast; then git archive FETCH_HEAD | tar -x -C _pod; fi
+          python close_briefing.py --pod _pod
+          day=$(date -u -d '+9 hours' +%Y-%m-%d)
+          export GIT_INDEX_FILE="$RUNNER_TEMP/podcast.index"
+          rm -f "$GIT_INDEX_FILE"
+          git --work-tree=_pod add -A -f .
+          commit=$(git commit-tree "$(git write-tree)" -m "podcast: $day")
+          git push --force origin "$commit:refs/heads/podcast"
+
       - name: 실패 알림 (텔레그램)
         if: failure()
         shell: pwsh
