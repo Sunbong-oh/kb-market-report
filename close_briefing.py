@@ -51,6 +51,8 @@ SHOW_TITLE = "퇴근길 국내 증시 장마감 브리핑"
 
 HOST = "주식쟁이 봉"  # 붙여 쓰면 '주식쟁 이봉'으로 끊어 읽는다
 PAUSE = "⏸"  # 원고 속 쉼표 하나 = 무음 0.5초. 항목 제목 뒤 1번, 항목 사이 2번
+SLOW, SLOW_END = "⟪", "⟫"  # 이 사이는 천천히(SLOW_RATE) 읽는다. 외국인 수급 금액처럼 또렷이 들어야 하는 숫자용
+SLOW_RATE = "+0%"
 SOUND = (("신고가", "신고까"), ("주가", "주까"))  # 소리 나는 대로 읽힐 낱말(원고 파일에는 원래 표기)
 THEMES_READ = 5
 NAMES = {"BoA": "뱅크오브아메리카", "JP모간": "제이피모건", "GS": "골드만삭스", "MS": "모건스탠리", "J&J": "존슨앤존슨"}
@@ -229,11 +231,44 @@ def close_notes(now: datetime) -> str | None:
         return None
 
 
+EARNINGS_LIVE = "https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/earnings-live/earnings.json"
+
+
+def released_earnings(now: datetime) -> dict[str, datetime]:
+    """실적 속보 감시(earnings_watch.py -> earnings-live 브랜치)가 브리핑 시각 전에 발표를 확인한 오늘 실적 {이름: 발표 시각}.
+    예: ASML은 한국시간 오후 2시에 발표 -> 오늘 밤 발표 예정에서 빼고 '이미 발표'로 읽는다."""
+    try:
+        data = httpx.get(EARNINGS_LIVE, timeout=10).json()
+    except Exception as e:
+        print("실적 속보 기록 실패:", type(e).__name__, e, file=sys.stderr)
+        return {}
+    out = {}
+    at = now.replace(tzinfo=KST)
+    for it in data.get("items") or []:
+        try:
+            first = datetime.fromisoformat(it["first_iso"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if it.get("day") == f"{now:%Y-%m-%d}" and not it.get("kr") and first <= at:
+            out[it.get("item") or it["name"]] = first
+    return out
+
+
 def tonight_us(now: datetime) -> dict:
-    """증시 캘린더(calendar/YYYY-MM.json)의 오늘 미국 실적·경제지표(한국시간 오늘 밤~내일 새벽)."""
+    """증시 캘린더(calendar/YYYY-MM.json)의 오늘 미국 실적·경제지표(한국시간 오늘 밤~내일 새벽).
+    실적 중 브리핑 시각 전에 이미 발표된 것은 'released'로 따로 뺀다."""
     import market_calendar as mc
     day = mc._day(now.date())
-    return {"earnings": day.get("earnings_us") or [], "macro": day.get("macro") or []}
+    done = released_earnings(now)
+    earnings, released = [], []
+    for e in day.get("earnings_us") or []:
+        base = re.sub(r"\s\([^()]*\)$", "", e.lstrip("★")).strip()  # '★TSMC (EPS 예상 $4.45)' -> 'TSMC'
+        hit = next((t for n, t in done.items() if n == base or base.startswith(n) or n.startswith(base)), None)
+        if hit:
+            released.append((base, hit))
+        else:
+            earnings.append(e)
+    return {"earnings": earnings, "released": released, "macro": day.get("macro") or []}
 
 
 def target_ups(now: datetime, limit: int = 5) -> list[dict]:
@@ -270,7 +305,7 @@ def event_text(item: str) -> str:
     m = EXTRA.match(item)
     if m:
         item = m.group(1)
-        e = re.search(r"(?:\S+\s+)?예상\s+[^,/]+", m.group(2))
+        e = re.search(r"(?:[가-힣A-Za-z]+\s+)?예상\s+[^,/]+", m.group(2))  # '근원 예상 2.5%'는 살리고 '실제 3.7%,'는 뺀다
         extra = e.group(0).strip() if e else ""
     item = re.sub(r"\(한국\s*", "(한국 시간 ", item)
     item = re.sub(r"\(([^)]*\d+시[^)]*)\)", r", \1", item)  # 발표 시각은 살린다
@@ -335,7 +370,7 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
     # 2) 투자자별 수급
     def flow(key: str, subj: bool = False) -> str:
         bits = []
-        for name, label in (("외국인", "외국인"), ("기관계", "기관"), ("개인", "개인")):
+        for name, label in (("기관계", "기관"), ("개인", "개인")):  # 외국인은 위에서 따로 읽는다
             v = (inv.get(name) or {}).get(key)
             if v:
                 bits.append(f"{label}{josa(label, '이', '가') if subj else josa(label)} {eok(v)} {'순매수' if v > 0 else '순매도'}")
@@ -343,6 +378,12 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
 
     if inv:
         say(f"{GAP}투자자별 수급입니다.{P}")
+        # 외국인은 시장별로 한 문장씩 떼어, 천천히 읽고 사이를 쉰다(차에서 금액이 또렷이 들리게)
+        fo = inv.get("외국인") or {}
+        lines = [f"{SLOW}{label}, {eok(fo[key])} {'순매수' if fo[key] > 0 else '순매도'}.{SLOW_END}"
+                 for label, key in (("코스피", "kospi"), ("코스닥", "kosdaq"), ("코스피 200 선물", "futures")) if fo.get(key)]
+        if lines:
+            say(f"먼저 외국인입니다.{P}" + P.join(lines) + f"{GAP}이어서 기관과 개인입니다.{P}")
         for label, key in (("코스피", "kospi"), ("코스닥", "kosdaq")):
             f = flow(key)
             if f:
@@ -350,7 +391,7 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
         fut = flow("futures", subj=True)
         if fut:
             say(f"코스피 200 선물은 {fut}했습니다.")
-        fs, ff = (inv.get("외국인") or {}).get("kospi"), (inv.get("외국인") or {}).get("futures")
+        fs, ff = fo.get("kospi"), fo.get("futures")
         if fs and ff:
             w = lambda v: "순매수" if v > 0 else "순매도"  # noqa: E731
             say(f"{P}정리하면 외국인은 현물과 선물을 함께 {w(fs)}했습니다." if (fs > 0) == (ff > 0)
@@ -407,7 +448,10 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
         say("오늘 밤 주요 지표와 이슈는 " + ". ".join(mac) + "입니다.")
     if earn:
         say(f"{P}오늘 밤부터 내일 새벽 사이 실적을 발표하는 기업은 " + ". ".join(earn) + "입니다.")
-    if not mac and not earn:
+    for name, t in cal.get("released") or []:
+        when = f"오{'전' if t.hour < 12 else '후'} {t.hour % 12 or 12}시" + (f" {t.minute}분" if t.minute else "")
+        say(f"{P}{event_text(name)}{josa(event_text(name))} 오늘 {when}에 이미 실적을 발표했습니다.")
+    if not mac and not earn and not cal.get("released"):
         say("오늘 밤 예정된 주요 미국 일정과 실적 발표는 없습니다.")
 
     say(f"{GAP}이상 {HOST}이었습니다. 오늘 하루도 수고 많으셨습니다. 안전 운전하세요.")
@@ -446,16 +490,17 @@ async def _edge(text: str, path: Path) -> None:
     import edge_tts
     silence = SILENCE.read_bytes() if SILENCE.exists() else b""
     buf = bytearray()
-    for piece in re.split(f"({PAUSE}+)", text):
+    for piece in re.split(f"({PAUSE}+|{SLOW}[^{SLOW_END}]*{SLOW_END})", text):
         if piece.startswith(PAUSE):
             if buf:
                 buf += silence * len(piece)
             continue
-        piece = piece.strip()
+        slow = piece.startswith(SLOW)
+        piece = piece.strip(SLOW + SLOW_END).strip()
         if not piece:
             continue
         tmp = path.with_suffix(".part.mp3")
-        await edge_tts.Communicate(piece, VOICE, rate=RATE, pitch=PITCH).save(str(tmp))
+        await edge_tts.Communicate(piece, VOICE, rate=SLOW_RATE if slow else RATE, pitch=PITCH).save(str(tmp))
         buf += tmp.read_bytes()
         tmp.unlink(missing_ok=True)
     path.write_bytes(bytes(buf))
@@ -465,7 +510,7 @@ def synth(text: str, path: Path, attempts: int = 3) -> int | None:
     """음성 파일을 만들고 비트레이트(kbps)를 돌려준다. 실패하면 None."""
     for a, b in SOUND:
         text = text.replace(a, b)
-    if eleven_tts(re.sub(f"{PAUSE}+", "\n\n", text), path):
+    if eleven_tts(re.sub(f"{PAUSE}+", "\n\n", text).replace(SLOW, "").replace(SLOW_END, ""), path):
         print("음성: 내 목소리(ElevenLabs)")
         return ELEVEN_KBPS
     for i in range(attempts):
@@ -488,7 +533,8 @@ def update_feed(pod: Path, mp3: Path, text: str, now: datetime, kbps: int) -> No
     ep_dir = pod / "episodes"
     ep_dir.mkdir(parents=True, exist_ok=True)
     # 파일명·제목·guid를 회차마다 다르게: 팟캐스트 앱은 주소나 제목이 같으면 예전 파일을 계속 튼다
-    name = f"{now:%Y-%m-%d-%H%M}.mp3"
+    built = datetime.now(KST)
+    name = f"{now:%Y-%m-%d-%H%M}-{built:%H%M%S}.mp3"  # 같은 날 다시 만들어도 주소가 달라야 앱이 새 파일을 받는다
     shutil.copyfile(mp3, ep_dir / name)
     meta_p = pod / "episodes.json"
     try:
@@ -499,7 +545,7 @@ def update_feed(pod: Path, mp3: Path, text: str, now: datetime, kbps: int) -> No
     title = f"{now.month}/{now.day}({wd}) 장마감 브리핑"
     same_day = [e for e in eps if e["file"].startswith(f"{now:%Y-%m-%d}")]
     if same_day:  # 같은 날 다시 만들면 앞의 것을 지우고 새 회차로 바꿔 끼운다
-        title += f" ({now:%H:%M} 업데이트)"
+        title += f" ({built:%H:%M} 업데이트)"
         for e in same_day:
             if e["file"] != name:
                 (ep_dir / e["file"]).unlink(missing_ok=True)
@@ -508,7 +554,7 @@ def update_feed(pod: Path, mp3: Path, text: str, now: datetime, kbps: int) -> No
     eps.append(dict(file=name, title=title, pub=pub.isoformat(),
                     bytes=(ep_dir / name).stat().st_size, secs=mp3_seconds(ep_dir / name, kbps),
                     desc=text.split("\n")[1] if "\n" in text else text,
-                    guid=str(uuid.uuid5(uuid.NAMESPACE_URL, f"close/{name}@{pub.isoformat()}"))))
+                    guid=str(uuid.uuid5(uuid.NAMESPACE_URL, f"close/{name}@{built.isoformat()}"))))
     eps.sort(key=lambda e: e["pub"], reverse=True)
     for old in eps[KEEP:]:
         (ep_dir / old["file"]).unlink(missing_ok=True)
@@ -573,14 +619,14 @@ def main() -> int:
         cal = tonight_us(now)
     except Exception as e:  # 캘린더가 없어도 나머지 브리핑은 나간다
         print("캘린더 실패:", type(e).__name__, e, file=sys.stderr)
-        cal = {"earnings": [], "macro": []}
+        cal = {"earnings": [], "released": [], "macro": []}
     try:
         ups = target_ups(now)
     except Exception as e:  # 목표주가 칸이 빠져도 나머지 브리핑은 나간다
         print("목표주가 상향 실패:", type(e).__name__, e, file=sys.stderr)
         ups = []
     text = build_script(api, now, reasons, issues, close_notes(now), cal, ups)
-    plain = re.sub(f"{PAUSE}+", " ", text).replace(" \n", "\n").strip()
+    plain = re.sub(f"{PAUSE}+", " ", text).replace(SLOW, "").replace(SLOW_END, "").replace(" \n", "\n").strip()
     TXT.parent.mkdir(exist_ok=True)
     TXT.write_text(plain, encoding="utf-8")
     print(f"원고 {len(plain)}자 (약 {len(plain) / 330:.1f}분)\n{plain}")
