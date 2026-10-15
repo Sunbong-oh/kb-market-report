@@ -1,4 +1,4 @@
-"""실적 속보 자동 감시 (earnings-watch.yml이 10분마다 실행).
+"""실적 속보 자동 감시 (늘 떠 있는 실시간 수급 작업 live_snapshot.py 가 10분마다 실행. earnings-watch.yml 은 수동 실행용).
 
 대상: 증시 캘린더(calendar/YYYY-MM.json)의 어제·오늘 실적 중 ★ 핵심 표시 종목 + 주요 반도체 회사.
 감지:
@@ -206,6 +206,8 @@ def detect_domestic(t: dict) -> dict | None:
     return {"first": first, "en": [disc] if disc else [], "ko": news[:3], "cons": naver_consensus(t["code"])}
 
 
+LATE_DETECT = timedelta(hours=3)  # 발표 후 이보다 늦게 감지되면 텔레그램은 보내지 않는다
+LATE_REACT = timedelta(hours=2)   # 첫 정규장 마감 후 이보다 늦게 확인되면 주가 반응 알림은 보내지 않는다
 CUR = {"USD": "$", "EUR": "€", "TWD": "NT$", "JPY": "¥", "KRW": ""}
 
 
@@ -259,7 +261,8 @@ def yahoo_reaction(sym: str, label: str, since: datetime) -> dict | None:
     d1p = next((p for p in periods if p[0] >= s_ts and p[1] <= n_ts), None)  # 발표 후 첫 정규장 (끝난 것)
     d1 = close_of(d1p) if d1p else None
     pct = lambda v: round((v / ref - 1) * 100, 2) if ref and v else None
-    return {"l": label, "s": sess, "t": when, "p": fmt_px(price, cur), "c": pct(price), "ref": ref_l, "d1": pct(d1)}
+    d1t = datetime.fromtimestamp(d1p[1], KST).isoformat() if d1p else None
+    return {"l": label, "s": sess, "t": when, "p": fmt_px(price, cur), "c": pct(price), "ref": ref_l, "d1": pct(d1), "d1t": d1t}
 
 
 def naver_reaction(code: str, label: str, since: datetime) -> dict | None:
@@ -276,7 +279,9 @@ def naver_reaction(code: str, label: str, since: datetime) -> dict | None:
     if NOW.date() < d1_day:
         return {"l": label, "s": "발표 후 정규장 전", "t": NOW.strftime("%m/%d %H:%M"), "p": f"{price:,.0f}원", "c": None, "ref": "전일 종가", "d1": None}
     d1 = chg if NOW.date() == d1_day and not open_ and NOW.strftime("%H%M") >= "1535" else None
-    return {"l": label, "s": "장중" if open_ else "종가", "t": NOW.strftime("%m/%d %H:%M"), "p": f"{price:,.0f}원", "c": chg, "ref": "전일 종가", "d1": d1}
+    d1t = datetime.combine(d1_day, datetime.min.time()).replace(hour=15, minute=30, tzinfo=KST).isoformat() if d1 is not None else None
+    return {"l": label, "s": "장중" if open_ else "종가", "t": NOW.strftime("%m/%d %H:%M"), "p": f"{price:,.0f}원", "c": chg, "ref": "전일 종가",
+            "d1": d1, "d1t": d1t}
 
 
 def reactions(it: dict) -> list[dict]:
@@ -321,7 +326,7 @@ def merge_px(old: list | None, new: list) -> list:
     prev = {r["l"]: r for r in old or []}
     for r in new:
         if r.get("d1") is None and prev.get(r["l"], {}).get("d1") is not None:
-            r["d1"] = prev[r["l"]]["d1"]
+            r["d1"], r["d1t"] = prev[r["l"]]["d1"], prev[r["l"]].get("d1t")
     return new
 
 
@@ -349,14 +354,17 @@ def run(now: datetime, dry: bool = False) -> None:
         first_iso = prev.get("first_iso") or datetime.strptime(f"{t['day'][:4]}/{res['first']}", "%Y/%m/%d %H:%M").replace(tzinfo=KST).isoformat()
         it = dict(prev)
         it.update({"key": t["key"], "day": t["day"], "name": t["name"], "item": t["item"].lstrip("★"),
-                   "detected": prev.get("detected") or now.strftime("%Y-%m-%d %H:%M"), "first": res["first"], "first_iso": first_iso,
+                   "detected": prev.get("detected") or now.strftime("%Y-%m-%d %H:%M"), "first": prev.get("first") or res["first"], "first_iso": first_iso,
                    "kr": t["kr"], "code": t.get("code"), "sym": t.get("sym"),
                    "cons": res["cons"], "news": (res["en"] + res["ko"])[:6], "sent": True})
         it["px"] = merge_px(prev.get("px"), reactions(it))
         items[t["key"]] = it
         if not prev.get("sent"):
-            res["px"] = it["px"]
-            msgs.append(message(t, res))
+            if now - datetime.fromisoformat(first_iso) <= LATE_DETECT:
+                res["px"] = it["px"]
+                msgs.append(message(t, res))
+            else:  # 발표 뒤 한참 지나서야 감지됨 → 늦은 알림은 보내지 않는다 (홈페이지만 갱신)
+                print("  늦게 감지 → 텔레그램 생략", first_iso, flush=True)
         print("  감지:", res["first"], [a["t"][:50] for a in res["en"]], it["px"], flush=True)
     # 감시 기간이 끝난 항목도 사흘 동안 주가 반응을 갱신하고, 발표 후 첫 정규장이 끝나면 한 번 알린다
     seen = {t["key"] for t in targets(now)}
@@ -366,6 +374,10 @@ def run(now: datetime, dry: bool = False) -> None:
         main = (it.get("px") or [None])[0]
         if main and main.get("d1") is not None and not it.get("react_sent"):
             it["react_sent"] = True
+            d1t = main.get("d1t")
+            if not d1t or now - datetime.fromisoformat(d1t) > LATE_REACT:  # 마감 뒤 한참 지남 → 늦은 알림 생략
+                print("  주가 반응 늦게 확인 → 텔레그램 생략", it["key"], d1t, flush=True)
+                continue
             msgs.append("\n".join([f"📈 실적 후 주가 반응 · {it['name']}", ""] + [px_line(r) for r in it["px"]] + ["", f"홈페이지: {SITE}"]))
     data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": sorted(items.values(), key=lambda i: i["detected"], reverse=True)}
     if dry:
