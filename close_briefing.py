@@ -91,6 +91,11 @@ def word(v: float, up="상승", down="하락", flat="보합") -> str:
     return up if v > 0.005 else down if v < -0.005 else flat
 
 
+def move1(v: float) -> str:
+    """소수 첫째 자리로 읽는 등락: 반올림해 0.0%가 되면 '보합'."""
+    return "보합" if abs(v) < 0.05 else f"{abs(v):.1f}% {'상승' if v > 0 else '하락'}"
+
+
 def eok(v: float) -> str:
     """억원 금액을 읽는 말로: 11831 -> '1조 1831억 원'. 쉼표 없이(TTS가 자릿수 쉼표를 엉뚱하게 읽음)."""
     v = round(abs(v))
@@ -140,7 +145,8 @@ def load_snapshot(path: Path) -> tuple[dict, datetime]:
 
 # 마감 시황 기사 제목에서 원인 구절을 뽑는다: 'ASML 실적 실망에 0.44% 하락' -> 'ASML 실적 실망'
 CAUSE = re.compile(r"^(.+?)(?:에|여파로|여파에|탓에|우려에|겹치자|덕에|속에)\s")
-NOT_CAUSE = re.compile(r"\d\s*(%|％|포인트|선|p\b|P\b)|대$|\S+[은는]\s|코스피|코스닥|지수|장중|장 초반|마감|^(국내\s*)?증시")
+NOT_CAUSE = re.compile(r"\d\s*(%|％|포인트|선|p\b|P\b)|대$|\S+[은는]\s|코스피|코스닥|지수|장중|장 초반|마감|^(국내\s*)?증시"
+                       r"|만$|\d+\s*거래일|연속")  # '이틀 만에'·'7거래일 연속 하락에'는 원인이 아니다
 
 
 def clean_title(title: str) -> str:
@@ -158,7 +164,8 @@ def causes_of(title: str) -> list[str]:
         if m:
             c = m.group(1).strip(" '\"‘’“”")
             if not NOT_CAUSE.search(c) and len(re.findall(r"[가-힣A-Za-z]{2,}", c)) >= 1 and len(c) >= 4:
-                out.append(c.replace("외인", "외국인").replace("매도세", "매도").replace("매수세", "매수"))
+                # 읽을 말로 바꿔 둔다('美'->'미국'): 비슷한 구절끼리 묶을 때 한자가 빠져 덜 비슷해 보이지 않게
+                out.append(speakable(c.replace("외인", "외국인").replace("매도세", "매도").replace("매수세", "매수")))
     return out
 
 
@@ -207,7 +214,8 @@ def market_reasons(rows: list[dict], limit: int = 3) -> list[str]:
                 groups.append({"g": set(g), "n": 1, "texts": [c]})
     groups.sort(key=lambda x: -x["n"])  # 안정 정렬: 같은 수면 최근 기사 먼저
     # 묶음의 대표 표현 = 가장 많이 쓰인 표현(같으면 최근 것)
-    return [max(x["texts"], key=x["texts"].count) for x in groups[:limit]]
+    # 묶음끼리도 비슷하면('美 물가·AI 쇼크' / '美 물가 충격') 하나만 남긴다
+    return distinct([max(x["texts"], key=x["texts"].count) for x in groups], limit=limit, thr=0.5)
 
 
 def hot_issues(rows: list[dict], seen: list[str]) -> list[str]:
@@ -423,18 +431,23 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
         if notes:
             say(f"{P}자세히 짚어 보겠습니다.{P}{notes}")
 
-    # 4) 강세 테마
+    # 4) 강세 테마 (오른 테마가 없는 폭락장에는 '덜 빠진 업종'으로 바꿔 읽는다)
     th = (api.get("/api/themes") or {}).get("themes") or []
     if th:
-        say(f"{GAP}오늘의 강세 테마입니다.{P}")
-        for n, t in enumerate(th[:THEMES_READ], 1):
+        up = [t for t in th if (t.get("change_pct") or 0) >= 0.05]
+        if up:
+            say(f"{GAP}오늘의 강세 테마입니다.{P}")
+            picks = up[:THEMES_READ]
+        else:
+            say(f"{GAP}오늘은 오른 테마가 없었습니다. 그나마 덜 빠진 업종을 보겠습니다.{P}")
+            picks = th[:3]
+        for n, t in enumerate(picks, 1):
             s = f"{n}위, {theme_name(t['name'])}"
             if t.get("change_pct") is not None:
-                s += f" {pct(t['change_pct'], 1)} {word(t['change_pct'])}"
-            leaders = [ld for ld in t.get("leaders") or [] if ld.get("change_pct") is not None][:2]
+                s += f" {move1(t['change_pct'])}"
+            leaders = [ld for ld in t.get("leaders") or [] if (ld.get("change_pct") or 0) >= 0.05][:2]
             if leaders:
-                s += ". " + ", ".join(f"{ld['name']} {pct(ld['change_pct'], 1)}" for ld in leaders)
-                s += " 올랐습니다." if all(ld["change_pct"] > 0 for ld in leaders) else "입니다."
+                s += ". " + ", ".join(f"{ld['name']} {pct(ld['change_pct'], 1)}" for ld in leaders) + " 올랐습니다."
             else:
                 s += "."
             say(s)
