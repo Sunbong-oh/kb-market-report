@@ -339,7 +339,7 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
         say(f"{GAP}오늘 시장의 {'상승' if c > 0.005 else '하락' if c < -0.005 else '등락'} 요인입니다.{P}")
         if reasons:
             rs = [speakable(r) for r in reasons]
-            say(f"마감 시황 기사들이 꼽은 이유는 " + ", ".join(rs[:-1]) + (", 그리고 " if len(rs) > 1 else "") + rs[-1] + "입니다.")
+            say("마감 시황 기사들이 꼽은 이유는 " + ", ".join(rs[:-1]) + (", 그리고 " if len(rs) > 1 else "") + rs[-1] + "입니다.")
         if issues:
             say(f"{P}오늘 기사가 가장 많이 몰린 이슈는 " + ", 그리고 ".join(speakable(t) for t in issues) + "입니다.")
         if notes:
