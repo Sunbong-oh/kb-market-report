@@ -161,18 +161,35 @@ def build(rows: list[dict], map_data: dict | None, top: int = 3, pinned: tuple[l
     return out[:top]
 
 
+# 키워드의 같은 뜻 (영문 약어 ↔ 한글)
+KW_SYN = {"CPI": ["소비자물가"], "PPI": ["생산자물가"], "PCE": ["개인소비지출"], "FOMC": ["연준", "금리 결정"],
+          "GDP": ["성장률"], "ESS": ["에너지저장"], "CXMT": ["창신메모리"], "창신메모리": ["CXMT"]}
+
+
+def kw_terms(kw: str) -> tuple[str, list[str]]:
+    """'Cpi예상치 상회' → 검색어 'Cpi 예상치 상회', 기사 판정어 ['Cpi', '소비자물가'] (첫 단어 = 주제 + 같은 뜻).
+    키워드를 통째로 찾으면 그 문구가 그대로 들어간 기사만 걸려 거의 비기 때문."""
+    parts = re.findall(r"[A-Za-z0-9]+|[가-힣]+", kw)
+    if not parts:
+        return kw, [kw]
+    main = parts[0]
+    return " ".join(parts), [main] + KW_SYN.get(main.upper(), KW_SYN.get(main, []))
+
+
 def keyword_news(http: httpx.Client, keywords: list[str], rows: list[dict], hours: int = 24) -> list[dict]:
-    """지정 키워드 기사: 구글 뉴스 검색(최근 1일) + 네이버 주요뉴스 중 키워드가 들어간 기사."""
+    """지정 키워드 기사: 구글 뉴스 검색(최근 1일) + 네이버 주요뉴스 중 키워드(주제어·같은 뜻)가 들어간 기사."""
     since = (datetime.now(KST) - timedelta(hours=hours)).strftime("%Y%m%d%H%M%S")
     out, seen = [], set()
     for kw in keywords:
+        query, terms = kw_terms(kw)
+        hit = lambda text: any(t.lower() in text.lower() for t in terms)
         for r in rows:
-            if kw.lower() in (r["t"] + " " + r["b"]).lower() and r["url"] not in seen:
+            if hit(r["t"] + " " + r["b"]) and r["url"] not in seen:
                 seen.add(r["url"])
                 out.append(r)
         try:
             xml = http.get("https://news.google.com/rss/search",
-                           params={"q": f"{kw} when:1d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}).text
+                           params={"q": f"{query} when:1d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}).text
             for it in ET.fromstring(xml).iter("item"):
                 src = it.findtext("source") or ""
                 title = re.sub(r"\s+-\s+[^-]+$", "", it.findtext("title") or "").strip()
@@ -181,7 +198,7 @@ def keyword_news(http: httpx.Client, keywords: list[str], rows: list[dict], hour
                 except Exception:
                     continue
                 link = it.findtext("link") or ""
-                if title and dt >= since and link not in seen and kw.lower() in title.lower():
+                if title and dt >= since and link not in seen and hit(title):
                     seen.add(link)
                     out.append({"t": title, "b": "", "dt": dt, "o": src, "url": link})
         except Exception as e:
@@ -203,13 +220,18 @@ def market_issues(map_data: dict | None, keywords: list | None = None) -> list[d
                 kws = [k for k in iss if not k.startswith("제목:")]
                 karts = keyword_news(http, kws, rows)
                 res = build(rows, map_data, pinned=(kws, karts))
+                src = (title + " | " if title else "") + ", ".join(kws)  # 관리자 입력칸에 다시 채울 원문
                 if res and res[0].get("pin"):
                     g = res[0]
-                    g["src"] = (title + " | " if title else "") + ", ".join(kws)  # 관리자 입력칸에 다시 채울 원문
+                    g["src"] = src
                     if title:
                         g["headline"], g["title"] = g["title"], title
-                    pins.append(g)
-        res = pins or build(rows, map_data)
+                else:  # 지정했는데 기사를 못 찾음 → 엉뚱한 자동 이슈 대신 지정 이슈 자리만 보여 준다
+                    g = {"title": title or " ".join(kws), "n": 0, "offices": 0, "score": 10**6, "pin": " · ".join(kws),
+                         "src": src, "stocks": [], "sector": None, "articles": [],
+                         "headline": "관련 기사를 찾는 중입니다 (5분마다 다시 찾음)"}
+                pins.append(g)
+        res = pins if issues else build(rows, map_data)  # 지정 이슈가 있으면 그것만
         print("  이슈:", [(g["title"][:30], g["n"], g["score"]) for g in res], flush=True)
         return res
     except Exception as e:
