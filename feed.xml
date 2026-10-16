@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom">
+ <channel>
+  <title>퇴근길 국내 증시 장마감 브리핑</title>
+  <link>https://github.com/Sunbong-oh/kb-market-report</link>
+  <atom:link href="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/feed.xml" rel="self" type="application/rss+xml"/>
+  <language>ko-kr</language>
+  <description>평일 오후 4시, 코스피·코스닥 등락률, 투자자별 수급, 오늘의 상승·하락 요인, 강세 테마, 목표주가 상향 리포트, 오늘 밤 미국 일정·실적을 음성으로 짚어 드립니다. 산업별 정리 시리즈도 함께 들을 수 있습니다. 투자 판단의 참고용입니다.</description>
+  <itunes:author>kb-market-report</itunes:author>
+  <itunes:explicit>false</itunes:explicit>
+  <itunes:block>Yes</itunes:block>
+  <lastBuildDate>Fri, 16 Oct 2026 15:58:00 +0900</lastBuildDate>
+  <item>
+   <title>10/16(금) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 2.05% 상승한 5668.05포인트, 코스닥은 4.46% 상승한 794.78포인트로 마감했습니다.</description>
+   <pubDate>Fri, 16 Oct 2026 15:58:00 +0900</pubDate>
+   <guid isPermaLink="false">50a74851-06d6-56c6-bc3d-e5ae203f149e</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-10-16-1558-160009.mp3" length="1208736" type="audio/mpeg"/>
+   <itunes:duration>201</itunes:duration>
+  </item>
+  <item>
+   <title>[산업 정리 20/20] 로봇과 우주항공, 그리고 시리즈 정리</title>
+   <description>산업 정리 시리즈 마지막 스무 번째, 로봇과 우주항공, 그리고 시리즈 전체 정리입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:20:00 +0900</pubDate>
+   <guid isPermaLink="false">e66fd5f1-b979-5859-a576-4a0c6fb66b9d</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-20-20261016151213.mp3" length="1791360" type="audio/mpeg"/>
+   <itunes:duration>299</itunes:duration>
+   <itunes:episode>20</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 19/20] AI 인프라와 데이터센터</title>
+   <description>산업 정리 시리즈 열아홉 번째, AI 인프라와 데이터센터입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:19:00 +0900</pubDate>
+   <guid isPermaLink="false">5a6897b9-2d84-58cd-93e1-7c38442ce8b1</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-19-20261016151124.mp3" length="1685664" type="audio/mpeg"/>
+   <itunes:duration>281</itunes:duration>
+   <itunes:episode>19</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 18/20] 화장품과 음식료, K소비재</title>
+   <description>산업 정리 시리즈 열여덟 번째, 화장품과 음식료, 이른바 K소비재입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:18:00 +0900</pubDate>
+   <guid isPermaLink="false">4a22f56d-4b1b-5fe3-bfce-99b1c44dfd6e</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-18-20261016151045.mp3" length="1682064" type="audio/mpeg"/>
+   <itunes:duration>280</itunes:duration>
+   <itunes:episode>18</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 17/20] 통신</title>
+   <description>산업 정리 시리즈 열일곱 번째, 통신입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:17:00 +0900</pubDate>
+   <guid isPermaLink="false">e3e6c401-768f-5b0e-a4ce-932090d7208e</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-17-20261016151001.mp3" length="1730880" type="audio/mpeg"/>
+   <itunes:duration>288</itunes:duration>
+   <itunes:episode>17</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 16/20] 해운과 항공</title>
+   <description>산업 정리 시리즈 열여섯 번째, 해운과 항공입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:16:00 +0900</pubDate>
+   <guid isPermaLink="false">9e0d4e7f-9fd3-5790-9e41-97894009a2c7</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-16-20261016150925.mp3" length="1761552" type="audio/mpeg"/>
+   <itunes:duration>294</itunes:duration>
+   <itunes:episode>16</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 15/20] 건설</title>
+   <description>산업 정리 시리즈 열다섯 번째, 건설입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:15:00 +0900</pubDate>
+   <guid isPermaLink="false">004479d6-318b-52ff-9657-0d3fd4c77c36</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-15-20261016150851.mp3" length="1745712" type="audio/mpeg"/>
+   <itunes:duration>291</itunes:duration>
+   <itunes:episode>15</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 14/20] 철강과 비철금속</title>
+   <description>산업 정리 시리즈 열네 번째, 철강과 비철금속입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:14:00 +0900</pubDate>
+   <guid isPermaLink="false">cf91ff6b-3cb9-545b-9f7b-9b82afff1652</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-14-20261016150810.mp3" length="1728144" type="audio/mpeg"/>
+   <itunes:duration>288</itunes:duration>
+   <itunes:episode>14</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 13/20] 석유화학과 정유</title>
+   <description>산업 정리 시리즈 열세 번째, 석유화학과 정유입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:13:00 +0900</pubDate>
+   <guid isPermaLink="false">adf61e77-660c-5e01-befc-828451ba671e</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-13-20261016150738.mp3" length="1669536" type="audio/mpeg"/>
+   <itunes:duration>278</itunes:duration>
+   <itunes:episode>13</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 12/20] 증권과 보험</title>
+   <description>산업 정리 시리즈 열두 번째, 증권과 보험입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:12:00 +0900</pubDate>
+   <guid isPermaLink="false">903cd0a7-bd48-57eb-8df7-7e7d49ea585b</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-12-20261016150651.mp3" length="1725408" type="audio/mpeg"/>
+   <itunes:duration>288</itunes:duration>
+   <itunes:episode>12</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 11/20] 은행과 금융지주</title>
+   <description>산업 정리 시리즈 열한 번째, 은행과 금융지주입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:11:00 +0900</pubDate>
+   <guid isPermaLink="false">70f82155-fea9-5f33-b5c9-415046815958</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-11-20261016150603.mp3" length="1749024" type="audio/mpeg"/>
+   <itunes:duration>292</itunes:duration>
+   <itunes:episode>11</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 10/20] 게임과 엔터테인먼트</title>
+   <description>산업 정리 시리즈 열 번째, 게임과 엔터테인먼트, 콘텐츠 산업입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:10:00 +0900</pubDate>
+   <guid isPermaLink="false">515fe71a-cc16-5562-bf24-3adeec5564ac</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-10-20261016150508.mp3" length="1632672" type="audio/mpeg"/>
+   <itunes:duration>272</itunes:duration>
+   <itunes:episode>10</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 09/20] 인터넷과 플랫폼</title>
+   <description>산업 정리 시리즈 아홉 번째, 인터넷과 플랫폼입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:09:00 +0900</pubDate>
+   <guid isPermaLink="false">53833474-75c2-5fb9-8c7f-6100a9c74c19</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-09-20261016150435.mp3" length="1634832" type="audio/mpeg"/>
+   <itunes:duration>272</itunes:duration>
+   <itunes:episode>9</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 08/20] 바이오와 제약</title>
+   <description>산업 정리 시리즈 여덟 번째, 바이오와 제약입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:08:00 +0900</pubDate>
+   <guid isPermaLink="false">962f47e8-c42a-5a69-b5a1-04694dcbac63</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-08-20261016150402.mp3" length="1688832" type="audio/mpeg"/>
+   <itunes:duration>281</itunes:duration>
+   <itunes:episode>8</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 07/20] 원전과 전력기기</title>
+   <description>산업 정리 시리즈 일곱 번째, 원자력 발전과 전력기기입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:07:00 +0900</pubDate>
+   <guid isPermaLink="false">c33f3ffa-d8e5-54c0-b69d-3eaea4f6703c</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-07-20261016150333.mp3" length="1724256" type="audio/mpeg"/>
+   <itunes:duration>287</itunes:duration>
+   <itunes:episode>7</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 06/20] 방위산업</title>
+   <description>산업 정리 시리즈 여섯 번째, 방위산업, 방산입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:06:00 +0900</pubDate>
+   <guid isPermaLink="false">e1ddaeb0-0d60-5639-8d4d-31d7a87d776c</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-06-20261016150247.mp3" length="1687536" type="audio/mpeg"/>
+   <itunes:duration>281</itunes:duration>
+   <itunes:episode>6</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 05/20] 조선</title>
+   <description>산업 정리 시리즈 다섯 번째, 조선입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:05:00 +0900</pubDate>
+   <guid isPermaLink="false">db61fce4-eccb-5526-ad4a-1cacd4a01965</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-05-20261016150212.mp3" length="1806192" type="audio/mpeg"/>
+   <itunes:duration>301</itunes:duration>
+   <itunes:episode>5</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 04/20] 자동차와 부품</title>
+   <description>산업 정리 시리즈 네 번째, 자동차와 자동차 부품입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:04:00 +0900</pubDate>
+   <guid isPermaLink="false">2ee36d65-a5f3-5f12-82df-eda194c7e093</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-04-20261016150120.mp3" length="1807632" type="audio/mpeg"/>
+   <itunes:duration>301</itunes:duration>
+   <itunes:episode>4</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 03/20] 2차전지</title>
+   <description>산업 정리 시리즈 세 번째, 2차전지입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:03:00 +0900</pubDate>
+   <guid isPermaLink="false">02c665d3-c954-5213-ba3d-3b07df5e3fb8</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-03-20261016150025.mp3" length="1788624" type="audio/mpeg"/>
+   <itunes:duration>298</itunes:duration>
+   <itunes:episode>3</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 02/20] 반도체 소부장과 파운드리</title>
+   <description>산업 정리 시리즈 두 번째 시간, 반도체 소재·부품·장비, 줄여서 소부장과 파운드리입니다.  공부용 정리이고, 종목 추천이 아닙니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:02:00 +0900</pubDate>
+   <guid isPermaLink="false">af80c701-4869-56f7-a5a7-171968854efd</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-02-20261016145924.mp3" length="1749312" type="audio/mpeg"/>
+   <itunes:duration>292</itunes:duration>
+   <itunes:episode>2</itunes:episode>
+  </item>
+  <item>
+   <title>[산업 정리 01/20] 메모리 반도체</title>
+   <description>주식쟁이 봉의 산업 정리 시리즈, 첫 번째 시간입니다. 오늘은 우리 증시의 심장, 메모리 반도체입니다.</description>
+   <pubDate>Fri, 16 Oct 2026 14:01:00 +0900</pubDate>
+   <guid isPermaLink="false">557fd68f-1fd5-568e-ae13-b5a944e3b139</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/series-industry-01-20261016145842.mp3" length="1907424" type="audio/mpeg"/>
+   <itunes:duration>318</itunes:duration>
+   <itunes:episode>1</itunes:episode>
+  </item>
+  <item>
+   <title>10/15(목) 장마감 브리핑 (16:20 업데이트)</title>
+   <description> 먼저 시장 지수입니다. 코스피는 7.57% 하락한 5554.22포인트, 코스닥은 7.65% 하락한 760.82포인트로 마감했습니다.</description>
+   <pubDate>Thu, 15 Oct 2026 15:58:00 +0900</pubDate>
+   <guid isPermaLink="false">844295e5-6c96-5a42-9ac9-e2d881348bbb</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-10-15-1558-162024.mp3" length="1269936" type="audio/mpeg"/>
+   <itunes:duration>212</itunes:duration>
+  </item>
+  <item>
+   <title>10/14(수) 장마감 브리핑 (11:56 업데이트)</title>
+   <description> 먼저 시장 지수입니다. 코스피는 0.44% 하락한 6008.81포인트, 코스닥은 1.57% 하락한 823.88포인트로 마감했습니다.</description>
+   <pubDate>Wed, 14 Oct 2026 15:58:00 +0900</pubDate>
+   <guid isPermaLink="false">e2177910-a694-5c3e-be5b-bdadbfb12f06</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-10-14-1558-115623.mp3" length="1680912" type="audio/mpeg"/>
+   <itunes:duration>280</itunes:duration>
+  </item>
+ </channel>
+</rss>
