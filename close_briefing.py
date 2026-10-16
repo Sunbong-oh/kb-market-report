@@ -560,6 +560,13 @@ def mp3_seconds(path: Path, kbps: int) -> int:
 
 
 # ---------- 팟캐스트 피드 ----------
+def load_episodes(pod: Path) -> list[dict]:
+    try:
+        return json.loads((pod / "episodes.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
 def update_feed(pod: Path, mp3: Path, text: str, now: datetime, kbps: int) -> None:
     ep_dir = pod / "episodes"
     ep_dir.mkdir(parents=True, exist_ok=True)
@@ -567,11 +574,9 @@ def update_feed(pod: Path, mp3: Path, text: str, now: datetime, kbps: int) -> No
     built = datetime.now(KST)
     name = f"{now:%Y-%m-%d-%H%M}-{built:%H%M%S}.mp3"  # 같은 날 다시 만들어도 주소가 달라야 앱이 새 파일을 받는다
     shutil.copyfile(mp3, ep_dir / name)
-    meta_p = pod / "episodes.json"
-    try:
-        eps = json.loads(meta_p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        eps = []
+    eps = load_episodes(pod)
+    series = [e for e in eps if e.get("series")]  # 산업 정리 시리즈 등: 하루치 정리(같은 날 교체·최근 KEEP회)에서 뺀다
+    eps = [e for e in eps if not e.get("series")]
     wd = "월화수목금토일"[now.weekday()]
     title = f"{now.month}/{now.day}({wd}) 장마감 브리핑"
     same_day = [e for e in eps if e["file"].startswith(f"{now:%Y-%m-%d}")]
@@ -589,9 +594,13 @@ def update_feed(pod: Path, mp3: Path, text: str, now: datetime, kbps: int) -> No
     eps.sort(key=lambda e: e["pub"], reverse=True)
     for old in eps[KEEP:]:
         (ep_dir / old["file"]).unlink(missing_ok=True)
-    eps = eps[:KEEP]
-    meta_p.write_text(json.dumps(eps, ensure_ascii=False, indent=1), encoding="utf-8")
+    write_feed(pod, eps[:KEEP] + series, pub)
+    print(f"피드 갱신: 하루 브리핑 {min(len(eps), KEEP)}회차 + 시리즈 {len(series)}편, 최신 {name}")
 
+
+def write_feed(pod: Path, eps: list[dict], built: datetime) -> None:
+    """episodes.json과 feed.xml을 쓴다. 시리즈 편(series)은 itunes:episode 번호를 붙인다."""
+    (pod / "episodes.json").write_text(json.dumps(eps, ensure_ascii=False, indent=1), encoding="utf-8")
     items = "".join(f'''
   <item>
    <title>{escape(e["title"])}</title>
@@ -599,8 +608,9 @@ def update_feed(pod: Path, mp3: Path, text: str, now: datetime, kbps: int) -> No
    <pubDate>{format_datetime(datetime.fromisoformat(e["pub"]))}</pubDate>
    <guid isPermaLink="false">{e["guid"]}</guid>
    <enclosure url="{POD_BASE}/episodes/{e["file"]}" length="{e["bytes"]}" type="audio/mpeg"/>
-   <itunes:duration>{e["secs"]}</itunes:duration>
-  </item>''' for e in eps)
+   <itunes:duration>{e["secs"]}</itunes:duration>{f"""
+   <itunes:episode>{e["ep"]}</itunes:episode>""" if e.get("ep") else ""}
+  </item>''' for e in sorted(eps, key=lambda e: e["pub"], reverse=True))
     feed = f'''<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom">
  <channel>
@@ -608,16 +618,15 @@ def update_feed(pod: Path, mp3: Path, text: str, now: datetime, kbps: int) -> No
   <link>https://github.com/Sunbong-oh/kb-market-report</link>
   <atom:link href="{FEED_URL}" rel="self" type="application/rss+xml"/>
   <language>ko-kr</language>
-  <description>평일 오후 4시, 코스피·코스닥 등락률, 투자자별 수급, 오늘의 상승·하락 요인, 강세 테마, 목표주가 상향 리포트, 오늘 밤 미국 일정·실적을 음성으로 짚어 드립니다. 투자 판단의 참고용입니다.</description>
+  <description>평일 오후 4시, 코스피·코스닥 등락률, 투자자별 수급, 오늘의 상승·하락 요인, 강세 테마, 목표주가 상향 리포트, 오늘 밤 미국 일정·실적을 음성으로 짚어 드립니다. 산업별 정리 시리즈도 함께 들을 수 있습니다. 투자 판단의 참고용입니다.</description>
   <itunes:author>kb-market-report</itunes:author>
   <itunes:explicit>false</itunes:explicit>
   <itunes:block>Yes</itunes:block>
-  <lastBuildDate>{format_datetime(pub)}</lastBuildDate>{items}
+  <lastBuildDate>{format_datetime(built)}</lastBuildDate>{items}
  </channel>
 </rss>
 '''
     (pod / "feed.xml").write_text(feed, encoding="utf-8")
-    print(f"피드 갱신: {len(eps)}회차, 최신 {name}")
 
 
 # ---------- 텔레그램 ----------
