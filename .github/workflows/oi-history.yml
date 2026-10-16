@@ -1,0 +1,26 @@
+name: 선물 미결제약정 과거 데이터 (수동)
+
+# 미결제약정·외국인 선물 수급 분석용 데이터를 KB 서버에서 받아 작업 결과물(oi-history)로 남긴다 (oi_history.py).
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
+      KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python oi_history.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oi-history
+          path: out/oi_history.json
