@@ -321,6 +321,9 @@ def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
     new_ix, old_ix = snap.get("/api/indices/intraday") or {}, old.get("/api/indices/intraday") or {}
     for code, prev in old_ix.items():
         cur = new_ix.get(code) or {}
+        # 장 시작 전 스냅샷에는 전날 한 장(391개)이 들어 있다 → 날짜가 더 새로우면 점 수가 적어도 오늘 것을 쓴다
+        if str(cur.get("date") or "") > str(prev.get("date") or ""):
+            continue
         if len(cur.get("points") or []) < len(prev.get("points") or []):
             new_ix[code] = prev
     if new_ix:
