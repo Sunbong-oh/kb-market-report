@@ -232,6 +232,19 @@ def load_futures_flow(now: datetime) -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def pick_futures_flow(saved: dict | None, live: dict | None, now: datetime) -> dict | None:
+    """홈페이지 차트와 같은 자료를 고른다: 저장본(archive/날짜/futures_flow.json)과 지금 받은 /api/futures 중
+    오늘 것이면서 분 단위 기록이 더 많은 쪽. 저장이 늦거나 빠진 날에도 홈페이지와 같은 그림이 나간다."""
+    today = f"{now:%Y%m%d}"
+    best = None
+    for d in (saved, live):
+        if not d or d.get("flow_date") not in (None, today) or len(d.get("bars") or []) < 2:
+            continue
+        if best is None or len(d.get("flows") or []) > len(best.get("flows") or []):
+            best = d
+    return best
+
+
 def main() -> int:
     send = "--no-send" not in sys.argv
     now = datetime.now(KST).replace(tzinfo=None)  # 클라우드(UTC)에서도 한국 시간 기준
@@ -262,7 +275,7 @@ def main() -> int:
     for path in [*(p for p, _ in shots), snapshot]:
         print(f"저장: {path}")
     try:  # 홈페이지와 같은 선물지수 · 외국인 선물 교차차트를 2번 사진(투자자별 매매동향) 아래에 붙인다
-        raw = load_futures_flow(now)
+        raw = pick_futures_flow(load_futures_flow(now), api.get("/api/futures?minutes=1"), now)
         fut_img = futures_image(raw, api.get("/api/market"), prefix.with_name(f"{prefix.name}_futures.jpg")) if raw else None
         print(f"선물 교차차트: {fut_img or '기록 없음'}")
         if fut_img and len(shots) > 1:
