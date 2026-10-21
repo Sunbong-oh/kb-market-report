@@ -394,6 +394,7 @@ def main() -> None:
     last_map: dict | None = None
     last_kws: list[str] | None = None
     day = ""
+    misses = 0  # 서버가 /api/market 을 못 준 횟수 (이어지면 서버를 다시 띄운다)
     seeded = archived = False
     try:
         while now() - began < MAX_RUN:
@@ -413,15 +414,28 @@ def main() -> None:
                 continue
             if today != day:
                 day, flows, seeded, archived = today, {}, False, False
-            if proc is None:
+            if proc is None or proc.poll() is not None:  # 서버가 꺼졌거나 죽었으면 다시 띄운다
                 try:
                     proc = start_server()
+                    misses = 0
                 except RuntimeError as e:
                     print(hm, "서버 시작 실패, 5분 뒤 다시:", e)
                     time.sleep(300)
                     continue
             try:
                 snap = snapshot()
+                # 서버가 답을 못 주는데 직전 값을 그대로 다시 올리면 시각만 바뀌고 수치는 멈춘 화면이 된다
+                # → 올리지 않고(화면의 기준 시각이 멈춰 이상을 알 수 있다) 세 번 이어지면 서버를 다시 띄운다
+                if "/api/market" not in snap:
+                    misses += 1
+                    print(hm, f"시장 데이터 못 받음({misses}회) → 올리지 않음", flush=True)
+                    if misses >= 3 and proc:
+                        proc.terminate()
+                        proc = None
+                        print(hm, "서버 다시 띄움", flush=True)
+                    time.sleep(20)
+                    continue
+                misses = 0
                 remote, keep = remote_tree()
                 if not seeded:
                     flows, seeded = seed_flows(remote, today), True
