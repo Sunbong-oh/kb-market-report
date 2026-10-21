@@ -28,6 +28,7 @@ from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
+import kr_surge
 import market_calendar as mc
 
 KST = timezone(timedelta(hours=9))
@@ -330,6 +331,46 @@ def merge_px(old: list | None, new: list) -> list:
     return new
 
 
+# ---------- 국내 영업이익 급증 (DART 잠정실적 공시) ----------
+SURGE_FROM, SURGE_TO = "0730", "1900"  # 공시가 올라오는 시간대에만 본다
+
+
+def surge_scan(now: datetime, seen: set[str]) -> list[dict]:
+    """오늘(이른 아침이면 어제까지) 잠정실적 공시 중 전분기 대비 영업이익이 급증한 종목.
+    한 번 본 공시는 seen 에 넣어 다시 본문을 받지 않는다 (10분마다 도는 작업이라 공시 수만큼만 읽는다)."""
+    if now.weekday() >= 5 or not (SURGE_FROM <= now.strftime("%H%M") <= SURGE_TO):
+        return []
+    days = [now.strftime("%Y%m%d")]
+    if now.strftime("%H%M") < "1000":  # 어제 장 마감 뒤 올라온 공시도 한 번 더 본다
+        days.append((now - timedelta(days=1)).strftime("%Y%m%d"))
+    out = []
+    for day in days:
+        try:
+            rows = [r for r in kr_surge.list_day(day) if r["rcp"] not in seen]
+        except Exception as e:
+            print("  공시 목록 실패:", day, type(e).__name__, e, flush=True)
+            continue
+        for r in rows:
+            seen.add(r["rcp"])
+            try:
+                s = kr_surge.check(r, day)
+            except Exception as e:
+                print("  공시 본문 실패:", r["corp"], type(e).__name__, e, flush=True)
+                continue
+            if s:
+                out.append(s)
+                print("  영업이익 급증:", s["name"], s["code"], " / ".join(kr_surge.summary(s)), flush=True)
+    return out
+
+
+def surge_message(it: dict) -> str:
+    lines = [f"🚀 국내 실적 급증 · {it['name']}({it['code']})", it["item"], ""]
+    lines += [f"▶ {c}" for c in it["cons"]]
+    lines += [f"📈 {px_line(r)}" for r in it.get("px") or []]
+    lines += [""] + [f"• {a['t']} ({a['o']} {a['dt']})" for a in it["news"]]
+    return "\n".join(lines + ["", f"홈페이지: {SITE}"])
+
+
 def previous() -> dict:
     r = subprocess.run(["git", "show", "origin/earnings-live:earnings.json"], cwd=ROOT, capture_output=True)
     try:
@@ -366,6 +407,29 @@ def run(now: datetime, dry: bool = False) -> None:
             else:  # 발표 뒤 한참 지나서야 감지됨 → 늦은 알림은 보내지 않는다 (홈페이지만 갱신)
                 print("  늦게 감지 → 텔레그램 생략", first_iso, flush=True)
         print("  감지:", res["first"], [a["t"][:50] for a in res["en"]], it["px"], flush=True)
+    # 국내 잠정실적 공시 중 전분기 대비 영업이익 급증 종목 (캘린더에 없어도 찾아낸다)
+    scanned = set(old.get("kr_seen") or [])
+    for s in surge_scan(now, scanned):
+        key = f"KR-{s['rcp']}"
+        prev = items.get(key) or {}
+        at = s.get("at") or now.isoformat(timespec="minutes")
+        first_iso = prev.get("first_iso") or datetime.fromisoformat(at).replace(tzinfo=KST).isoformat()
+        day = first_iso[:10]
+        it = dict(prev)
+        it.update({"key": key, "day": day, "name": s["name"], "code": s["code"], "kr": True, "surge": True,
+                   "icon": "🚀", "head": "영업이익 급증", "note": "공시", "item": f"{s['period']} 잠정실적",
+                   "detected": prev.get("detected") or now.strftime("%Y-%m-%d %H:%M"),
+                   "first": prev.get("first") or datetime.fromisoformat(at).strftime("%m/%d %H:%M"), "first_iso": first_iso,
+                   "cons": kr_surge.summary(s),
+                   "news": [{"t": s["title"], "u": s["url"], "o": "공시", "dt": datetime.fromisoformat(at).strftime("%m/%d %H:%M")}],
+                   "sent": True})
+        it["px"] = merge_px(prev.get("px"), reactions(it))
+        items[key] = it
+        if not prev.get("sent"):
+            if now - datetime.fromisoformat(first_iso) <= LATE_DETECT:
+                msgs.append(surge_message(it))
+            else:
+                print("  늦게 감지 → 텔레그램 생략", key, first_iso, flush=True)
     # 감시 기간이 끝난 항목도 사흘 동안 주가 반응을 갱신하고, 발표 후 첫 정규장이 끝나면 한 번 알린다
     seen = {t["key"] for t in targets(now)}
     for it in items.values():
@@ -379,14 +443,16 @@ def run(now: datetime, dry: bool = False) -> None:
                 print("  주가 반응 늦게 확인 → 텔레그램 생략", it["key"], d1t, flush=True)
                 continue
             msgs.append("\n".join([f"📈 실적 후 주가 반응 · {it['name']}", ""] + [px_line(r) for r in it["px"]] + ["", f"홈페이지: {SITE}"]))
-    data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": sorted(items.values(), key=lambda i: i["detected"], reverse=True)}
+    # 이미 읽어 본 공시는 적어 두고(최근 것만) 다음 실행 때 본문을 다시 받지 않는다
+    data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": sorted(items.values(), key=lambda i: i["detected"], reverse=True),
+            "kr_seen": sorted(scanned)[-800:]}
     if dry:
         print(json.dumps(data, ensure_ascii=False, indent=1))
         print("\n---\n".join(msgs))
         return
     OUT.mkdir(exist_ok=True)
     # 내용이 바뀌었을 때만 올린다 (updated 시각만 바뀐 건 무시)
-    changed = [i for i in data["items"]] != (old.get("items") or [])
+    changed = data["items"] != (old.get("items") or []) or data["kr_seen"] != (old.get("kr_seen") or [])
     if changed:
         (OUT / "earnings.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     (OUT / "messages.json").write_text(json.dumps(msgs, ensure_ascii=False), encoding="utf-8")
