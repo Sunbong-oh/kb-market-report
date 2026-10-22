@@ -30,6 +30,7 @@ from pathlib import Path
 
 import kr_surge
 import market_calendar as mc
+import surge_report
 
 KST = timezone(timedelta(hours=9))
 ROOT = Path(__file__).resolve().parent
@@ -368,6 +369,8 @@ def surge_message(it: dict) -> str:
     lines += [f"▶ {c}" for c in it["cons"]]
     lines += [f"📈 {px_line(r)}" for r in it.get("px") or []]
     lines += [""] + [f"• {a['t']} ({a['o']} {a['dt']})" for a in it["news"]]
+    if it.get("report"):
+        lines += ["", f"📑 실시간 작성 종목 보고서 (3~5분 뒤 열림): {it['report']}"]
     return "\n".join(lines + ["", f"홈페이지: {SITE}"])
 
 
@@ -418,6 +421,7 @@ def run(now: datetime, dry: bool = False) -> None:
         day = first_iso[:10]
         it = dict(prev)
         it.update({"key": key, "day": day, "name": s["name"], "code": s["code"], "kr": True, "surge": True,
+                   "report": prev.get("report") or surge_report.report_url(s["code"]),  # 실시간 작성 종목 보고서 (홈페이지 카드 링크)
                    "icon": "🚀", "head": "영업이익 급증", "note": "공시", "item": f"{s['period']} 잠정실적",
                    "detected": prev.get("detected") or now.strftime("%Y-%m-%d %H:%M"),
                    "first": prev.get("first") or datetime.fromisoformat(at).strftime("%m/%d %H:%M"), "first_iso": first_iso,

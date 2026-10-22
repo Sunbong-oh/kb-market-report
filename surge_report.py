@@ -39,6 +39,13 @@ from pathlib import Path
 KST = timezone(timedelta(hours=9))
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "out" / "surge_reports"
+# 보고서 보관 위치 (surge-report.yml 이 surge-reports 브랜치 reports/날짜/종목코드.pdf 로 올린다).
+# 카드(텔레그램·earnings.json)는 보고서가 만들어지기 전에 이 주소를 미리 단다 → 몇 분 뒤 열린다.
+REPORT_URL = "https://github.com/Sunbong-oh/kb-market-report/blob/surge-reports/reports/{day}/{code}.pdf"
+
+
+def report_url(code: str, day: date | None = None) -> str:
+    return REPORT_URL.format(day=f"{day or TODAY:%Y-%m-%d}", code=code)
 DART = "https://opendart.fss.or.kr/api/"
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36",
       "Referer": "https://m.stock.naver.com/"}
@@ -1157,7 +1164,7 @@ def render(D: dict) -> str:
 
 
 # ------------------------------------------------------------------ 발송
-def telegram_document(path: Path, caption: str) -> None:
+def telegram_document(path: Path, caption: str, filename: str | None = None) -> None:
     token, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat:
         log("  텔레그램 설정 없음 → 발송 생략")
@@ -1166,7 +1173,7 @@ def telegram_document(path: Path, caption: str) -> None:
     parts = []
     for k, v in (("chat_id", chat), ("caption", caption[:1000])):
         parts.append(f'--{bd}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode())
-    fname = urllib.parse.quote(path.name)
+    fname = urllib.parse.quote(filename or path.name)
     parts.append(f'--{bd}\r\nContent-Disposition: form-data; name="document"; filename="{fname}"; filename*=UTF-8\'\'{fname}\r\n'
                  f'Content-Type: {"application/pdf" if path.suffix == ".pdf" else "text/html"}\r\n\r\n'.encode() + path.read_bytes() + b"\r\n")
     parts.append(f"--{bd}--\r\n".encode())
@@ -1223,7 +1230,7 @@ def main() -> None:
             continue
         try:
             D = build(code, rcp, cmap)
-            path = OUT / f"{TODAY:%Y%m%d}_{code}_{re.sub(r'[^0-9A-Za-z가-힣]+', '', D['name'])}.html"
+            path = OUT / f"{code}.html"  # 보관 주소가 종목코드로 정해져 있다 (report_url)
             path.write_text(render(D), encoding="utf-8")
             log("  저장:", path)
             made.append(str(path.relative_to(ROOT)))
@@ -1235,9 +1242,10 @@ def main() -> None:
             if pdf:
                 made.append(str(pdf.relative_to(ROOT)))
             if send:
-                cap = f"📑 실적카드 요약 보고서 · {D['name']}({code})\n" + (f"{D['prov']['period']} 잠정실적 기준" if D["prov"] else "")
+                cap = f"📑 실시간 작성 종목 보고서 · {D['name']}({code})\n" + (f"{D['prov']['period']} 잠정실적 기준" if D["prov"] else "")
                 try:
-                    telegram_document(pdf or path, cap)
+                    nm = re.sub(r"[^0-9A-Za-z가-힣]+", "", D["name"])
+                    telegram_document(pdf or path, cap, f"{TODAY:%Y%m%d}_{nm}_{code}_실시간작성종목보고서{(pdf or path).suffix}")
                 except Exception as e:
                     log("  텔레그램 실패:", type(e).__name__, e)
         except Exception as e:

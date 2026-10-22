@@ -4,7 +4,8 @@ name: 실적카드 요약 보고서
 #   0) 늘 떠 있는 실시간 수급 작업(live_snapshot.py earnings_tick)이 새 카드를 보내고 나면 이 워크플로를 실행 요청한다
 #      (gh workflow run surge-report.yml -f items="종목코드:접수번호,...")
 #   1) surge_report.py: OpenDART(재무·공시·사업보고서) + KB증권 Open API(일봉·수급, 실패 시 네이버) → HTML·PDF
-#   2) 텔레그램(내 채팅)에 PDF 파일로 보내고, surge-reports 브랜치의 reports/날짜/ 에 보관한다.
+#   2) 텔레그램(내 채팅)에 PDF 파일로 보내고, surge-reports 브랜치의 reports/날짜/종목코드.pdf 에 보관한다.
+#      카드(텔레그램 메시지·earnings.json 의 report)는 이 주소를 "실시간 작성 종목 보고서" 링크로 미리 단다.
 # 수동 실행: Actions → 실적카드 요약 보고서 → Run workflow → 종목코드 입력 (예: 300120 또는 300120:20261021900206)
 on:
   workflow_dispatch:
