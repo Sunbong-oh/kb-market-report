@@ -34,8 +34,8 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    app_key = os.environ.get("KB_OPENAPI_APP_KEY", "")
-    app_secret = os.environ.get("KB_OPENAPI_APP_SECRET", "")
+    app_key = os.environ.get("KB_OPENAPI_APP_KEY", "").strip()
+    app_secret = os.environ.get("KB_OPENAPI_APP_SECRET", "").strip()
     # 키가 없으면 자동으로 데모(가짜 데이터) 모드로 동작한다.
     demo = _bool("DEMO_MODE", not (app_key and app_secret))
     root = Path(__file__).resolve().parent.parent
