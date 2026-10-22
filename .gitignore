@@ -10,3 +10,6 @@ data/
 reports/
 publish/
 .claude/
+
+# 실행 결과물 (보고서·캐시) - 워크플로가 따로 브랜치에 올린다
+out/
