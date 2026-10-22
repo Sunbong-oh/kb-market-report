@@ -1,0 +1,81 @@
+name: 실적카드 요약 보고서
+
+# 국내 실적카드(전분기 대비 영업이익 급증 잠정실적, kr_surge.py)가 텔레그램으로 나간 종목마다 요약 보고서를 만든다.
+#   0) 늘 떠 있는 실시간 수급 작업(live_snapshot.py earnings_tick)이 새 카드를 보내고 나면 이 워크플로를 실행 요청한다
+#      (gh workflow run surge-report.yml -f items="종목코드:접수번호,...")
+#   1) surge_report.py: OpenDART(재무·공시·사업보고서) + KB증권 Open API(일봉·수급, 실패 시 네이버) → HTML·PDF
+#   2) 텔레그램(내 채팅)에 PDF 파일로 보내고, surge-reports 브랜치의 reports/날짜/종목코드.pdf 에 보관한다.
+#      카드(텔레그램 메시지·earnings.json 의 report)는 이 주소를 "실시간 작성 종목 보고서" 링크로 미리 단다.
+# 수동 실행: Actions → 실적카드 요약 보고서 → Run workflow → 종목코드 입력 (예: 300120 또는 300120:20261021900206)
+on:
+  workflow_dispatch:
+    inputs:
+      items:
+        description: "종목코드[:잠정실적 접수번호], 쉼표로 구분"
+        type: string
+        required: true
+      send:
+        description: "텔레그램 발송"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # surge-reports 브랜치에 보관
+
+concurrency:
+  group: surge-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: "1"
+      DART_API_KEY: ${{ secrets.DART_API_KEY }}
+      KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
+      KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 패키지 설치 (PDF용 Chromium 포함)
+        run: |
+          pip install httpx python-dotenv playwright
+          python -m playwright install --with-deps chromium
+
+      - name: 보고서 만들기
+        run: |
+          if [ -z "$DART_API_KEY" ]; then echo "::error::DART_API_KEY 시크릿이 없습니다 (Settings → Secrets → Actions)"; exit 1; fi
+          python surge_report.py "${{ inputs.items }}" ${{ inputs.send && '--send' || '' }}
+
+      - name: surge-reports 브랜치에 보관
+        run: |
+          ls out/surge_reports/*.html >/dev/null 2>&1 || { echo "만든 보고서 없음"; exit 0; }
+          day=$(TZ=Asia/Seoul date +%F)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch -q origin surge-reports && git worktree add -q ../sr origin/surge-reports || { git worktree add -q --detach ../sr && (cd ../sr && git checkout -q --orphan surge-reports && git rm -rqf .); }
+          mkdir -p "../sr/reports/$day"
+          cp out/surge_reports/*.html out/surge_reports/*.pdf "../sr/reports/$day/" 2>/dev/null || true
+          # 홈페이지 '실시간 작성 종목 보고서' 목록 (최신순, 같은 날 같은 종목은 새 것으로)
+          python3 - <<'PY'
+          import json, pathlib
+          idx = pathlib.Path("../sr/reports/index.json")
+          old = json.loads(idx.read_text(encoding="utf-8")) if idx.exists() else []
+          new = json.loads(pathlib.Path("out/surge_reports/index_add.json").read_text(encoding="utf-8"))
+          keys = {(r["day"], r["code"]) for r in new}
+          rows = sorted(new + [r for r in old if (r["day"], r["code"]) not in keys], key=lambda r: r["made"], reverse=True)[:500]
+          idx.write_text(json.dumps(rows, ensure_ascii=False, indent=0), encoding="utf-8")
+          PY
+          cd ../sr
+          git add reports
+          git commit -qm "실적카드 요약 보고서 $day" || exit 0
+          for i in 1 2 3; do git push -q origin HEAD:surge-reports && break; git fetch -q origin surge-reports && git rebase -q origin/surge-reports; done
