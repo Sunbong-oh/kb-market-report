@@ -1247,7 +1247,7 @@ def main() -> None:
                           "turn": pv.get("turn"), "basis": pv.get("basis"), "rcp": pv.get("rcp"),
                           "made": datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "pdf": report_url(code)})
             if send:
-                cap = f"📑 실시간 작성 종목 보고서 · {D['name']}({code})\n" + (f"{D['prov']['period']} 잠정실적 기준" if D["prov"] else "")
+                cap = f"📑 실시간 작성된 종목 보고서 · {D['name']}({code})\n" + (f"{D['prov']['period']} 잠정실적 기준" if D["prov"] else "")
                 try:
                     nm = re.sub(r"[^0-9A-Za-z가-힣]+", "", D["name"])
                     telegram_document(pdf or path, cap, f"{TODAY:%Y%m%d}_{nm}_{code}_실시간작성종목보고서{(pdf or path).suffix}")

@@ -370,7 +370,7 @@ def surge_message(it: dict) -> str:
     lines += [f"📈 {px_line(r)}" for r in it.get("px") or []]
     lines += [""] + [f"• {a['t']} ({a['o']} {a['dt']})" for a in it["news"]]
     if it.get("report"):
-        lines += ["", f"📑 실시간 작성 종목 보고서 (3~5분 뒤 열림): {it['report']}"]
+        lines += ["", f"📑 실시간 작성된 종목 보고서 (5~10분 뒤 열림) <-- 터치!!: {it['report']}"]
     return "\n".join(lines + ["", f"홈페이지: {SITE}"])
 
 
