@@ -1223,7 +1223,7 @@ def main() -> None:
         return
     cmap = corp_map()
     OUT.mkdir(parents=True, exist_ok=True)
-    made = []
+    made, index = [], []
     for code, rcp in items:
         if code not in cmap:
             log("종목코드 없음:", code)
@@ -1241,6 +1241,11 @@ def main() -> None:
                 pdf = None
             if pdf:
                 made.append(str(pdf.relative_to(ROOT)))
+            pv = D["prov"] or {}
+            index.append({"day": f"{TODAY:%Y-%m-%d}", "code": code, "name": D["name"], "market": D["market"],
+                          "period": pv.get("period"), "op": pv.get("op"), "op_prev": pv.get("op_prev"), "chg": pv.get("chg"),
+                          "turn": pv.get("turn"), "basis": pv.get("basis"), "rcp": pv.get("rcp"),
+                          "made": datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "pdf": report_url(code)})
             if send:
                 cap = f"📑 실시간 작성 종목 보고서 · {D['name']}({code})\n" + (f"{D['prov']['period']} 잠정실적 기준" if D["prov"] else "")
                 try:
@@ -1253,6 +1258,8 @@ def main() -> None:
             traceback.print_exc()
             log("보고서 실패:", code, type(e).__name__, e)
     (OUT / "made.json").write_text(json.dumps(made, ensure_ascii=False), encoding="utf-8")
+    # 홈페이지 '실시간 작성 종목 보고서' 목록용: 워크플로가 surge-reports 브랜치 reports/index.json 에 합친다
+    (OUT / "index_add.json").write_text(json.dumps(index, ensure_ascii=False), encoding="utf-8")
 
 
 if __name__ == "__main__":
