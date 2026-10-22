@@ -8,7 +8,7 @@
 워크플로가 earnings-live 브랜치에 올린다 → 홈페이지가 실시간으로 읽어 '실적 속보' 카드로 보여준다.
 수치(예상치)는 컨센서스(나스닥 EPS·네이버 매출/영업이익)와 기사 제목으로 보여주고, 상세 분석은 하지 않는다.
 
-  python earnings_watch.py            # 감지 → out/earnings.json, out/messages.json
+  python earnings_watch.py            # 감지 → out/earnings.json, out/messages.json, out/report_queue.json(요약 보고서 대상)
   python earnings_watch.py --send     # out/messages.json 텔레그램 발송 (브랜치 푸시 성공 뒤)
   python earnings_watch.py --dry 2026-10-14T15:20   # 그 시각 기준으로 감지만 (발송·저장 없음)
 """
@@ -409,6 +409,7 @@ def run(now: datetime, dry: bool = False) -> None:
         print("  감지:", res["first"], [a["t"][:50] for a in res["en"]], it["px"], flush=True)
     # 국내 잠정실적 공시 중 전분기 대비 영업이익 급증 종목 (캘린더에 없어도 찾아낸다)
     scanned = set(old.get("kr_seen") or [])
+    queue = []  # 카드가 나간 종목 → 요약 보고서 작업(surge-report.yml)으로 넘긴다
     for s in surge_scan(now, scanned):
         key = f"KR-{s['rcp']}"
         prev = items.get(key) or {}
@@ -428,6 +429,7 @@ def run(now: datetime, dry: bool = False) -> None:
         if not prev.get("sent"):
             if now - datetime.fromisoformat(first_iso) <= LATE_DETECT:
                 msgs.append(surge_message(it))
+                queue.append(f"{s['code']}:{s['rcp']}")
             else:
                 print("  늦게 감지 → 텔레그램 생략", key, first_iso, flush=True)
     # 감시 기간이 끝난 항목도 사흘 동안 주가 반응을 갱신하고, 발표 후 첫 정규장이 끝나면 한 번 알린다
@@ -456,6 +458,7 @@ def run(now: datetime, dry: bool = False) -> None:
     if changed:
         (OUT / "earnings.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     (OUT / "messages.json").write_text(json.dumps(msgs, ensure_ascii=False), encoding="utf-8")
+    (OUT / "report_queue.json").write_text(json.dumps(queue), encoding="utf-8")
     print("변경:", changed, "새 알림:", len(msgs))
 
 

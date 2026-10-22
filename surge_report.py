@@ -290,8 +290,13 @@ def first_sentences(text: str, limit: int) -> str:
 def business(doc: str) -> dict:
     """사업의 개요(발췌), 주요 제품 표, 매출 구성 비율, 주요 매출처 문단."""
     res: dict = {"overview": "", "products": None, "mix": [], "customers": [], "backlog": None}
-    ov = [t for k, t in blocks(section(doc, r"^1\.\s*사업의\s*개요")) if k == "p"]
-    res["overview"] = first_sentences(" ".join(ov), 1400)
+    ov = " ".join(t for k, t in blocks(section(doc, r"^1\.\s*사업의\s*개요")) if k == "p")
+    # 업계 현황·시장 전망 문단이 길게 앞서는 보고서가 많아, 회사 자신을 설명한 문장(당사는·동사는·회사는)을 먼저 모은다
+    sents = [x.strip() for x in re.split(r"(?<=다\.)\s+", ov) if x.strip()]
+    own = [x for x in sents if re.search(r"(?:당사|동사|연결실체)(?:는|의\s*주요|가)\s", x) and len(x) < 600]
+    body = " ".join(own) if len(" ".join(own)) >= 200 else ov
+    res["overview"] = first_sentences(body, 1400)
+    res["one"] = (own[0] if own else (sents[0] if sents else ""))[:260]
     pb = blocks(section(doc, r"^2\.\s*주요\s*제품"))
     tbl = next((t for k, t in pb if k == "t" and len(t) >= 3), None)
     if tbl:
@@ -318,6 +323,22 @@ def business(doc: str) -> dict:
                     break
                 res["customers"].append((k2, first_sentences(t2, 600) if k2 == "p" else t2))
             break
+    if not res["customers"]:  # 사업의 내용에 없으면 연결재무제표 주석의 '주요 고객' (매출 10% 이상)
+        nb = blocks(doc)
+        ck = re.compile(r"주요\s*고객에\s*대한|매출액의\s*10\s*%\s*이상")
+        for i, (k, t) in enumerate(nb):
+            txt = t if k == "p" else " ".join(c[0] for r in t[:2] for c in r)
+            if (k == "p" and len(t) < 300 or k == "t") and ck.search(txt):
+                got = [("p", "재무제표 주석 '주요 고객' 발췌 (매출 10% 이상 고객):")]
+                for k2, t2 in nb[i: i + 4]:
+                    if k2 == "t" and len(t2) > 1:
+                        got.append(("t", t2))
+                    elif k2 == "p" and re.search(r"매출|수익|고객", t2) and len(t2) < 400:
+                        got.append(("p", t2))
+                    if len(got) >= 3:
+                        break
+                res["customers"] = got
+                break
     for i, (k, t) in enumerate(sb):  # 수주잔고 표 (있으면)
         if k == "p" and re.search(r"수주\s*(?:에\s*관한|상황|현황)", t):
             res["backlog"] = next((t2 for k2, t2 in sb[i + 1: i + 4] if k2 == "t"), None)
@@ -325,22 +346,25 @@ def business(doc: str) -> dict:
     return res
 
 
-MEZZ_RE = r"미상환\s*(전환사채|신주인수권부사채|전환형\s*조건부\s*자본증권|교환사채)\s*발행\s*현황"
+MEZZ_RE = r"미상환\s*(전환사채|신주인수권부사채|전환형\s*조건부\s*자본증권|교환사채)"
 
 
 def mezz_tables(doc: str) -> list[dict]:
     """정기보고서 '미상환 전환사채/신주인수권부사채/… 발행현황' 표와 주석."""
     out = []
-    bl = blocks(doc[doc.find("자금조달"):] if "자금조달" in doc else doc)
+    bl = blocks(doc)
     for i, (k, t) in enumerate(bl):
         if k != "p":
             continue
         m = re.search(MEZZ_RE, t)
-        if not m or len(t) > 80:
+        if not m or len(t) > 120 or not re.match(r"^\s*(?:[가-하]\.|\(\d\)|\d\))?\s*미상환", t):
             continue
-        item = {"kind": re.sub(r"\s+", "", m.group(1)), "table": None, "notes": [], "none": False}
+        kind = re.sub(r"\s+", "", m.group(1))
+        if any(x["kind"] == kind for x in out):
+            continue
+        item = {"kind": kind, "table": None, "notes": [], "none": bool(re.search(r"해당\s*(사항)?\s*(이|은)?\s*없", t))}
         for k2, t2 in bl[i + 1: i + 6]:
-            if k2 == "p" and re.search(MEZZ_RE + r"|채무증권\s*발행실적", t2):
+            if item["none"] or (k2 == "p" and re.search(MEZZ_RE + r"|채무증권\s*발행실적", t2)):
                 break
             if k2 == "t" and item["table"] is None:
                 item["table"] = t2
@@ -468,8 +492,11 @@ def kb_data(code: str, market: str) -> dict:
                 log("  KB 수급 원문 첫 행:", (recs[:1] or [d])[0] if recs else str(d)[:300])
                 flows = sorted(({"d": text(r, "dt"), "f": num(r, "fgnr"), "i": num(r, "ogn"), "p": num(r, "indv")} for r in recs
                                 if re.fullmatch(r"20\d{6}", text(r, "dt"))), key=lambda x: x["d"])
+                # 금액 단위는 백만원 (거래대금과 대조해 확인) → 억원. 장중 당일은 0으로 와서 뺀다
+                flows = [{"d": r["d"], **{k: (r[k] / 100 if r[k] is not None else None) for k in ("f", "i", "p")}}
+                         for r in flows if any(r[k] for k in ("f", "i", "p"))]
                 if len(flows) >= 10:
-                    res["flows"], res["flow_unit"] = flows, "KB 원문 단위(금액)"
+                    res["flows"], res["flow_unit"] = flows, "억원"
             except Exception as e:
                 log("  KB 수급 실패:", type(e).__name__, str(e)[:160])
         finally:
@@ -532,7 +559,7 @@ def naver_flows(code: str) -> list[dict]:
 def market_data(code: str, market: str) -> dict:
     cached = Path(os.environ.get("SURGE_MARKET_DIR", "-")) / f"{code}.json"
     if cached.is_file():  # 시험용: GitHub 작업에서 받아 둔 시세·수급
-        return json.loads(cached.read_text(encoding="utf-8"))
+        return fix_scale(json.loads(cached.read_text(encoding="utf-8")))
     stamp = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     kb = kb_data(code, market)
     res = {"bars": kb.get("bars"), "bars_src": f"KB증권 Open API IVS11560 ({stamp} 조회)" if kb.get("bars") else None,
@@ -547,6 +574,25 @@ def market_data(code: str, market: str) -> dict:
         if f:
             res["flows"], res["flow_unit"] = f, "주(순매수 수량)"
             res["flows_src"] = f"2차 출처: 네이버 증권 투자자별 매매동향 ({stamp} 조회, KB API 조회 실패)"
+    return fix_scale(res)
+
+
+def fix_scale(res: dict) -> dict:
+    """KB 일봉의 *_p2 가격은 소수 자리 없는 원 단위 정수로 온다 (app.market.num 이 ÷100 해 버림).
+    현재가(IVU10140)와 비교해 10의 거듭제곱만큼 되돌린다."""
+    bars, q = res.get("bars") or [], (res.get("quote") or {}).get("price")
+    if bars and q and bars[-1]["c"]:
+        r = q / bars[-1]["c"]
+        f = next((10 ** k for k in (1, 2, 3, 4) if 0.5 < r / 10 ** k < 2), 1)
+        if f > 1:
+            for b in bars:
+                for k in ("o", "h", "l", "c"):
+                    b[k] = round(b[k] * f, 2) if b[k] is not None else None
+    fl = res.get("flows") or []
+    if fl and res.get("flow_unit") == "KB 원문 단위(금액)":  # 이전 형식 (시험 파일)
+        res["flows"] = [{"d": r["d"], **{k: (r[k] / 100 if r[k] is not None else None) for k in ("f", "i", "p")}}
+                        for r in fl if any(r[k] for k in ("f", "i", "p"))]
+        res["flow_unit"] = "억원"
     return res
 
 
@@ -905,7 +951,7 @@ def render(D: dict) -> str:
             pv = f"{prov['period']} 영업이익 {eok(prov['op'])}, 전분기 대비 {prov['chg']:+.1f}%" if prov.get("chg") is not None else f"{prov['period']} 영업이익 {eok(prov['op'])}"
     title = f"{name}, {pv}" if pv else f"{name} 실적카드 요약"
     biz = D["biz"] or {}
-    one = re.split(r"(?<=다\.)\s", biz.get("overview") or "")[0][:220] if biz.get("overview") else "사업보고서 원문을 받지 못했습니다 (데이터 없음)."
+    one = (biz.get("one") or re.split(r"(?<=다\.)\s", biz.get("overview") or "")[0][:220]) if biz.get("overview") else "사업보고서 원문을 받지 못했습니다 (데이터 없음)."
     mix_s = ", ".join(f"{l[:18]} {v:.0f}%" for l, v in sorted(biz.get("mix") or [], key=lambda t: -t[1])[:3])
     bullets = []
     if prov:
@@ -915,7 +961,7 @@ def render(D: dict) -> str:
     bullets.append(f"<li><b>주요 사업</b>{esc(one)}{' 매출 구성(최근 사업연도): ' + esc(mix_s) + '.' if mix_s else ''}</li>")
     if est:
         bullets.append(f"<li><b>{D['cur_year']}E 영업이익 {eok(est['op'])} (산출값, 컨센서스 아님)</b>{esc(est['base'])} 실적 + {esc(est['how'])}.</li>")
-    bullets.append(f"<li><b>메자닌: {esc(mezz_line)}</b>자세한 표는 4쪽에 있습니다.</li>")
+    bullets.append(f"<li><b>메자닌: {esc(mezz_line)}</b>자세한 표는 5쪽에 있습니다.</li>")
     bars = mkt.get("bars") or []
     hi52 = max((b["h"] or b["c"]) for b in bars[-250:]) if bars else None
     lo52 = min((b["l"] or b["c"]) for b in bars[-250:]) if bars else None
@@ -943,7 +989,7 @@ def render(D: dict) -> str:
     if len(bars) >= 120:
         cl = [b["c"] for b in bars]
         ma_txt = " · ".join(f"MA{n} {sum(cl[-n:]) / n:,.0f}원({(cl[-1] / (sum(cl[-n:]) / n) - 1) * 100:+.1f}%)" for n in (20, 60, 120))
-    cover = (f'{flag_html}<div class="cover"><div><div class="kicker">{esc(tag)} · {mk} · {esc(D["co"].get("induty_code") and "업종코드 " + D["co"]["induty_code"] or "")} · {acc}월 결산</div>'
+    cover = (f'{flag_html}<div class="cover"><div><div class="kicker">{esc(tag)} · {mk} · {acc}월 결산</div>'
              f'<h1>{esc(title)}</h1><p class="cap" style="margin:4px 0 14px">기준일 {TODAY:%Y-%m-%d} · 결산월 {acc}월 · 재무 연결(CFS) 우선, 없으면 별도(OFS) 표기 · 실적카드 자동 요약판</p>'
              f'<ul class="pts">{"".join(bullets)}</ul></div>'
              f'<aside class="keydata" aria-label="KEY DATA"><h4>KEY DATA</h4><dl class="kd">{kd_html}</dl>'
@@ -962,8 +1008,9 @@ def render(D: dict) -> str:
         def sums(rows):
             return [sum(r[k] or 0 for r in rows) for k in ("f", "i", "p")]
         rows = [("최근 5거래일", sums(fl[-5:])), ("최근 20거래일", sums(fl[-20:])), (f"3개월 ({len(fl)}거래일)", sums(fl))]
-        trs = "".join(f"<tr><td>{esc(l)}</td>" + "".join(f"<td>{fnum(v)}</td>" for v in s) + "</tr>" for l, s in rows)
-        recent = "".join(f"<tr><td>{r['d'][4:6]}/{r['d'][6:]}</td><td>{fnum(r['f'])}</td><td>{fnum(r['i'])}</td><td>{fnum(r['p'])}</td></tr>" for r in reversed(fl[-10:]))
+        dp = 1 if unit == "억원" else 0
+        trs = "".join(f"<tr><td>{esc(l)}</td>" + "".join(f"<td>{fnum(v, dp)}</td>" for v in s) + "</tr>" for l, s in rows)
+        recent = "".join(f"<tr><td>{r['d'][4:6]}/{r['d'][6:]}</td><td>{fnum(r['f'], dp)}</td><td>{fnum(r['i'], dp)}</td><td>{fnum(r['p'], dp)}</td></tr>" for r in reversed(fl[-10:]))
         body2 = (f'<h2>② 최근 3개월 수급</h2>{svg_flows(fl)}<div class="legend"><span><i style="background:var(--f)"></i>외국인</span>'
                  f'<span><i style="background:var(--i)"></i>기관</span><span><i style="background:var(--p)"></i>개인</span></div>'
                  f'<p class="cap">순매수 누적 ({esc(unit)}) · {esc(mkt.get("flows_src") or "")}</p>'
@@ -994,12 +1041,13 @@ def render(D: dict) -> str:
              f'<div class="legend"><span><i style="background:var(--barc)"></i>영업이익(억원, 왼쪽)</span><span><i style="background:var(--kb)"></i>영업이익률(%, 오른쪽)</span>'
              f'<span><i style="background:repeating-linear-gradient(45deg,var(--kb) 0 2px,var(--soft) 2px 5px)"></i>E = 산출 추정치</span></div>'
              f'<p class="cap">{est_note} {"별도 기준 연도: " + ", ".join(map(str, ofs)) + "." if ofs else ""}</p>'
-             f'<div class="tw"><table><tr><th>연도</th><th>매출액(억원)</th><th>영업이익(억원)</th><th>영업이익률(%)</th></tr>{atr}</table></div>'
-             f'<h2 style="margin-top:18px">④ 최근 3년 분기 영업이익</h2>{svg_combo(qitems, "분기 영업이익과 영업이익률")}'
+             f'<div class="tw"><table><tr><th>연도</th><th>매출액(억원)</th><th>영업이익(억원)</th><th>영업이익률(%)</th></tr>{atr}</table></div>')
+    reps = sorted({ann[y]["rcp"] for y in years if ann[y].get("rcp")})
+    pages.append(page("실적 추이: 연간", tag, body3, f"OpenDART 주요계정(fnlttSinglAcnt), 사업보고서 {esc(', '.join(reps[-4:]))}", 3))
+    body4 = (f'<h2>④ 최근 3년 분기 영업이익</h2>{svg_combo(qitems, "분기 영업이익과 영업이익률")}'
              f'<div class="legend"><span><i style="background:var(--ink)"></i>P = 이번 잠정실적</span><span>* = 4분기 산출값(연간 − 3분기 누적)</span></div>'
              f'<div class="tw"><table><tr><th>분기</th><th>매출액(억원)</th><th>영업이익(억원)</th><th>이익률(%)</th><th class="l">접수번호</th></tr>{qtr}</table></div>')
-    reps = sorted({ann[y]["rcp"] for y in years if ann[y].get("rcp")})
-    pages.append(page("실적 추이", tag, body3, f"OpenDART 주요계정(fnlttSinglAcnt), 사업보고서 {esc(', '.join(reps[-4:]))} 외 분기·반기보고서, 잠정실적 공시", 3))
+    pages.append(page("실적 추이: 분기", tag, body4, "OpenDART 주요계정(fnlttSinglAcnt) 분기·반기·사업보고서(표의 접수번호), 잠정실적 공시", 4))
 
     # ⑤ 메자닌
     parts = []
@@ -1023,7 +1071,7 @@ def render(D: dict) -> str:
                      + "".join(f"<tr><td>{esc(r['dt'])}</td><td class='l'>{esc(r['t'])}</td><td class='l'>{esc(r['rcp'])}</td></tr>" for r in D["mdisc"][:15])
                      + "</table></div>")
     pages.append(page("희석 리스크: 미상환 CB·BW·EB", tag, "<h2>⑤ 미상환 전환사채·신주인수권부사채·교환사채</h2>" + "".join(parts),
-                      f"OpenDART {esc(lr['report_nm'] if lr else '-')} {esc(lr['rcept_no'] if lr else '')} '미상환 발행현황', 주요사항보고서(cvbd·bdwt·exbdIsDecsn), 공시목록", 4))
+                      f"OpenDART {esc(lr['report_nm'] if lr else '-')} {esc(lr['rcept_no'] if lr else '')} '미상환 발행현황', 주요사항보고서(cvbd·bdwt·exbdIsDecsn), 공시목록", 5))
 
     # ⑥ 사업
     if biz:
@@ -1037,7 +1085,7 @@ def render(D: dict) -> str:
                  f'{"<h3>수주 현황</h3>" + table_html(biz["backlog"], 50) if biz.get("backlog") else ""}')
     else:
         body6 = '<h2>⑥ 주요 사업 · 매출 구성 · 주요 매출처</h2><div class="box"><p>최근 2년 사업보고서를 찾지 못했습니다 (데이터 없음).</p></div>'
-    pages.append(page("사업 구조", tag, body6, f"OpenDART 사업보고서 원문 {esc(ar['rcept_no']) if ar else '-'}", 5))
+    pages.append(page("사업 구조", tag, body6, f"OpenDART 사업보고서 원문 {esc(ar['rcept_no']) if ar else '-'}", 6))
 
     disc = ('<p>본 자료는 실적카드(전분기 대비 영업이익 급증 잠정실적 공시)가 나간 종목에 대해 자동으로 만든 요약 자료이며, 매수·매도 추천이 아닙니다. '
             '투자에 대한 최종 결정과 책임은 투자자 본인에게 있습니다.</p>'
@@ -1047,7 +1095,7 @@ def render(D: dict) -> str:
             '<p>주가·수급은 KB증권 Open API를 우선 사용하고, 조회에 실패하면 네이버 증권을 2차 출처로 쓰고 그 사실을 표기했습니다. '
             '사업의 개요·주요 매출처는 사업보고서 원문 발췌이며 해석을 더하지 않았습니다.</p>'
             f'<p>본 자료는 KB증권 리서치센터의 공식 발간물이 아니며, 작성 시점({TODAY:%Y-%m-%d}) 이후 공시와 시장 상황에 따라 내용이 달라질 수 있습니다.</p>')
-    pages.append(page("고지사항", tag, f'<div class="disc">{disc}</div>', "OpenDART, KB증권 Open API, 네이버 증권(2차 출처)", 6))
+    pages.append(page("고지사항", tag, f'<div class="disc">{disc}</div>', "OpenDART, KB증권 Open API, 네이버 증권(2차 출처)", 7))
     return (f'<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{esc(name)} 실적카드 요약</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">'
             f'<style>{CSS}</style></head><body>{"".join(pages)}</body></html>')

@@ -329,14 +329,14 @@ _ew = {"last": ""}
 
 
 def earnings_tick(t: datetime) -> None:
-    """10분마다 실적 속보 감시(earnings_watch.py): earnings-live 브랜치 갱신 → 텔레그램 알림.
+    """10분마다 실적 속보 감시(earnings_watch.py): earnings-live 브랜치 갱신 → 텔레그램 알림 → 급증 종목 요약 보고서 실행.
     GitHub 예약(10분)이 하루 몇 번밖에 안 돌아 알림이 몇 시간씩 늦었기 때문에 늘 떠 있는 이 작업에서 돌린다."""
     key = t.strftime("%Y%m%d%H") + str(t.minute // 10)
     if _ew["last"] == key:
         return
     _ew["last"] = key
     out = ROOT / "out"
-    for n in ("earnings.json", "messages.json"):
+    for n in ("earnings.json", "messages.json", "report_queue.json"):
         (out / n).unlink(missing_ok=True)
     git("fetch", "-q", "origin", "+earnings-live:refs/remotes/origin/earnings-live")
     r = subprocess.run([sys.executable, "earnings_watch.py"], cwd=ROOT, capture_output=True, timeout=300)
@@ -353,6 +353,23 @@ def earnings_tick(t: datetime) -> None:
     r = subprocess.run([sys.executable, "earnings_watch.py", "--send"], cwd=ROOT, capture_output=True, timeout=120)
     if r.stdout.strip():
         print("  ", r.stdout.decode(errors="replace").strip()[-200:], flush=True)
+    kick_surge_report(t, out / "report_queue.json")
+
+
+def kick_surge_report(t: datetime, queue: Path) -> None:
+    """국내 실적 급증 카드가 나간 종목마다 요약 보고서(surge-report.yml)를 띄운다 → 텔레그램 PDF, surge-reports 브랜치."""
+    try:
+        items = json.loads(queue.read_text(encoding="utf-8")) if queue.exists() else []
+    except ValueError:
+        items = []
+    if not items:
+        return
+    try:
+        r = subprocess.run(["gh", "workflow", "run", "surge-report.yml", "--ref", "main", "-f", "items=" + ",".join(items)],
+                           cwd=ROOT, capture_output=True, timeout=60)
+        print(t.strftime("%H:%M"), "요약 보고서 실행 요청:", items, r.returncode, r.stderr.decode(errors="replace")[-200:], flush=True)
+    except Exception as e:
+        print(t.strftime("%H:%M"), "요약 보고서 실행 요청 실패:", type(e).__name__, e, flush=True)
 
 
 def main() -> None:
