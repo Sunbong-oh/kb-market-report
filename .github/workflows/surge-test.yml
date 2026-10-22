@@ -1,0 +1,30 @@
+name: (임시) 실적카드 보고서 시세 시험
+on:
+  push:
+    branches: [claude/project-thread-4wnv9a]
+    paths: ["trigger-surge-test/**"]
+permissions:
+  contents: write
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: "1"
+      KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
+      KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
+      HAS_DART: ${{ secrets.DART_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install httpx python-dotenv
+      - run: |
+          echo "DART 시크릿 있음: $HAS_DART"
+          python surge_report.py --market-dump $(cat trigger-surge-test/codes.txt)
+          ls -la out/market
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p trigger-surge-test/market && cp out/market/*.json trigger-surge-test/market/
+          git add trigger-surge-test/market && git commit -qm "시험: 시세·수급 받기" && git push -q origin HEAD:claude/project-thread-4wnv9a
