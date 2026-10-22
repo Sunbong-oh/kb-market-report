@@ -59,7 +59,7 @@ def log(*a) -> None:
 
 # ------------------------------------------------------------------ OpenDART
 def dart(path: str, raw: bool = False, timeout: int = 60, **params):
-    key = os.environ.get("DART_API_KEY")
+    key = (os.environ.get("DART_API_KEY") or "").strip()
     if not key:
         raise RuntimeError("환경변수 DART_API_KEY 가 없습니다 (GitHub Secrets 에 등록).")
     url = DART + path + "?" + urllib.parse.urlencode({"crtfc_key": key, **params})
