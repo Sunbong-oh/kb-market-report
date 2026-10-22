@@ -1,0 +1,47 @@
+[
+{
+"day": "2026-10-22",
+"code": "028050",
+"name": "삼성E&A",
+"market": "Y",
+"period": "26년 3Q",
+"op": 5006.03,
+"op_prev": 2730.88,
+"chg": 83.3,
+"turn": false,
+"basis": "연결",
+"rcp": "20261022800044",
+"made": "2026-10-22 16:40",
+"pdf": "https://github.com/Sunbong-oh/kb-market-report/blob/surge-reports/reports/2026-10-22/028050.pdf"
+},
+{
+"day": "2026-10-22",
+"code": "034220",
+"name": "LG디스플레이",
+"market": "Y",
+"period": "26년 3Q",
+"op": 2505.68,
+"op_prev": -1077.28,
+"chg": null,
+"turn": true,
+"basis": "연결",
+"rcp": "20261022800200",
+"made": "2026-10-22 16:38",
+"pdf": "https://github.com/Sunbong-oh/kb-market-report/blob/surge-reports/reports/2026-10-22/034220.pdf"
+},
+{
+"day": "2026-10-22",
+"code": "300120",
+"name": "라온피플",
+"market": "K",
+"period": "26년 3Q",
+"op": 11.76,
+"op_prev": 3.0100000000000002,
+"chg": 290.7,
+"turn": false,
+"basis": "별도",
+"rcp": "20261021900206",
+"made": "2026-10-22 16:36",
+"pdf": "https://github.com/Sunbong-oh/kb-market-report/blob/surge-reports/reports/2026-10-22/300120.pdf"
+}
+]
