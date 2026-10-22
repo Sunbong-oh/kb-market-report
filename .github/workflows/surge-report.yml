@@ -32,7 +32,8 @@ jobs:
     timeout-minutes: 25
     env:
       PYTHONUTF8: "1"
-      DART_API_KEY: ${{ secrets.DART_API_KEY }}
+      # 시크릿 이름이 조금 달라도 찾도록 흔한 이름을 차례로 본다 (Variables 포함)
+      DART_API_KEY: ${{ secrets.DART_API_KEY || secrets.DART_KEY || secrets.OPENDART_API_KEY || secrets.OPEN_DART_API_KEY || secrets.OPENDART_KEY || secrets.DART_API || secrets.DART || vars.DART_API_KEY || vars.DART_KEY }}
       KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
       KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -41,6 +42,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+
+      - name: DART 키 확인
+        run: |
+          if [ -z "$DART_API_KEY" ]; then
+            echo "::error::DART 키를 못 찾았습니다. 이 저장소(kb-market-report) Settings → Secrets and variables → Actions → Repository secrets 에 이름 DART_API_KEY 로 넣어 주세요 (Environment·Codespaces·Dependabot 시크릿은 안 읽힘)"
+            exit 1
+          fi
+          echo "DART 키 확인 (길이 ${#DART_API_KEY})"
 
       - uses: actions/setup-python@v5
         with:
@@ -53,7 +62,6 @@ jobs:
 
       - name: 보고서 만들기
         run: |
-          if [ -z "$DART_API_KEY" ]; then echo "::error::DART_API_KEY 시크릿이 없습니다 (Settings → Secrets → Actions)"; exit 1; fi
           python surge_report.py "${{ inputs.items }}" ${{ inputs.send && '--send' || '' }}
 
       - name: surge-reports 브랜치에 보관
