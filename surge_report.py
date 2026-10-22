@@ -168,7 +168,10 @@ def find_provisional(cc: str) -> str | None:
 
 
 def provisional(rcp: str) -> dict | None:
-    """잠정실적 공시 본문 (kr_surge 와 같은 방식, dart.fss.or.kr) → 이번 분기."""
+    """잠정실적 공시 본문 → 이번 분기. OpenDART 공시원문(document.xml)을 먼저 읽고, 안 되면 kr_surge(dart.fss.or.kr)."""
+    p = provisional_opendart(rcp)
+    if p:
+        return p
     try:
         import kr_surge
         n = kr_surge.numbers(rcp)
@@ -185,6 +188,36 @@ def provisional(rcp: str) -> dict | None:
             "sales": g("sales", "now") * u if g("sales", "now") is not None else None,
             "op_prev": g("op", "prev") * u if g("op", "prev") is not None else None,
             "chg": g("op", "chg"), "turn": "흑" in (g("op", "turn") or ""), "yoy": g("op", "yoy"), "rcp": rcp}
+
+
+def provisional_opendart(rcp: str) -> dict | None:
+    """'영업(잠정)실적(공정공시)' 원문: 구분 / 당기실적 / 전기실적 / 전기대비 증감율 / 흑자적자전환 / 전년동기실적 / 전년동기대비 / 흑자적자전환."""
+    t = _clean(document(rcp))
+    if "당해실적" not in t:
+        return None
+    um = re.search(r"단위\s*:\s*(십억원|백만원|천원|억원|원)", t)
+    unit = {"원": 1e-8, "천원": 1e-5, "백만원": 1e-2, "억원": 1.0, "십억원": 10.0}.get(um.group(1)) if um else None
+    pm = re.search(r"\(\s*['‘’]?(\d{2})\.\s*(\d)\s*Q\s*\)", t)
+    if not unit or not pm:
+        return None
+    cell = r"(-?[\d,]+(?:\.\d+)?|-|흑자전환|적자전환|적자지속|흑자지속)"
+    def row(label):
+        m = re.search(label + r"\s*당해실적\s+" + r"\s+".join([cell] * 7), t)
+        if not m:
+            return {}
+        n = lambda v: float(v.replace(",", "")) if re.fullmatch(r"-?[\d,]+(?:\.\d+)?", v) else None
+        c = m.groups()
+        return {"now": n(c[0]), "prev": n(c[1]), "chg": n(c[2]), "turn": c[3], "yoy_prev": n(c[4]), "yoy": n(c[5]), "yoy_turn": c[6]}
+    op, sales = row("영업이익"), row(r"매출액")
+    if op.get("now") is None:
+        return None
+    y, q = 2000 + int(pm.group(1)), int(pm.group(2))
+    basis = "연결" if re.search(r"연결\s*재무제표\s*기준|연결\s*기준", t[:3000]) else (
+        "별도" if re.search(r"별도\s*기준|별도\s*재무", t) else "")
+    return {"y": y, "q": q, "period": f"{pm.group(1)}년 {q}Q", "basis": basis,
+            "op": op["now"] * unit, "sales": sales["now"] * unit if sales.get("now") is not None else None,
+            "op_prev": op["prev"] * unit if op.get("prev") is not None else None,
+            "chg": op.get("chg"), "turn": "흑" in (op.get("turn") or ""), "yoy": op.get("yoy"), "rcp": rcp}
 
 
 def estimate(qs: list[dict], year: int) -> dict | None:
@@ -818,7 +851,7 @@ def build(code: str, rcp: str | None, cmap: dict) -> dict:
     rcp = rcp or find_provisional(cc)
     prov = provisional(rcp) if rcp else None
     if prov and prov["y"] and prov["op"] is not None and not any(r["y"] == prov["y"] and r["q"] == prov["q"] for r in qs):
-        qs.append({"y": prov["y"], "q": prov["q"], "op": prov["op"], "sales": prov["sales"], "fs": "잠정", "rcp": rcp,
+        qs.append({"y": prov["y"], "q": prov["q"], "op": prov["op"], "sales": prov["sales"], "fs": "잠정" + (prov.get("basis") or ""), "rcp": rcp,
                    "calc": False, "prov": True, "eq": None})
     qs = sorted(qs, key=lambda r: (r["y"], r["q"]))[-12:]
     cur_year = qs[-1]["y"] if qs else TODAY.year
@@ -975,8 +1008,11 @@ def render(D: dict) -> str:
     bullets = []
     if prov:
         s = f"매출 {eok(prov['sales'])}" if prov.get("sales") is not None else ""
+        mixed = prov.get("basis") == "별도" and any(r["fs"] == "CFS" for r in qs if not r.get("prov"))
+        bnote = (" 회사가 별도 기준으로 공시한 잠정치라 연결 기준인 과거 분기와 직접 비교되지 않습니다." if mixed else
+                 (f" {prov['basis']} 기준." if prov.get("basis") else ""))
         bullets.append(f"<li><b>이번 잠정실적: {esc(pv)}</b>{esc(s)}{' · 전년 동기 대비 ' + format(prov['yoy'], '+.1f') + '%' if prov.get('yoy') is not None else ''}. "
-                       f"잠정실적 공시 접수번호 {esc(prov['rcp'])}.</li>")
+                       f"잠정실적 공시 접수번호 {esc(prov['rcp'])}.{esc(bnote)}</li>")
     bullets.append(f"<li><b>주요 사업</b>{esc(one)}{' 매출 구성(최근 사업연도): ' + esc(mix_s) + '.' if mix_s else ''}</li>")
     if est:
         bullets.append(f"<li><b>{D['cur_year']}E 영업이익 {eok(est['op'])} (산출값, 컨센서스 아님)</b>{esc(est['base'])} 실적 + {esc(est['how'])}.</li>")
@@ -1053,7 +1089,7 @@ def render(D: dict) -> str:
                 f'<td>{fnum(est["op"] / est["sales"] * 100 if est.get("sales") else None, 1)}</td></tr>')
     qitems = [{"lab": f"{r['y'] % 100:02d}.{r['q']}Q", "op": r["op"], "opm": r["op"] / r["sales"] * 100 if r["op"] is not None and r["sales"] else None,
                "kind": "prov" if r.get("prov") else ("calc" if r["calc"] else "")} for r in qs]
-    qtr = "".join(f"<tr><td>{r['y']}.{r['q']}Q{' 잠정' if r.get('prov') else (' 산출' if r['calc'] else '')}</td><td>{fnum(r['sales'])}</td><td>{fnum(r['op'])}</td>"
+    qtr = "".join(f"<tr><td>{r['y']}.{r['q']}Q{' ' + r['fs'] if r.get('prov') else (' 산출' if r['calc'] else '')}{' (별도)' if r['fs'] == 'OFS' else ''}</td><td>{fnum(r['sales'])}</td><td>{fnum(r['op'])}</td>"
                   f"<td>{fnum(r['op'] / r['sales'] * 100 if r['op'] is not None and r['sales'] else None, 1)}</td><td class='l'>{esc(r['rcp'] or '')}</td></tr>" for r in qs)
     est_note = (f"{D['cur_year']}E는 컨센서스가 아니라 산출값입니다: {esc(est['base'])} 실적 + {esc(est['how'])}." if est else "")
     body3 = (f'<h2>③ 10년 영업이익 · 영업이익률</h2>{svg_combo(items, "연간 영업이익과 영업이익률")}'
