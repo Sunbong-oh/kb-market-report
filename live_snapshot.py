@@ -240,36 +240,6 @@ def market_map(per_sector: int = 30) -> dict | None:
         return None
 
 
-CODES_URL = "https://sunbong-oh.github.io/market-dashboard/stocks/codes.json"
-_codes: tuple[float, list[str]] = (0.0, [])
-
-
-def watch_prices() -> dict | None:
-    """사이트 관심 종목 현재가 (네이버 증권). 종목 목록은 사이트의 stocks/codes.json (30분마다 다시 읽음)."""
-    global _codes
-    try:
-        with httpx.Client(headers=NAVER_HEADERS, timeout=8, follow_redirects=True) as http:
-            if time.time() - _codes[0] > 1800:
-                _codes = (time.time(), [str(c) for c in http.get(CODES_URL, params={"t": int(time.time())}).json()][:40])
-            out = {}
-            for code in _codes[1]:
-                try:
-                    r = http.get(f"https://m.stock.naver.com/api/stock/{code}/basic").json()
-                except Exception:
-                    continue
-                price, chg, pct = _num(r.get("closePrice")), _num(r.get("compareToPreviousClosePrice")), _num(r.get("fluctuationsRatio"))
-                if price is None:
-                    continue
-                if (r.get("compareToPreviousPrice") or {}).get("name") in ("FALLING", "LOWER_LIMIT"):
-                    chg, pct = -abs(chg or 0), -abs(pct or 0)
-                out[code] = {"p": price, "c": chg or 0, "r": pct or 0, "st": r.get("marketStatus") or "",
-                             "at": re.sub(r"\D", "", str(r.get("localTradedAt") or ""))[:12]}
-            return out
-    except Exception as e:
-        print("  관심종목 현재가 실패:", type(e).__name__, e, flush=True)
-        return None
-
-
 def parse_issue_keywords(body: str) -> list[list[str]]:
     """키워드 파일 → 이슈 최대 2개. '---' 줄로 이슈를 나누고, 각 이슈는 키워드 최대 3개 + ('제목:...')."""
     issues = []
@@ -446,9 +416,6 @@ def main() -> None:
                     if m:  # 맵은 따로 map.json (용량이 커서 1분마다 받는 snapshot.json과 나눈다)
                         last_map = m
                         extra["map.json"] = json.dumps({"date": today, "time": hm, "data": m}, ensure_ascii=False)
-                wp = watch_prices()  # 관심 종목 현재가 1분마다
-                if wp:
-                    extra["prices.json"] = json.dumps({"date": today, "time": hm, "data": wp}, ensure_ascii=False)
                 kws = issue_keywords(today)
                 if t.minute % 5 == 0 or kws != last_kws or not any(r.endswith("\tissues.json") for r in keep):
                     if kws != last_kws:
