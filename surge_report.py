@@ -41,7 +41,7 @@ ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "out" / "surge_reports"
 # 보고서 보관 위치 (surge-report.yml 이 surge-reports 브랜치 reports/날짜/종목코드.pdf 로 올린다).
 # 카드(텔레그램·earnings.json)는 보고서가 만들어지기 전에 이 주소를 미리 단다 → 몇 분 뒤 열린다.
-REPORT_URL = "https://github.com/Sunbong-oh/kb-market-report/blob/surge-reports/reports/{day}/{code}.pdf"
+REPORT_URL = "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f={day}/{code}"  # PDF 파일을 바로 연다 (원본: surge-reports 브랜치 reports/날짜/코드.pdf)
 
 
 def report_url(code: str, day: date | None = None) -> str:
