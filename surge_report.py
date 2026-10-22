@@ -255,7 +255,7 @@ def blocks(frag: str) -> list:
     """원문 조각 → [("p", 글), ("t", [[(칸, colspan, rowspan), ...], ...]), ...] 순서대로."""
     out = []
     pos = 0
-    for m in re.finditer(r"<TABLE.*?</TABLE>", frag, re.S):
+    for m in re.finditer(r"<TABLE[\s>].*?</TABLE>", frag, re.S):  # <TABLE-GROUP> 은 표가 아니라 묶음
         out += [("p", t) for t in _paras(frag[pos:m.start()])]
         rows = []
         for tr in re.findall(r"<TR[^>]*>(.*?)</TR>", m.group(0), re.S):
@@ -301,10 +301,19 @@ def business(doc: str) -> dict:
     tbl = next((t for k, t in pb if k == "t" and len(t) >= 3), None)
     if tbl:
         res["products"] = tbl
+        period = re.compile(r"^제?\s*\d+\s*기|^\d{4}\s*년|^20\d\d")
         for row in tbl:
             label = row[0][0]
+            if period.search(label) and len(row) > 1:  # 연도별로 묶인 표 → 첫(최근) 연도 묶음만
+                if res["mix"]:
+                    break
+                label = row[1][0]
             pct = next((c[0] for c in row[1:] if re.fullmatch(r"-?\d+(?:[.,]\d+)?\s*%", c[0])), None)
-            if pct and not re.search(r"합\s*계|^계$|총\s*계", label):
+            if re.search(r"합\s*계|^계$|총\s*계", label):
+                if res["mix"]:
+                    break
+                continue
+            if pct:
                 v = float(pct.replace("%", "").replace(",", ".").strip())
                 if 0 < v <= 100:
                     res["mix"].append((label, v))
@@ -318,9 +327,11 @@ def business(doc: str) -> dict:
                 res["customers"].append(("p", first_sentences(t[max(0, start - 8):], 900)))
             else:
                 res["customers"].append(("t", t))
-            for k2, t2 in sb[i + 1: i + 4]:  # 바로 뒤 표·주석까지 (다음 소제목 전까지)
-                if k2 == "p" and re.match(r"^(나|다|라)\.|^\(\d\)\s*(?!주요)", t2):
+            for k2, t2 in sb[i + 1: i + 6]:  # 바로 뒤 표·주석까지 (다음 소제목 전까지)
+                if k2 == "p" and re.match(r"^[나-하]\.", t2):
                     break
+                if k2 == "t" and len(t2) < 2:  # '기준일·단위' 한 줄 표
+                    continue
                 res["customers"].append((k2, first_sentences(t2, 600) if k2 == "p" else t2))
             break
     if not res["customers"]:  # 사업의 내용에 없으면 연결재무제표 주석의 '주요 고객' (매출 10% 이상)
@@ -341,11 +352,13 @@ def business(doc: str) -> dict:
                 break
     for i, (k, t) in enumerate(sb):  # 수주잔고 표 (있으면)
         if k == "p" and re.search(r"수주\s*(?:에\s*관한|상황|현황)", t):
-            res["backlog"] = next((t2 for k2, t2 in sb[i + 1: i + 4] if k2 == "t"), None)
+            res["backlog"] = next((t2 for k2, t2 in sb[i + 1: i + 4] if k2 == "t" and len(t2) >= 3
+                                   and re.search(r"수주|잔고", " ".join(c[0] for r in t2[:3] for c in r))), None)
             break
     return res
 
 
+NONE_RE = r"해당\s*(사항)?\s*(이|은)?\s*없|보유하고\s*있지\s*않|발행(한|된)?\s*(내역|사실|사채)이?\s*없"
 MEZZ_RE = r"미상환\s*(전환사채|신주인수권부사채|전환형\s*조건부\s*자본증권|교환사채)"
 
 
@@ -362,17 +375,19 @@ def mezz_tables(doc: str) -> list[dict]:
         kind = re.sub(r"\s+", "", m.group(1))
         if any(x["kind"] == kind for x in out):
             continue
-        item = {"kind": kind, "table": None, "notes": [], "none": bool(re.search(r"해당\s*(사항)?\s*(이|은)?\s*없", t))}
+        item = {"kind": kind, "table": None, "notes": [], "none": bool(re.search(NONE_RE, t))}
         for k2, t2 in bl[i + 1: i + 6]:
-            if item["none"] or (k2 == "p" and re.search(MEZZ_RE + r"|채무증권\s*발행실적", t2)):
+            if item["none"]:
                 break
-            if k2 == "t" and item["table"] is None:
-                item["table"] = t2
-            elif k2 == "p":
-                if re.search(r"해당\s*(사항)?\s*(이|은)?\s*없", t2):
-                    item["none"] = True
-                if re.match(r"^\s*(주\s*\d|※|\*)", t2):
-                    item["notes"].append(first_sentences(t2, 500))
+            if k2 == "p" and re.search(NONE_RE, t2) and len(t2) < 200:
+                item["none"] = True
+                break
+            if k2 == "p" and re.match(r"^\s*(?:[가-하]\.|\(\d\))?\s*(?:미상환|채무증권)", t2):  # 다음 소제목
+                break
+            if k2 == "t" and len(t2) >= 2 and (item["table"] is None or len(t2) > len(item["table"])):
+                item["table"] = t2  # '기준일·단위' 한 줄짜리 표는 건너뛰고 본표를 잡는다
+            elif k2 == "p" and re.match(r"^\s*(주\s*\d|※|\*)", t2):
+                item["notes"].append(first_sentences(t2, 500))
         if item["table"] and _mezz_empty(item["table"]):
             item["none"] = True
         out.append(item)
@@ -396,9 +411,13 @@ def decisions(cc: str) -> list[dict]:
             mtd = _kdate(r.get("bd_mtd"))
             out.append({"kind": kind, "tm": r.get("bd_tm"), "knd": r.get("bd_knd"), "fta": amt(r.get("bd_fta")),
                         "mtd": mtd, "live": (mtd is None or mtd >= TODAY), "prc": r.get(prc) or r.get("cv_prc") or "-",
-                        "period": f"{r.get(bgd) or '-'} ~ {r.get(edd) or '-'}", "vs": r.get("cvisstk_tisstk_vs") or r.get("nstk_isstk_tisstk_vs") or "-",
-                        "floor": r.get("act_mktprcfl_cvprc_lwtrsprc") or "-", "rcp": r.get("rcept_no"), "bddd": r.get("bddd")})
+                        "period": _short_dates(f"{r.get(bgd) or '-'} ~ {r.get(edd) or '-'}"), "vs": r.get("cvisstk_tisstk_vs") or r.get("nstk_isstk_tisstk_vs") or "-",
+                        "floor": r.get("act_mktprcfl_cvprc_lwtrsprc") or "-", "rcp": r.get("rcept_no"), "bddd": _short_dates(r.get("bddd"))})
     return sorted(out, key=lambda d: d["rcp"] or "")
+
+
+def _short_dates(s: str) -> str:
+    return re.sub(r"(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일", lambda m: f"{m.group(1)[2:]}.{int(m.group(2)):02d}.{int(m.group(3)):02d}", s or "")
 
 
 def _kdate(s) -> date | None:
