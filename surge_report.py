@@ -730,7 +730,7 @@ def svg_candles(bars: list[dict]) -> str:
 
 
 def svg_flows(flows: list[dict]) -> str:
-    W, H, L, R, T, B = 860, 300, 8, 74, 14, 28
+    W, H, L, R, T, B = 860, 360, 78, 170, 18, 38
     keys = (("f", "외국인", "fl-f"), ("i", "기관", "fl-i"), ("p", "개인", "fl-p"))
     cum = {k: [] for k, _, _ in keys}
     for k, _, _ in keys:
@@ -745,21 +745,31 @@ def svg_flows(flows: list[dict]) -> str:
     n = len(flows)
     x = lambda i: L + (W - L - R) * (i / max(n - 1, 1))
     y = lambda v: T + (H - T - B) * (1 - (v - lo) / (hi - lo))
-    g = [f'<svg class="chart" viewBox="0 0 {W} {H}" role="img" aria-label="투자자별 순매수 누적">']
+    g = [f'<svg class="chart flows" viewBox="0 0 {W} {H}" role="img" aria-label="투자자별 순매수 누적">']
     for t in nice_ticks(lo, hi, 5):
         if lo <= t <= hi:
             g.append(f'<line class="grid{" zero" if t == 0 else ""}" x1="{L}" x2="{W - R}" y1="{y(t):.1f}" y2="{y(t):.1f}"/>'
-                     f'<text class="ax" x="{W - R + 6}" y="{y(t) + 4:.1f}">{_short(t)}</text>')
+                     f'<text class="ax" x="{L - 8}" y="{y(t) + 6:.1f}" text-anchor="end">{_short(t)}</text>')
     step = max(1, n // 6)
     for i in range(0, n, step):
         d = flows[i]["d"]
-        g.append(f'<text class="ax" x="{x(i):.1f}" y="{H - 8}" text-anchor="middle">{d[4:6]}.{d[6:8]}</text>')
+        g.append(f'<text class="ax" x="{x(i):.1f}" y="{H - 10}" text-anchor="{"start" if i == 0 else "middle"}">{d[4:6]}.{d[6:8]}</text>')
+    ly, last = {}, -1e9
+    for k, _, _ in sorted(keys, key=lambda t: y(cum[t[0]][-1])):  # 위에서부터, 최소 18px 간격
+        last = max(y(cum[k][-1]) + 6, last + 24)
+        ly[k] = last
     for k, label, cls in keys:
         pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(cum[k]))
         g.append(f'<polyline class="fl {cls}" points="{pts}"/>')
-        g.append(f'<text class="vl" x="{x(n - 1) - 4:.1f}" y="{y(cum[k][-1]) - 6:.1f}" text-anchor="end">{label}</text>')
+        g.append(f'<text class="vl {cls}t" x="{x(n - 1) + 10:.1f}" y="{ly[k]:.1f}">{label} {_signed(cum[k][-1])}</text>')
     g.append("</svg>")
     return "".join(g)
+
+
+def _signed(v: float) -> str:
+    """선 끝 누적값: 100 미만은 소수 한 자리, -0 은 0."""
+    v = round(v, 1 if abs(v) < 100 else 0) + 0.0
+    return f"{v:+,.1f}" if abs(v) < 100 and v else (f"{v:+,.0f}" if v else "0")
 
 
 def _short(v: float) -> str:
@@ -883,11 +893,11 @@ def build(code: str, rcp: str | None, cmap: dict) -> dict:
 
 CSS = """
 :root{--kb:#F2A900;--ink:#3D3A35;--paper:#FAF8F3;--sheet:#FFFFFF;--line:#E4DED2;--muted:#7A746A;--soft:#F6EFDC;--neg:#B4442F;--pos:#2F6B4F;
---barc:#C9C2B4;--up:#D2463C;--dn:#2F66B0;--f:#2F66B0;--i:#F2A900;--p:#8C8577;--sans:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+--barc:#C9C2B4;--up:#D2463C;--dn:#2F66B0;--f:#D7262B;--i:#F28C00;--p:#1A1A1A;--sans:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#ECE7DD;--paper:#1D1B18;--sheet:#262420;--line:#3E3A33;--muted:#A9A296;
---soft:#332C1B;--neg:#E68A73;--pos:#7FC3A0;--barc:#5B564D;--up:#F07A6E;--dn:#79A6E8;--f:#79A6E8;--p:#B8B0A2;color-scheme:dark}}
+--soft:#332C1B;--neg:#E68A73;--pos:#7FC3A0;--barc:#5B564D;--up:#F07A6E;--dn:#79A6E8;--f:#FF5A5F;--i:#FFA234;--p:#F2EEE6;color-scheme:dark}}
 :root[data-theme="dark"]{--ink:#ECE7DD;--paper:#1D1B18;--sheet:#262420;--line:#3E3A33;--muted:#A9A296;--soft:#332C1B;--neg:#E68A73;--pos:#7FC3A0;
---barc:#5B564D;--up:#F07A6E;--dn:#79A6E8;--f:#79A6E8;--p:#B8B0A2;color-scheme:dark}
+--barc:#5B564D;--up:#F07A6E;--dn:#79A6E8;--f:#FF5A5F;--i:#FFA234;--p:#F2EEE6;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.65;padding:24px 16px}
 .page{max-width:900px;margin:0 auto 28px;background:var(--sheet);border:1px solid var(--line)}
@@ -932,7 +942,9 @@ td.l{text-align:left;white-space:normal}
 .chart .cdl.up{fill:var(--up)} .chart .cdl.dn{fill:var(--dn)} .chart .vol{opacity:.45} .chart .vol.up{fill:var(--up)} .chart .vol.dn{fill:var(--dn)}
 .chart .ma{fill:none;stroke-width:1.4} .chart .ma20{stroke:var(--kb)} .chart .ma60{stroke:#3FA06B} .chart .ma120{stroke:#8E5BB5}
 .chart .lastl{stroke:var(--ink);stroke-dasharray:3 3} .chart .lastb{fill:var(--ink)} .chart .lastt{fill:var(--sheet);font-size:11px;font-weight:700;font-family:var(--sans)}
-.chart .fl{fill:none;stroke-width:2.2} .chart .fl-f{stroke:var(--f)} .chart .fl-i{stroke:var(--i)} .chart .fl-p{stroke:var(--p)}
+.chart .fl{fill:none;stroke-width:4;stroke-linejoin:round;stroke-linecap:round}
+.chart.flows .ax{font-size:17px;font-weight:600;fill:var(--ink)} .chart.flows .vl{font-size:19px;font-weight:800;stroke-width:0} .chart.flows .grid.zero{stroke-width:1.6}
+.fw .legend{font-size:14px;font-weight:700;color:var(--ink)} .fw .legend i{width:22px;height:5px;vertical-align:4px} .fw table td,.fw table th{font-size:13.5px} .chart .fl-f{stroke:var(--f)} .chart .fl-i{stroke:var(--i)} .chart .fl-p{stroke:var(--p)} .chart .fl-ft{fill:var(--f)} .chart .fl-it{fill:var(--i)} .chart .fl-pt{fill:var(--p)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin:4px 0 2px}
 .legend i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
 .mix{display:flex;height:16px;margin:8px 0 4px;overflow:hidden;border-radius:2px}
@@ -946,7 +958,7 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 @page{size:A4;margin:10mm 9mm}
 @media print{
 :root{--ink:#3D3A35!important;--paper:#FFFFFF!important;--sheet:#FFFFFF!important;--line:#E4DED2!important;--muted:#7A746A!important;--soft:#F6EFDC!important;
---neg:#B4442F!important;--barc:#C9C2B4!important;--up:#D2463C!important;--dn:#2F66B0!important;--f:#2F66B0!important;--p:#8C8577!important;color-scheme:light}
+--neg:#B4442F!important;--barc:#C9C2B4!important;--up:#D2463C!important;--dn:#2F66B0!important;--f:#D7262B!important;--i:#F28C00!important;--p:#1A1A1A!important;color-scheme:light}
 body{background:#fff;padding:0;font-size:10.5pt;line-height:1.55}
 .page{max-width:none;margin:0;border:0;break-after:page;page-break-after:always}
 .page:last-child{break-after:auto;page-break-after:auto}
@@ -1073,11 +1085,11 @@ def render(D: dict) -> str:
         dp = 1 if unit == "억원" else 0
         trs = "".join(f"<tr><td>{esc(l)}</td>" + "".join(f"<td>{fnum(v, dp)}</td>" for v in s) + "</tr>" for l, s in rows)
         recent = "".join(f"<tr><td>{r['d'][4:6]}/{r['d'][6:]}</td><td>{fnum(r['f'], dp)}</td><td>{fnum(r['i'], dp)}</td><td>{fnum(r['p'], dp)}</td></tr>" for r in reversed(fl[-10:]))
-        body2 = (f'<h2>② 최근 3개월 수급</h2>{svg_flows(fl)}<div class="legend"><span><i style="background:var(--f)"></i>외국인</span>'
+        body2 = (f'<div class="fw"><h2>② 최근 3개월 수급</h2>{svg_flows(fl)}<div class="legend"><span><i style="background:var(--f)"></i>외국인</span>'
                  f'<span><i style="background:var(--i)"></i>기관</span><span><i style="background:var(--p)"></i>개인</span></div>'
                  f'<p class="cap">순매수 누적 ({esc(unit)}) · {esc(mkt.get("flows_src") or "")}</p>'
                  f'<h3>구간별 순매수 합계 ({esc(unit)})</h3><div class="tw"><table><tr><th>구간</th><th>외국인</th><th>기관</th><th>개인</th></tr>{trs}</table></div>'
-                 f'<h3>최근 10거래일</h3><div class="tw"><table><tr><th>일자</th><th>외국인</th><th>기관</th><th>개인</th></tr>{recent}</table></div>')
+                 f'<h3>최근 10거래일</h3><div class="tw"><table><tr><th>일자</th><th>외국인</th><th>기관</th><th>개인</th></tr>{recent}</table></div></div>')
     else:
         body2 = '<h2>② 최근 3개월 수급</h2><div class="box"><p>투자자별 매매동향 데이터 없음 (KB API·네이버 모두 조회 실패)</p></div>'
     pages.append(page("가격·수급", tag, body2, esc(mkt.get("flows_src") or "데이터 없음"), 2))
