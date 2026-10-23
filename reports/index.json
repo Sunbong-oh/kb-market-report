@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-23",
+"code": "114810",
+"name": "한솔아이원스",
+"market": "K",
+"period": "",
+"op": 123.78,
+"op_prev": 65.61,
+"chg": 88.67,
+"turn": false,
+"basis": null,
+"rcp": "20261023900330",
+"made": "2026-10-23 11:25",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-23/114810"
+},
+{
+"day": "2026-10-23",
 "code": "003000",
 "name": "부광약품",
 "market": "Y",
