@@ -61,7 +61,7 @@ SEMI = {"ASML", "TSMC", "마이크론", "엔비디아", "브로드컴", "AMD", "
 
 PREVIEW = re.compile(r"preview|expect|ahead of|what to watch|to report|will report|set to|due to|options|implied|week ahead|"
                      r"this week|should you|how to play|before (?:its |the )?earnings|on deck|look for|watch for|could|calendar|"
-                     r"chatter|rumou?r|\?", re.I)
+                     r"chatter|rumou?r|\?|\bbefore\b|\btarget\b|stocks? (?:fall|rise|drop|jump)", re.I)  # 10/23 'Intel Stocks Fall 5.74% With a Lower Target Before O…' 오탐
 # 실적 기사로 보려면 실적 단어 + 결과 동사가 함께 있어야 한다 ('ASML Raises Sales Forecast', 'ASML reports €11.7 billion net sales')
 EARN_WORD = re.compile(r"\b(?:Q[1-4]|quarter(?:ly)?|earnings|results|revenue|sales|profit|EPS|net income|outlook|forecast|guidance)\b", re.I)
 RESULT = re.compile(r"\b(?:reports?|reported|posts?|posted|beats?|miss(?:es|ed)?|tops?|topped|raises?|raised|lifts?|lifted|"
@@ -336,6 +336,9 @@ def merge_px(old: list | None, new: list) -> list:
 SURGE_FROM, SURGE_TO = "0730", "1900"  # 공시가 올라오는 시간대에만 본다
 
 
+KR_DONE: dict[str, list[str]] = {}  # 날짜 → 그날 잠정실적 공시를 낸 회사 이름 (급증 여부와 상관없이)
+
+
 def surge_scan(now: datetime, seen: set[str]) -> list[dict]:
     """오늘(이른 아침이면 어제까지) 잠정실적 공시 중 전분기 대비 영업이익이 급증한 종목.
     한 번 본 공시는 seen 에 넣어 다시 본문을 받지 않는다 (10분마다 도는 작업이라 공시 수만큼만 읽는다)."""
@@ -347,10 +350,12 @@ def surge_scan(now: datetime, seen: set[str]) -> list[dict]:
     out = []
     for day in days:
         try:
-            rows = [r for r in kr_surge.list_day(day) if r["rcp"] not in seen]
+            allrows = kr_surge.list_day(day)
         except Exception as e:
             print("  공시 목록 실패:", day, type(e).__name__, e, flush=True)
             continue
+        KR_DONE[f"{day[:4]}-{day[4:6]}-{day[6:]}"] = sorted({r["corp"] for r in allrows if r.get("corp")})
+        rows = [r for r in allrows if r["rcp"] not in seen]
         for r in rows:
             seen.add(r["rcp"])
             try:
@@ -450,15 +455,19 @@ def run(now: datetime, dry: bool = False) -> None:
                 continue
             msgs.append("\n".join([f"📈 실적 후 주가 반응 · {it['name']}", ""] + [px_line(r) for r in it["px"]] + ["", f"홈페이지: {SITE}"]))
     # 이미 읽어 본 공시는 적어 두고(최근 것만) 다음 실행 때 본문을 다시 받지 않는다
+    # 날짜별 잠정실적 공시 회사 이름: 홈페이지 '오늘의 증시 캘린더'가 이미 발표한 회사를 뺄 때 쓴다 (최근 35일만)
+    kr_done = {k: v for k, v in {**(old.get("kr_done") or {}), **KR_DONE}.items()
+               if (now.date() - date.fromisoformat(k)).days <= 35}
     data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": sorted(items.values(), key=lambda i: i["detected"], reverse=True),
-            "kr_seen": sorted(scanned)[-800:]}
+            "kr_seen": sorted(scanned)[-800:], "kr_done": dict(sorted(kr_done.items()))}
     if dry:
         print(json.dumps(data, ensure_ascii=False, indent=1))
         print("\n---\n".join(msgs))
         return
     OUT.mkdir(exist_ok=True)
     # 내용이 바뀌었을 때만 올린다 (updated 시각만 바뀐 건 무시)
-    changed = data["items"] != (old.get("items") or []) or data["kr_seen"] != (old.get("kr_seen") or [])
+    changed = (data["items"] != (old.get("items") or []) or data["kr_seen"] != (old.get("kr_seen") or [])
+               or data["kr_done"] != (old.get("kr_done") or {}))
     if changed:
         (OUT / "earnings.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     (OUT / "messages.json").write_text(json.dumps(msgs, ensure_ascii=False), encoding="utf-8")
