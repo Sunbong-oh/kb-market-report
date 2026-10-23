@@ -783,7 +783,7 @@ def _short(v: float) -> str:
 
 def svg_combo(items: list[dict], aria: str) -> str:
     """막대 = 영업이익(억원), 선 = 영업이익률(%). items: {lab, op, opm, kind: ''|'est'|'calc'|'prov'}."""
-    W, H, L, R, T, B = 860, 330, 56, 52, 26, 40
+    W, H, L, R, T, B = 860, 340, 64, 56, 30, 44
     ops = [i["op"] for i in items if i["op"] is not None] + [0]
     lo, hi = min(ops), max(ops)
     pad = (hi - lo) * 0.12 or 1
@@ -797,7 +797,7 @@ def svg_combo(items: list[dict], aria: str) -> str:
     x = lambda i: L + bw * (i + 0.5)
     y = lambda v: T + (H - T - B) * (1 - (v - lo) / (hi - lo))
     ym = lambda v: T + (H - T - B) * (1 - (v - mlo) / (mhi - mlo))
-    g = [f'<svg class="chart" viewBox="0 0 {W} {H}" role="img" aria-label="{esc(aria)}">',
+    g = [f'<svg class="chart combo" viewBox="0 0 {W} {H}" role="img" aria-label="{esc(aria)}">',
          '<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">'
          '<rect width="6" height="6" class="hbg"/><line x1="0" y1="0" x2="0" y2="6" class="hln"/></pattern></defs>']
     for t in nice_ticks(lo, hi, 5):
@@ -817,10 +817,10 @@ def svg_combo(items: list[dict], aria: str) -> str:
             if it["op"] < 0:
                 cls += " lossb"
             g.append(f'<rect class="{cls}" x="{x(i) - bw * 0.32:.1f}" y="{min(y0, y1):.1f}" width="{bw * 0.64:.1f}" height="{max(abs(y1 - y0), 0.8):.1f}"/>')
-            ty = y1 - 5 if it["op"] >= 0 else y1 + 13
+            ty = y1 - 6 if it["op"] >= 0 else y1 + 18
             g.append(f'<text class="vl" x="{x(i):.1f}" y="{ty:.1f}" text-anchor="middle">{it["op"]:,.0f}</text>')
         mark = {"est": "E", "calc": "*", "prov": "P"}.get(it.get("kind"), "")
-        g.append(f'<text class="ax" x="{x(i):.1f}" y="{H - B + 16}" text-anchor="middle">{esc(it["lab"])}{mark}</text>')
+        g.append(f'<text class="ax" x="{x(i):.1f}" y="{H - B + 20}" text-anchor="middle">{esc(it["lab"])}{mark}</text>')
     pts = [(x(i), ym(it["opm"])) for i, it in enumerate(items) if it["opm"] is not None]
     if len(pts) > 1:
         g.append(f'<polyline class="opl" points="{" ".join(f"{a:.1f},{b:.1f}" for a, b in pts)}"/>')
@@ -938,6 +938,7 @@ td.l{text-align:left;white-space:normal}
 .chart .hbg{fill:var(--soft)} .chart .hln{stroke:var(--kb);stroke-width:3}
 .chart .opl{fill:none;stroke:var(--kb);stroke-width:2.5} .chart .opd{fill:var(--kb)}
 .chart .vl{paint-order:stroke;stroke:var(--sheet);stroke-width:3px;fill:var(--ink);font-size:10.5px;font-weight:700;font-family:var(--sans)}
+.chart.combo .vl{font-size:15px;font-weight:400;stroke-width:2px} .chart.combo .ax{font-size:13px}
 .chart .wick{stroke-width:1} .chart .wick.up{stroke:var(--up)} .chart .wick.dn{stroke:var(--dn)}
 .chart .cdl.up{fill:var(--up)} .chart .cdl.dn{fill:var(--dn)} .chart .vol{opacity:.45} .chart .vol.up{fill:var(--up)} .chart .vol.dn{fill:var(--dn)}
 .chart .ma{fill:none;stroke-width:1.4} .chart .ma20{stroke:var(--kb)} .chart .ma60{stroke:#3FA06B} .chart .ma120{stroke:#8E5BB5}
