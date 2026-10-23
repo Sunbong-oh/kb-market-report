@@ -953,20 +953,23 @@ td.l{text-align:left;white-space:normal}
 .tag{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:2px;white-space:nowrap}
 .ok{background:#E3EFE7;color:#2F6B4F} .chk{background:#FBEFC9;color:#7A5600} .bad{background:#F6DCD5;color:#9A3420}
 .disc{font-size:12px;color:var(--muted)} .disc p{margin:0 0 8px}
-/* 인쇄·PDF: 배경색 유지, A4 세로 한 쪽 = 한 섹션, 화면용 여백·테두리 제거 */
+/* 인쇄·PDF: 배경색 유지. 섹션마다 쪽을 나누지 않고 이어서 쓴다 (빈 쪽·큰 여백 금지, 사용자 요청).
+   차트·표·상자 하나만 두 쪽에 걸쳐 잘리지 않게 하고, 쪽번호는 쪽 아래 여백에 찍는다 */
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-@page{size:A4;margin:10mm 9mm}
+@page{size:A4;margin:10mm 9mm 13mm;@bottom-right{content:counter(page) " / " counter(pages);font:9pt 'Noto Sans KR',sans-serif;color:#7A746A}
+@bottom-left{content:"KB증권 제주지점 · 실적카드 요약";font:8pt 'Noto Sans KR',sans-serif;color:#7A746A}}
 @media print{
 :root{--ink:#3D3A35!important;--paper:#FFFFFF!important;--sheet:#FFFFFF!important;--line:#E4DED2!important;--muted:#7A746A!important;--soft:#F6EFDC!important;
 --neg:#B4442F!important;--barc:#C9C2B4!important;--up:#D2463C!important;--dn:#2F66B0!important;--f:#D7262B!important;--i:#F28C00!important;--p:#1A1A1A!important;color-scheme:light}
 body{background:#fff;padding:0;font-size:10.5pt;line-height:1.55}
-.page{max-width:none;margin:0;border:0;break-after:page;page-break-after:always}
-.page:last-child{break-after:auto;page-break-after:auto}
+.page{max-width:none;margin:0 0 7mm;border:0;break-after:auto;page-break-after:auto}
+.band{break-after:avoid;page-break-after:avoid} .foot{break-before:avoid;page-break-before:avoid} .foot span:last-child{display:none}
+.keydata,.legend,.cap,.mix{break-inside:avoid} h2+*,h3+*{break-before:avoid}
 .band,.keydata,.box,.flag,th,tr.tot td,table.raw tr:first-child td,.tag,.mix span,.legend i{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .band{padding:6px 14px} .inner{padding:12px 4px 4px} .foot{margin:10px 4px 0}
 h1{font-size:19pt} h2{font-size:13pt;break-after:avoid} h3{break-after:avoid}
 .cover{grid-template-columns:minmax(0,1fr) 62mm;gap:6mm}
-.chart,table,.box{break-inside:avoid}
+.chart,.box{break-inside:avoid} tr{break-inside:avoid} table{break-inside:auto}
 .chart{max-height:95mm}
 .tw{overflow:visible}
 table{font-size:8.5pt} table.raw td{font-size:8pt}
