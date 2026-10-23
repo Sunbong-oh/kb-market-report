@@ -1,5 +1,20 @@
 [
 {
+"day": "2026-10-23",
+"code": "003000",
+"name": "부광약품",
+"market": "Y",
+"period": "26년3분기",
+"op": 21.61,
+"op_prev": 14.1,
+"chg": 53.3,
+"turn": false,
+"basis": null,
+"rcp": "20261023800177",
+"made": "2026-10-23 09:25",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-23/003000"
+},
+{
 "day": "2026-10-22",
 "code": "028050",
 "name": "삼성E&A",
