@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import demo, market, themes
+from . import demo, market, themes, topvalue
 from .config import settings
 from .flow_upload import backfill, live_loop, upload_loop
 from .futures_flow import FuturesFlowStore, record_loop
@@ -154,6 +154,15 @@ async def get_indices_intraday():
 async def get_themes():
     """오늘의 강세 테마 (네이버 금융 테마 등락률 상위, 실패 시 KB 업종랭킹)."""
     return await themes.top_themes(kb)
+
+
+@app.get("/api/top-value")
+async def get_top_value():
+    """거래대금 상위 종목 (코스피·코스닥 각 10종목, 네이버 증권, ETF·ETN 제외)."""
+    try:
+        return await topvalue.top_value()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"거래대금 순위를 불러오지 못했습니다: {type(exc).__name__}") from exc
 
 
 @app.get("/api/futures")
