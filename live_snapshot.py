@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parent
 URL = "http://127.0.0.1:8000"
 KST = timezone(timedelta(hours=9))
 BRANCH = "flow-live"
-KEYS = ("/api/status", "/api/market", "/api/macro", "/api/indices/intraday", "/api/themes", "/api/futures?minutes=1")
+KEYS = ("/api/status", "/api/market", "/api/macro", "/api/indices/intraday", "/api/themes", "/api/futures?minutes=1", "/api/top-value")
 START, END = "08:00", "16:05"
 MAX_RUN = timedelta(hours=5, minutes=40)
 SESSION = ("0845", "1545")  # 선물 정규장 - 이 시간의 투자자별 누적 순매수를 분 단위로 쌓는다

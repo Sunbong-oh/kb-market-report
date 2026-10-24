@@ -193,6 +193,21 @@ async function loadThemes() {
   } catch (e) { fail($("#themes"), e); }
 }
 
+// 거래대금 상위: 코스피·코스닥 각 10종목 (네이버 증권, ETF 제외). 금액은 억원, 1조 넘으면 조 단위
+async function loadTopValue() {
+  try {
+    const d = await api("/api/top-value");
+    const won = (v) => v == null ? "-" : v >= 10000 ? `${(v / 10000).toFixed(v >= 100000 ? 1 : 2)}조` : `${fmt(v)}억`;
+    const col = (title, rows) => `<div class="tv-col"><h3 class="sub-head">${title}</h3>${rows.length ? rows.map((s, i) => `
+      <div class="tv-row"><span class="rank">${i + 1}</span><span class="tv-n">${esc(s.name)}</span>
+      <span class="pct ${cls(s.change_pct)}">${signed(s.change_pct, 2)}%</span><span class="tv-v">${won(s.value_eok)}</span></div>`).join("")
+      : `<div class="empty">데이터 없음</div>`}</div>`;
+    const t = String(d.time || "");
+    $("#topvalue-source").textContent = "코스피 · 코스닥 각 10종목 (ETF 제외) · 네이버 증권" + (t.length >= 16 ? ` ${t.slice(11, 16)}` : "");
+    $("#topvalue").innerHTML = `<div class="tv-grid">${col("코스피", d.kospi || [])}${col("코스닥", d.kosdaq || [])}</div>`;
+  } catch (e) { fail($("#topvalue"), e); }
+}
+
 // 금리 변화: bp(0.01%p)와, 전일 금리 대비 변동률(%)을 괄호로 - 예: 3.5bp (+0.79%)
 function bondMove(b) {
   if (b.change == null) return "-";
@@ -652,7 +667,7 @@ if (window.__SNAPSHOT__) {
   b.hidden = false;
 }
 function refreshFast() { loadStatus().catch(() => {}); loadQuote(); loadMarket(); loadFutures(); loadOrders(); loadPower(); }
-function refreshSlow() { loadMacro(); loadIntraday(); loadThemes(); }
+function refreshSlow() { loadMacro(); loadIntraday(); loadThemes(); loadTopValue(); }
 refreshFast(); refreshSlow();
 setInterval(refreshFast, 15000);
 setInterval(refreshSlow, 60000);

@@ -64,7 +64,7 @@ def start_server() -> subprocess.Popen:
 PARTS = [
     ("1_market", 480, ["#report-title", "#indices", "#usdkrw"], "시장 지수 · 환율 · 금리"),
     ("2_flows", 480, ["#investors"], "투자자별 매매동향 (현물·선물·옵션)"),
-    ("3_themes", 480, ["#themes"], "오늘의 강세 테마 · 등락 종목수"),
+    ("3_themes", 480, ["#themes", "#topvalue"], "오늘의 강세 테마 · 등락 종목수 · 거래대금 상위"),
 ]
 
 
@@ -92,6 +92,7 @@ def capture(prefix: Path) -> tuple[list[tuple[Path, str]], dict]:
             page.wait_for_selector("svg.mini polyline", timeout=30_000)
             page.wait_for_selector("#investors .bar-row", timeout=30_000)
             page.wait_for_selector("#themes .theme-row, #themes .empty", timeout=30_000)
+            page.wait_for_selector("#topvalue .tv-row, #topvalue .empty, #topvalue .err", timeout=30_000)
         except Exception as exc:
             # KB 서버 접속 실패 등으로 화면에 오류가 떴으면 그 내용을 그대로 알려준다
             errors = page.eval_on_selector_all(".err", "els => els.map(e => e.textContent)")
@@ -137,7 +138,7 @@ def build_snapshot(api: dict, path: Path, taken: str) -> None:
     css = (static / "style.css").read_text(encoding="utf-8")
     js = (static / "app.js").read_text(encoding="utf-8")
     # 리포트 화면에 필요한 시장 데이터만 담는다 (주문내역·주문가능금액 등 개인 모의매매 정보는 제외)
-    keep = ("/api/status", "/api/market", "/api/macro", "/api/futures", "/api/indices", "/api/themes")
+    keep = ("/api/status", "/api/market", "/api/macro", "/api/futures", "/api/indices", "/api/themes", "/api/top-value")
     api = {k: v for k, v in api.items() if k.startswith(keep)}
     data = json.dumps(api, ensure_ascii=False).replace("</", "<\\/")
     shim = f"""<script>
