@@ -36,7 +36,7 @@ KEYS = ("/api/status", "/api/market", "/api/macro", "/api/indices/intraday", "/a
 START, END = "08:00", "16:05"
 MAX_RUN = timedelta(hours=5, minutes=40)
 SESSION = ("0845", "1545")  # 선물 정규장 - 이 시간의 투자자별 누적 순매수를 분 단위로 쌓는다
-FLOW_KEYS = ("외국인", "기관계", "개인")
+FLOW_KEYS = ("외국인", "기관계", "개인", "외국인·코스피", "외국인·코스닥")  # 뒤의 둘은 현물(교차차트 코스피·코스닥)
 
 
 def now() -> datetime:

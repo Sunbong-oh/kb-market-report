@@ -84,8 +84,8 @@ async def upload_loop(get_payload: Callable[[], Awaitable[dict]]) -> None:
 
 
 def _slim(payload: dict) -> dict:
-    """사이트 차트에 필요한 값만 (선물 종가, 외국인·기관계·개인 누적)."""
-    keep = ("t", "외국인", "기관계", "개인")
+    """사이트 차트에 필요한 값만 (선물 종가, 외국인·기관계·개인 선물 누적, 외국인 코스피·코스닥 현물 누적)."""
+    keep = ("t", "외국인", "기관계", "개인", "외국인·코스피", "외국인·코스닥")
     return {
         "flow_date": payload.get("flow_date"),
         "futures": payload.get("futures"),
