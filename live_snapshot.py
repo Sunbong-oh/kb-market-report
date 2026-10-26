@@ -7,6 +7,7 @@
 - 오늘 장 데이터가 아직 없으면(개장 전·휴장일) 올리지 않는다 → 사이트는 전일 장마감을 그대로 보여 준다.
 - 리포트 전용 서버는 투자자별 선물 순매수를 분 단위로 기록하지 않으므로, 여기서 1분마다 당일 누적값을 쌓아
   /api/futures 의 flows 로 넣는다 (교차차트의 외국인 빨간 선). 작업이 이어 뛸 때는 flow-live에 올라간 기록을 이어 받는다.
+- 외국인 코스피·코스닥 현물 누적은 다음 증권 1분 기록(daum_spot)으로 장 시작부터 채운다 (교차차트 코스피·코스닥).
 - 15:46 이후 한 번, 그날 기록을 main의 archive/날짜/futures_flow.json 으로 저장한다 (장마감 페이지 교차차트용, PC가 이미
   올렸으면 건너뜀).
 한 번 실행은 최대 5시간 40분 (Actions 작업 시간 제한). 끝나면 워크플로가 다음 실행을 바로 띄워 하루 종일 이어 달린다
@@ -129,6 +130,46 @@ def record_flows(snap: dict, flows: dict, t: datetime) -> None:
     if flows and not fut.get("flows"):
         fut["flows"] = [flows[k] for k in sorted(flows)]
         fut["flow_date"] = t.strftime("%Y%m%d")
+
+
+DAUM = "https://finance.daum.net/api/investor/{m}/times?page=1&perPage=500"
+DAUM_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0 Safari/537.36",
+                "Referer": "https://finance.daum.net/"}
+
+
+def daum_spot(t: datetime) -> dict[str, dict]:
+    """다음 증권 '시간대별 투자자 매매동향'(1분 간격 당일 누적, 원)으로 외국인 코스피·코스닥 현물 누적(억원)을
+    {HHMM: {"외국인·코스피": …, "외국인·코스닥": …}} 로. KB 값을 1분마다 쌓는 것과 달리 장 시작부터 다 받을 수 있어,
+    작업이 늦게 켜지거나 끊겨도 빈칸이 없다. 가끔 섞이는 0(집계 중) 은 뺀다."""
+    out: dict[str, dict] = {}
+    day = t.strftime("%Y-%m-%d")
+    for m, key in (("KOSPI", "외국인·코스피"), ("KOSDAQ", "외국인·코스닥")):
+        try:
+            rows = httpx.get(DAUM.format(m=m), headers=DAUM_HEADERS, timeout=10).json().get("data") or []
+        except (httpx.HTTPError, ValueError):
+            continue
+        for r in rows:
+            v, tm = r.get("foreignStraightPurchasePrice"), str(r.get("time", ""))[:5].replace(":", "")
+            if not str(r.get("date", "")).startswith(day) or v is None or len(tm) != 4 or (v == 0 and tm > "0905"):
+                continue
+            out.setdefault(tm, {})[key] = round(v / 1e8)
+    return out
+
+
+def add_spot(snap: dict, flows: dict, spot: dict) -> None:
+    """다음 증권 외국인 현물 누적을 분 단위 기록에 덮어 넣는다 (선물 값과 같은 시각 칸에)."""
+    fut = snap.get("/api/futures?minutes=1")
+    if not fut or not spot:
+        return
+    for tm, v in spot.items():
+        flows.setdefault(tm, {"t": tm}).update(v)
+    last = spot[max(spot)]
+    fut.setdefault("current_flows", {}).update(last)
+    rows = {r["t"]: r for r in fut.get("flows") or [] if r.get("t")}
+    for tm, v in spot.items():
+        rows.setdefault(tm, {"t": tm}).update(v)
+    fut["flows"] = [rows[k] for k in sorted(rows)]
+    fut.setdefault("flow_date", now().strftime("%Y%m%d"))
 
 
 def seed_flows(remote: dict | None, today: str) -> dict:
@@ -445,6 +486,7 @@ def main() -> None:
                 keep_previous(snap, remote, today)
                 drop_future_points(snap, t)  # 직전 스냅샷에서 이어 받은 값에도
                 record_flows(snap, flows, t)
+                add_spot(snap, flows, daum_spot(t))
                 if not archived and t.strftime("%H%M") > "1546" and has_today(snap, today):
                     archived = save_archive(snap, t)
                 if not has_today(snap, today):
