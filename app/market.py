@@ -209,6 +209,18 @@ def investor_futures(summary: dict) -> dict[str, float | None]:
     }
 
 
+SPOT_KEYS = ("외국인·코스피", "외국인·코스닥")
+
+
+def foreign_spot(summary: dict) -> dict[str, float | None]:
+    """IVSA0070 외국인 코스피·코스닥 현물 순매수(당일 누적, 억원) {"외국인·코스피": -6489, "외국인·코스닥": -288}.
+    선물과 같은 분 단위 기록에 넣어 '외국인 현물 × 지수' 교차차트를 그린다."""
+    for r in find_records(summary, "invstr_clsf_nm"):
+        if text(r, "invstr_clsf_nm") == "외국인":
+            return {"외국인·코스피": num(r, "kspi_nt_b"), "외국인·코스닥": num(r, "ksdq_nt_b")}
+    return {}
+
+
 async def futures_minute(kb: KBClient, code: str, minutes: int = 1) -> list[dict]:
     """IVS11560 통합차트 - KOSPI200 선물(mkt_clsf 2) 분봉, 가장 최근 거래일 주간장(08:45~15:45)만."""
     d = await kb.call(

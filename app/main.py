@@ -184,7 +184,7 @@ async def get_futures(minutes: int = 1):
         "bars": bars,
         "flows": flows,
         "flow_date": dt,
-        "current_flows": market.investor_futures(summary),
+        "current_flows": {**market.investor_futures(summary), **market.foreign_spot(summary)},
         "recording": not settings.demo_mode,
     }
 

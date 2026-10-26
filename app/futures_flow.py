@@ -110,6 +110,7 @@ async def record_loop(kb: KBClient, store: FuturesFlowStore) -> None:
             if now.weekday() < 5 and SESSION[0] <= tm <= SESSION[1]:
                 flows = market.investor_futures(summary)
                 if flows:
+                    flows.update(market.foreign_spot(summary))
                     store.save(dt, tm, flows)
             for symbol, value in market.overseas_values(summary).items():
                 store.save_index(dt, tm, symbol, value)
