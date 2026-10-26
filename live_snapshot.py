@@ -153,7 +153,13 @@ def daum_spot(t: datetime) -> dict[str, dict]:
             if not str(r.get("date", "")).startswith(day) or v is None or len(tm) != 4 or (v == 0 and tm > "0905"):
                 continue
             out.setdefault(tm, {})[key] = round(v / 1e8)
-    return out
+        # 한 분만 크게 튀었다가 바로 돌아오는 값(집계 오류)은 뺀다
+        ts = sorted(k for k in out if key in out[k])
+        for i in range(1, len(ts) - 1):
+            a, v, c = out[ts[i - 1]].get(key), out[ts[i]][key], out[ts[i + 1]].get(key)
+            if a is not None and c is not None and (v - a) * (v - c) > 0 and min(abs(v - a), abs(v - c)) > 4 * max(30, abs(c - a)):
+                del out[ts[i]][key]
+    return {k: v for k, v in out.items() if v}
 
 
 def add_spot(snap: dict, flows: dict, spot: dict) -> None:
@@ -161,6 +167,10 @@ def add_spot(snap: dict, flows: dict, spot: dict) -> None:
     fut = snap.get("/api/futures?minutes=1")
     if not fut or not spot:
         return
+    keys = {k for v in spot.values() for k in v}
+    for r in list(flows.values()) + list(fut.get("flows") or []):  # 다음 증권 값이 기준: 지난번에 넣은 값은 지우고 다시 넣는다
+        for k in keys:
+            r.pop(k, None)
     for tm, v in spot.items():
         flows.setdefault(tm, {"t": tm}).update(v)
     last = spot[max(spot)]
