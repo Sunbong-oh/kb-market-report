@@ -387,6 +387,71 @@ def previous() -> dict:
         return {}
 
 
+# ---- 전략 검증: '영업이익 급증' 알림이 간 시각에 사서 5분 뒤 팔았다면? (홈페이지 /lab/ 에 쓴다) ----
+# 메시지 시각(알림을 보낸 감시 시각) 다음 1분봉 시가에 사고, 그 5분 뒤 1분봉 시가에 판다.
+# 장 시작 전 메시지는 09:00 시가에 사서 09:05 시가에 판 것으로 보고, 15:20 이후 메시지는 매매하지 않는다.
+# 네이버 1분봉은 2주쯤 지나면 받을 수 없어서, 알림이 갈 때마다 여기서 계산해 earnings.json 의 strategy 에 쌓는다.
+STRAT_KEEP = timedelta(days=400)
+MINUTE_URL = "https://api.stock.naver.com/chart/domestic/item/{code}/minute?startDateTime={a}&endDateTime={b}"
+
+
+def _bar_at(bars: list[dict], hhmm: str) -> dict | None:
+    """hhmm 이후(같은 분 포함) 첫 1분봉 (거래가 없던 분은 건너뛴다)."""
+    for b in bars:
+        if str(b.get("localDateTime", ""))[8:12] >= hhmm and b.get("openPrice"):
+            return b
+    return None
+
+
+def strategy_trade(e: dict) -> dict | None:
+    """매수·매도 가격과 수익률. 아직 계산할 수 없으면 None, 매매하지 않는 경우는 skip 을 담아 돌려준다."""
+    sent = datetime.fromisoformat(e["sent"])
+    hm = sent.strftime("%H%M")
+    if hm >= "1520":
+        return {"skip": "장 마감 무렵·뒤 알림이라 매매 안 함"}
+    buy = sent + timedelta(minutes=1) if hm >= "0900" else sent.replace(hour=9, minute=0)
+    if hm < "0900":
+        e["note"] = "장 시작 전 알림 → 09:00 시가 매수"
+    sell = buy + timedelta(minutes=5)
+    if NOW < sell + timedelta(minutes=2):
+        return None
+    day = buy.strftime("%Y%m%d")
+    bars = get(MINUTE_URL.format(code=e["code"], a=day + buy.strftime("%H%M"), b=day + (sell + timedelta(minutes=10)).strftime("%H%M"))) or []
+    b, s = _bar_at(bars, buy.strftime("%H%M")), _bar_at(bars, sell.strftime("%H%M"))
+    if not b or not s:
+        return {"skip": "그 시각 체결 없음(분봉 없음)"} if NOW - sent > timedelta(hours=2) else None
+    bp, sp = float(b["openPrice"]), float(s["openPrice"])
+    return {"buy": bp, "sell": sp, "buy_t": str(b["localDateTime"])[8:12], "sell_t": str(s["localDateTime"])[8:12],
+            "ret": round((sp / bp - 1) * 100, 2)}
+
+
+def strategy_update(old: list, items: dict, now: datetime) -> list:
+    """국내 '영업이익 급증' 알림마다 매매 결과를 붙여 쌓는다 (최근 400일)."""
+    ev = {e["key"]: e for e in old or []}
+    for it in items.values():
+        if not (it.get("surge") and it.get("kr") and it.get("code") and it.get("detected") and it.get("first_iso")):
+            continue
+        sent = datetime.strptime(it["detected"], "%Y-%m-%d %H:%M").replace(tzinfo=KST)
+        first = datetime.fromisoformat(it["first_iso"])
+        if sent - first > LATE_DETECT or it["key"] in ev:  # 늦게 감지돼 알림이 나가지 않은 것은 뺀다
+            continue
+        ev[it["key"]] = {"key": it["key"], "name": it["name"], "code": it["code"], "disclosed": first.isoformat(timespec="minutes"),
+                         "sent": sent.isoformat(timespec="minutes"), "head": " · ".join((it.get("cons") or [])[:1])}
+    for e in ev.values():
+        if "ret" in e or "skip" in e or now - datetime.fromisoformat(e["sent"]) > timedelta(days=14):
+            continue
+        try:
+            r = strategy_trade(e)
+        except Exception as x:
+            print("  전략 검증 계산 실패:", e["name"], type(x).__name__, x, flush=True)
+            r = None
+        if r:
+            e.update(r)
+            print("  전략 검증:", e["name"], r, flush=True)
+    keep = [e for e in ev.values() if now - datetime.fromisoformat(e["sent"]) <= STRAT_KEEP]
+    return sorted(keep, key=lambda e: e["sent"], reverse=True)
+
+
 def run(now: datetime, dry: bool = False) -> None:
     global NOW
     NOW = now
@@ -458,8 +523,9 @@ def run(now: datetime, dry: bool = False) -> None:
     # 날짜별 잠정실적 공시 회사 이름: 홈페이지 '오늘의 증시 캘린더'가 이미 발표한 회사를 뺄 때 쓴다 (최근 35일만)
     kr_done = {k: v for k, v in {**(old.get("kr_done") or {}), **KR_DONE}.items()
                if (now.date() - date.fromisoformat(k)).days <= 35}
+    strategy = strategy_update(old.get("strategy") or [], items, now)
     data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": sorted(items.values(), key=lambda i: i["detected"], reverse=True),
-            "kr_seen": sorted(scanned)[-800:], "kr_done": dict(sorted(kr_done.items()))}
+            "kr_seen": sorted(scanned)[-800:], "kr_done": dict(sorted(kr_done.items())), "strategy": strategy}
     if dry:
         print(json.dumps(data, ensure_ascii=False, indent=1))
         print("\n---\n".join(msgs))
@@ -467,7 +533,7 @@ def run(now: datetime, dry: bool = False) -> None:
     OUT.mkdir(exist_ok=True)
     # 내용이 바뀌었을 때만 올린다 (updated 시각만 바뀐 건 무시)
     changed = (data["items"] != (old.get("items") or []) or data["kr_seen"] != (old.get("kr_seen") or [])
-               or data["kr_done"] != (old.get("kr_done") or {}))
+               or data["kr_done"] != (old.get("kr_done") or {}) or data["strategy"] != (old.get("strategy") or []))
     if changed:
         (OUT / "earnings.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     (OUT / "messages.json").write_text(json.dumps(msgs, ensure_ascii=False), encoding="utf-8")
