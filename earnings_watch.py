@@ -425,9 +425,20 @@ def strategy_trade(e: dict) -> dict | None:
             "ret": round((sp / bp - 1) * 100, 2)}
 
 
+# 이 기록을 만들기 전(10/22~23)에 나간 알림: 1분봉이 남아 있는 동안(11월 초까지) 한 번 계산해 넣는다
+STRAT_SEED = [
+    ("KR-20261022800044", "삼성E&A", "028050", "2026-10-22T08:18+09:00", "2026-10-22T08:20+09:00", "영업이익 5,006억 · 전분기 2,731억 대비 +83.3%"),
+    ("KR-20261022800200", "LG디스플레이", "034220", "2026-10-22T13:22+09:00", "2026-10-22T13:30+09:00", "영업이익 2,506억 (전분기 적자 → 흑자전환)"),
+    ("KR-20261023800177", "부광약품", "003000", "2026-10-23T09:18+09:00", "2026-10-23T09:20+09:00", "영업이익 22억 · 전분기 14억 대비 +53.3%"),
+    ("KR-20261023900330", "한솔아이원스", "114810", "2026-10-23T11:17+09:00", "2026-10-23T11:20+09:00", "영업이익 124억 · 전분기 66억 대비 +88.7%"),
+]
+
+
 def strategy_update(old: list, items: dict, now: datetime) -> list:
     """국내 '영업이익 급증' 알림마다 매매 결과를 붙여 쌓는다 (최근 400일)."""
     ev = {e["key"]: e for e in old or []}
+    for key, name, code, disclosed, sent, head in STRAT_SEED:
+        ev.setdefault(key, {"key": key, "name": name, "code": code, "disclosed": disclosed, "sent": sent, "head": head})
     for it in items.values():
         if not (it.get("surge") and it.get("kr") and it.get("code") and it.get("detected") and it.get("first_iso")):
             continue
