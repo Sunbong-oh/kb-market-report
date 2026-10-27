@@ -15,5 +15,5 @@ jobs:
       - run: pip install -r requirements.txt httpx python-dotenv
       # 시세·수급만 받아 로그로 출력 (092870 엑시콘, KOSDAQ)
       - run: |
-          python surge_report.py 092870:K --market-dump
-          echo "===JSON==="; cat out/market/092870.json; echo; echo "===END==="
+          python surge_report.py 092870:K 252990:K --market-dump
+          echo "===JSON==="; cat out/market/092870.json; echo; cat out/market/252990.json; echo; echo "===END==="
