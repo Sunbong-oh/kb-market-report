@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-27",
+"code": "002780",
+"name": "진흥기업",
+"market": "Y",
+"period": "",
+"op": 46.97,
+"op_prev": 5.07,
+"chg": 827.22,
+"turn": false,
+"basis": null,
+"rcp": "20261027800608",
+"made": "2026-10-27 17:11",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-27/002780"
+},
+{
+"day": "2026-10-27",
 "code": "170900",
 "name": "동아에스티",
 "market": "Y",
