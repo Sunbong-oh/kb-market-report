@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-27",
+"code": "170900",
+"name": "동아에스티",
+"market": "Y",
+"period": "26년 3Q",
+"op": 213.93,
+"op_prev": 108.59,
+"chg": 97.0,
+"turn": false,
+"basis": "별도",
+"rcp": "20261027800159",
+"made": "2026-10-27 11:31",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-27/170900"
+},
+{
+"day": "2026-10-27",
 "code": "218410",
 "name": "RFHIC",
 "market": "K",
