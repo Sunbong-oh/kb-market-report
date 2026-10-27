@@ -392,6 +392,7 @@ def previous() -> dict:
 # 장 시작 전 메시지는 09:00 시가에 사서 09:05 시가에 판 것으로 보고, 15:20 이후 메시지는 매매하지 않는다.
 # 네이버 1분봉은 2주쯤 지나면 받을 수 없어서, 알림이 갈 때마다 여기서 계산해 earnings.json 의 strategy 에 쌓는다.
 STRAT_KEEP = timedelta(days=400)
+STRATEGY_ON = False  # 2026-10-27 사용자 요청으로 멈춤 (돌파매매 전략으로 바꿀 예정). 다시 켜면 True
 MINUTE_URL = "https://api.stock.naver.com/chart/domestic/item/{code}/minute?startDateTime={a}&endDateTime={b}"
 
 
@@ -435,7 +436,9 @@ STRAT_SEED = [
 
 
 def strategy_update(old: list, items: dict, now: datetime) -> list:
-    """국내 '영업이익 급증' 알림마다 매매 결과를 붙여 쌓는다 (최근 400일)."""
+    """국내 '영업이익 급증' 알림마다 매매 결과를 붙여 쌓는다 (최근 400일). 멈춤(STRATEGY_ON=False)이면 쌓인 기록을 그대로 둔다."""
+    if not STRATEGY_ON:
+        return old or []
     ev = {e["key"]: e for e in old or []}
     for key, name, code, disclosed, sent, head in STRAT_SEED:
         ev.setdefault(key, {"key": key, "name": name, "code": code, "disclosed": disclosed, "sent": sent, "head": head})
