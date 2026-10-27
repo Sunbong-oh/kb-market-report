@@ -133,9 +133,30 @@ def disc_time(code: str, rcp: str, day: str) -> str | None:
     return None
 
 
-def check(d: dict, day: str, min_chg: float = MIN_CHG, min_op: float = MIN_OP) -> dict | None:
+def quarter_of(day: str) -> str:
+    """잠정실적 공시 날짜 → 그 실적의 분기 끝 달 (YYYY.MM). 분기가 끝난 뒤 다음 석 달 안에 내므로 직전 분기로 본다."""
+    y, m = int(day[:4]), int(day[4:6])
+    q = (m - 1) // 3 * 3  # 직전 분기 끝 달 (1~3월이면 0 → 작년 12월)
+    return f"{y - 1}.12" if q == 0 else f"{y}.{q:02d}"
+
+
+def prelim(d: dict, day: str, n: dict) -> dict | None:
+    """잠정실적 숫자를 억원으로 정리 (재무제표 공부 › 분기 실적에 쓴다)."""
+    u = n.get("unit")
+    if not u:
+        return None
+    cv = lambda v: None if v is None else round(v * u, 1)
+    out = {"rcp": d["rcp"], "name": d["corp"], "day": f"{day[:4]}-{day[4:6]}-{day[6:]}", "q": quarter_of(day),
+           "title": d["title"], "consol": "연결" in d["title"]}
+    for k in ("sales", "op", "net"):
+        x = n.get(k) or {}
+        out[k] = [cv(x.get("now")), cv(x.get("prev")), cv(x.get("yoy_prev"))]  # 이번 분기 · 전분기 · 전년 동기
+    return out
+
+
+def check(d: dict, day: str, min_chg: float = MIN_CHG, min_op: float = MIN_OP, n: dict | None = None) -> dict | None:
     """공시 하나를 읽어 '전분기 대비 영업이익 급증'이면 정리해서 돌려준다 (아니면 None)."""
-    n = numbers(d["rcp"])
+    n = n or numbers(d["rcp"])
     if not n or not n.get("unit"):
         return None
     op = n["op"]

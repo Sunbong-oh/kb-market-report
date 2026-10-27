@@ -337,6 +337,9 @@ SURGE_FROM, SURGE_TO = "0730", "1900"  # 공시가 올라오는 시간대에만 
 
 
 KR_DONE: dict[str, list[str]] = {}  # 날짜 → 그날 잠정실적 공시를 낸 회사 이름 (급증 여부와 상관없이)
+KR_PRELIM: dict[str, dict] = {}  # 접수번호 → 잠정실적 숫자(억원). 홈페이지 재무제표 공부 › 분기 실적이 바로 쓴다
+PSEEN: set[str] = set()  # 잠정실적 숫자를 이미 읽어 본 접수번호 (earnings.json kr_pseen 으로 이어 받는다)
+PRELIM_DAYS = 120
 
 
 def surge_scan(now: datetime, seen: set[str]) -> list[dict]:
@@ -355,11 +358,19 @@ def surge_scan(now: datetime, seen: set[str]) -> list[dict]:
             print("  공시 목록 실패:", day, type(e).__name__, e, flush=True)
             continue
         KR_DONE[f"{day[:4]}-{day[4:6]}-{day[6:]}"] = sorted({r["corp"] for r in allrows if r.get("corp")})
-        rows = [r for r in allrows if r["rcp"] not in seen]
-        for r in rows:
+        for r in allrows:
+            if r["rcp"] in seen and r["rcp"] in PSEEN:
+                continue
+            new = r["rcp"] not in seen
             seen.add(r["rcp"])
+            PSEEN.add(r["rcp"])
             try:
-                s = kr_surge.check(r, day)
+                n = kr_surge.numbers(r["rcp"])
+                pr = kr_surge.prelim(r, day, n) if n else None
+                if pr:
+                    pr["code"] = kr_surge.code_of(r["corp"])
+                    KR_PRELIM[r["rcp"]] = pr
+                s = kr_surge.check(r, day, n=n) if new and n else None
             except Exception as e:
                 print("  공시 본문 실패:", r["corp"], type(e).__name__, e, flush=True)
                 continue
@@ -496,6 +507,7 @@ def run(now: datetime, dry: bool = False) -> None:
         print("  감지:", res["first"], [a["t"][:50] for a in res["en"]], it["px"], flush=True)
     # 국내 잠정실적 공시 중 전분기 대비 영업이익 급증 종목 (캘린더에 없어도 찾아낸다)
     scanned = set(old.get("kr_seen") or [])
+    PSEEN.update(old.get("kr_pseen") or [])
     queue = []  # 카드가 나간 종목 → 요약 보고서 작업(surge-report.yml)으로 넘긴다
     for s in surge_scan(now, scanned):
         key = f"KR-{s['rcp']}"
@@ -538,8 +550,12 @@ def run(now: datetime, dry: bool = False) -> None:
     kr_done = {k: v for k, v in {**(old.get("kr_done") or {}), **KR_DONE}.items()
                if (now.date() - date.fromisoformat(k)).days <= 35}
     strategy = strategy_update(old.get("strategy") or [], items, now)
+    # 잠정실적 숫자: 종목코드마다 가장 최근 공시 하나 (최근 PRELIM_DAYS 일)
+    pre = {**(old.get("kr_prelim") or {}), **{p["code"]: p for p in sorted(KR_PRELIM.values(), key=lambda x: x["rcp"]) if p.get("code")}}
+    kr_prelim = {k: v for k, v in pre.items() if (now.date() - date.fromisoformat(v["day"])).days <= PRELIM_DAYS}
     data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": sorted(items.values(), key=lambda i: i["detected"], reverse=True),
-            "kr_seen": sorted(scanned)[-800:], "kr_done": dict(sorted(kr_done.items())), "strategy": strategy}
+            "kr_seen": sorted(scanned)[-800:], "kr_done": dict(sorted(kr_done.items())), "strategy": strategy, "kr_prelim": kr_prelim,
+            "kr_pseen": sorted(PSEEN)[-800:]}
     if dry:
         print(json.dumps(data, ensure_ascii=False, indent=1))
         print("\n---\n".join(msgs))
@@ -547,7 +563,8 @@ def run(now: datetime, dry: bool = False) -> None:
     OUT.mkdir(exist_ok=True)
     # 내용이 바뀌었을 때만 올린다 (updated 시각만 바뀐 건 무시)
     changed = (data["items"] != (old.get("items") or []) or data["kr_seen"] != (old.get("kr_seen") or [])
-               or data["kr_done"] != (old.get("kr_done") or {}) or data["strategy"] != (old.get("strategy") or []))
+               or data["kr_done"] != (old.get("kr_done") or {}) or data["strategy"] != (old.get("strategy") or [])
+               or data["kr_prelim"] != (old.get("kr_prelim") or {}) or data["kr_pseen"] != (old.get("kr_pseen") or []))
     if changed:
         (OUT / "earnings.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     (OUT / "messages.json").write_text(json.dumps(msgs, ensure_ascii=False), encoding="utf-8")
