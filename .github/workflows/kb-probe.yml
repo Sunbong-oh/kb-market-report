@@ -12,7 +12,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.13", cache: pip}
-      - run: pip install -r requirements.txt
-      - run: python kb_probe.py
-      - uses: actions/upload-artifact@v4
-        with: {name: ivsa0070, path: ivsa0070.json}
+      - run: pip install -r requirements.txt httpx python-dotenv
+      - run: python surge_report.py 003160:Y --market-dump
+      - run: cat out/market/003160.json
