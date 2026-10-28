@@ -79,6 +79,12 @@ jobs:
           idx = pathlib.Path("../sr/reports/index.json")
           old = json.loads(idx.read_text(encoding="utf-8")) if idx.exists() else []
           new = json.loads(pathlib.Path("out/surge_reports/index_add.json").read_text(encoding="utf-8"))
+          one = {}  # 같은 날 같은 종목이 두 번(연결·별도) 들어오면 연결 하나만
+          for r in new:
+              k = (r["day"], r["code"])
+              if k not in one or (r.get("basis") == "연결" and one[k].get("basis") != "연결"):
+                  one[k] = r
+          new = list(one.values())
           keys = {(r["day"], r["code"]) for r in new}
           rows = sorted(new + [r for r in old if (r["day"], r["code"]) not in keys], key=lambda r: r["made"], reverse=True)[:500]
           idx.write_text(json.dumps(rows, ensure_ascii=False, indent=0), encoding="utf-8")
