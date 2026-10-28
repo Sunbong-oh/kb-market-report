@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-28",
+"code": "237820",
+"name": "플레이디",
+"market": "K",
+"period": "",
+"op": 16.53,
+"op_prev": 0.89,
+"chg": 1754.9,
+"turn": false,
+"basis": null,
+"rcp": "20261028900337",
+"made": "2026-10-28 14:55",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-28/237820"
+},
+{
+"day": "2026-10-28",
 "code": "009540",
 "name": "HD한국조선해양",
 "market": "Y",
