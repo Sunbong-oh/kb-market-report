@@ -377,6 +377,47 @@ def surge_scan(now: datetime, seen: set[str]) -> list[dict]:
             if s:
                 out.append(s)
                 print("  영업이익 급증:", s["name"], s["code"], " / ".join(kr_surge.summary(s)), flush=True)
+    return one_per_code(out)
+
+
+def one_per_code(rows: list[dict]) -> list[dict]:
+    """같은 회사가 같은 실적을 '연결'과 '별도'로 두 번 공시하면(예: 안랩) 연결 하나만 남긴다."""
+    best: dict[str, dict] = {}
+    for s in rows:
+        b = best.get(s["code"])
+        if not b or ("연결" in s["title"] and "연결" not in b["title"]):
+            best[s["code"]] = s
+    return list(best.values())
+
+
+def prelim_lines(p: dict, code: str) -> list[str]:
+    """실적 속보 카드(캘린더 ★ 국내 종목)에 넣을 실제 발표 숫자: 컨센서스 대비 · 전분기 · 전년 동기."""
+    eo = lambda v: "-" if v is None else (f"{v / 10000:,.1f}조" if abs(v) >= 10000 else f"{v:,.0f}억")
+    pct = lambda a, b: f"{(a / b - 1) * 100:+.1f}%" if a is not None and b and b > 0 else None
+    cons = {}
+    j = get(f"https://m.stock.naver.com/api/stock/{code}/finance/quarter") or {}
+    info = j.get("financeInfo") or {}
+    key = p["q"].replace(".", "")
+    col = next((c for c in info.get("trTitleList") or [] if c.get("key") == key and c.get("isConsensus") == "Y"), None)
+    if col:
+        for row in info.get("rowList") or []:
+            v = str(((row.get("columns") or {}).get(key) or {}).get("value") or "").replace(",", "")
+            try:
+                cons[row.get("title")] = float(v)
+            except ValueError:
+                pass
+    out = []
+    for lab, k, ck in (("영업이익", "op", "영업이익"), ("매출", "sales", "매출액")):
+        now, prev, yoy = (p.get(k) or [None, None, None])[:3]
+        if now is None:
+            continue
+        c = pct(now, cons.get(ck))
+        line = f"{lab} {eo(now)}" + (f" · 컨센서스 {eo(cons[ck])} 대비 {c}" if c else "")
+        line += " (" + " · ".join(x for x in (f"전분기 대비 {pct(now, prev)}" if pct(now, prev) else "",
+                                             f"전년 동기 대비 {pct(now, yoy)}" if pct(now, yoy) else "") if x) + ")"
+        out.append(line.replace(" ()", ""))
+    if out:
+        out.append(f"{p['q']} 잠정실적({'연결' if p.get('consol') else '별도'}) · DART {p['day'][5:].replace('-', '/')} 공시")
     return out
 
 
@@ -532,6 +573,25 @@ def run(now: datetime, dry: bool = False) -> None:
                 queue.append(f"{s['code']}:{s['rcp']}")
             else:
                 print("  늦게 감지 → 텔레그램 생략", key, first_iso, flush=True)
+    # 같은 회사·같은 날 '급증' 카드가 연결·별도로 두 장이면 연결 하나만 (이미 올라간 것도 정리)
+    seen_cd: dict[tuple, str] = {}
+    for k in sorted((k for k, v in items.items() if v.get("surge")), key=lambda k: ("연결" not in items[k]["news"][0]["t"], k)):
+        cd = (items[k].get("code"), items[k].get("day"))
+        if cd in seen_cd:
+            print("  같은 실적 중복 카드 삭제:", k, "→", seen_cd[cd], flush=True)
+            del items[k]
+        else:
+            seen_cd[cd] = k
+    # 캘린더 ★ 국내 종목 카드: 잠정실적 공시가 나왔으면 실제 숫자(컨센서스 대비·전분기·전년 동기)를 맨 위에
+    pre_all = {**(old.get("kr_prelim") or {}), **{p["code"]: p for p in sorted(KR_PRELIM.values(), key=lambda x: (x.get("consol", False), x["rcp"])) if p.get("code")}}
+    for it in items.values():
+        p = pre_all.get(it.get("code") or "")
+        if it.get("kr") and not it.get("surge") and p and p["day"] == it["day"]:  # 감시 중엔 매번 컨센서스로 덮이므로 매번 다시
+            lines = prelim_lines(p, it["code"])
+            if lines:
+                it["cons"] = lines + [c for c in it.get("cons") or [] if "컨센서스(네이버)" not in c]
+                it["prelim_rcp"] = p["rcp"]
+                print("  잠정실적 숫자 반영:", it["name"], lines[0], flush=True)
     # 감시 기간이 끝난 항목도 사흘 동안 주가 반응을 갱신하고, 발표 후 첫 정규장이 끝나면 한 번 알린다
     seen = {t["key"] for t in targets(now)}
     for it in items.values():
@@ -551,7 +611,7 @@ def run(now: datetime, dry: bool = False) -> None:
                if (now.date() - date.fromisoformat(k)).days <= 35}
     strategy = strategy_update(old.get("strategy") or [], items, now)
     # 잠정실적 숫자: 종목코드마다 가장 최근 공시 하나 (최근 PRELIM_DAYS 일)
-    pre = {**(old.get("kr_prelim") or {}), **{p["code"]: p for p in sorted(KR_PRELIM.values(), key=lambda x: x["rcp"]) if p.get("code")}}
+    pre = pre_all
     kr_prelim = {k: v for k, v in pre.items() if (now.date() - date.fromisoformat(v["day"])).days <= PRELIM_DAYS}
     data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "items": sorted(items.values(), key=lambda i: i["detected"], reverse=True),
             "kr_seen": sorted(scanned)[-800:], "kr_done": dict(sorted(kr_done.items())), "strategy": strategy, "kr_prelim": kr_prelim,
