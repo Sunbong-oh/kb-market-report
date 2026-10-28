@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-28",
+"code": "009150",
+"name": "삼성전기",
+"market": "Y",
+"period": "",
+"op": 6909.57,
+"op_prev": 4403.6900000000005,
+"chg": 56.9,
+"turn": false,
+"basis": null,
+"rcp": "20261028800169",
+"made": "2026-10-28 12:06",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-28/009150"
+},
+{
+"day": "2026-10-28",
 "code": "053800",
 "name": "안랩",
 "market": "K",
