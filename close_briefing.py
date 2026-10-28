@@ -317,6 +317,22 @@ def target_ups(now: datetime, limit: int = 5) -> list[dict]:
     return ups[:limit]
 
 
+STRONG_INDEX = "https://raw.githubusercontent.com/Sunbong-oh/market-dashboard/main/us_strong/index.json"
+
+
+def strong_kr(now: datetime) -> list[dict]:
+    """투자노트 홈페이지 강세종목 칸(market-dashboard us_strong/index.json)에 오늘 올린 한국시장 종목, 등락률 큰 순.
+    항목의 pod(소리 내어 읽을 2~3문장: 강세 이유·핵심 숫자·확인 지점)를 그대로 읽는다."""
+    try:
+        idx = httpx.get(STRONG_INDEX, params={"t": int(datetime.now().timestamp())}, timeout=15).json()
+    except Exception as e:
+        print("강세종목 리포트 목록 실패:", type(e).__name__, e, file=sys.stderr)
+        return []
+    today = f"{now:%Y-%m-%d}"
+    picks = [e for e in idx if "한국" in (e.get("region") or "") and (e.get("posted") or "").startswith(today)]
+    return sorted(picks, key=lambda e: -(e.get("changePct") or 0))
+
+
 EXTRA = re.compile(r"^(.*?)\s\(([^()]*(?:예상|실제|이전)[^()]*)\)$")
 
 
@@ -348,7 +364,7 @@ def theme_name(name: str) -> str:
 
 # ---------- 원고 ----------
 def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str], notes: str | None, cal: dict,
-                 ups: list[dict]) -> str:
+                 ups: list[dict], strong: list[dict] | None = None) -> str:
     market = api.get("/api/market") or {}
     macro = api.get("/api/macro") or {}
     idx = {i.get("id"): i for i in market.get("indices", [])}
@@ -467,6 +483,19 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
             else:
                 s += "."
             say(s)
+
+    # 4-1) 한국시장 강세종목 리포트(투자노트 홈페이지 강세종목 칸에 오늘 올린 종목): pod 요약을 읽는다
+    if strong:
+        say(f"{GAP}오늘의 한국시장 강세종목 리포트입니다.{P}투자노트에 올린 종목은 {len(strong)}개입니다.{P}")
+        for e in strong:
+            body = e.get("pod")
+            if not body:  # 음성용 요약이 없으면 종목·등락·종가 + 홈페이지 한 줄 요약의 첫 문장
+                c = e.get("changePct") or 0
+                body = (f"{e['name']}, {pct(c, 1)} {word(c)}한 {int(e.get('price') or 0)}원에 마감했습니다. "
+                        + re.split(r"\.\s", e.get("headline", ""))[0])
+            body = speakable(body)
+            say(body + ("" if body.endswith(".") else ".") + P)
+        say("리포트 전문은 투자노트 홈페이지 강세종목 메뉴에서 보실 수 있습니다.")
 
     # 5) 목표주가 상향 리포트: 종목·증권사·상향 폭 -> 리포트 제목 -> 현재가 대비 상승여력
     if ups:
@@ -685,7 +714,7 @@ def main() -> int:
     except Exception as e:  # 목표주가 칸이 빠져도 나머지 브리핑은 나간다
         print("목표주가 상향 실패:", type(e).__name__, e, file=sys.stderr)
         ups = []
-    text = build_script(api, now, reasons, issues, close_notes(now), cal, ups)
+    text = build_script(api, now, reasons, issues, close_notes(now), cal, ups, strong_kr(now))
     plain = re.sub(f"{PAUSE}+", " ", text).replace(SLOW, "").replace(SLOW_END, "").replace(" \n", "\n").strip()
     TXT.parent.mkdir(exist_ok=True)
     TXT.write_text(plain, encoding="utf-8")
