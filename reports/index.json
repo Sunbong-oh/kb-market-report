@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-28",
+"code": "009540",
+"name": "HD한국조선해양",
+"market": "Y",
+"period": "",
+"op": 7629.0,
+"op_prev": -2.0,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261028800206",
+"made": "2026-10-28 13:31",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-28/009540"
+},
+{
+"day": "2026-10-28",
 "code": "071970",
 "name": "HD현대마린엔진",
 "market": "Y",
