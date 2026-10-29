@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-29",
+"code": "006650",
+"name": "대한유화",
+"market": "Y",
+"period": "",
+"op": 448.40000000000003,
+"op_prev": -38.77,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261029800641",
+"made": "2026-10-29 16:57",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-29/006650"
+},
+{
+"day": "2026-10-29",
 "code": "0088M0",
 "name": "메쥬",
 "market": "K",
