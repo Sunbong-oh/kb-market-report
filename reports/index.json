@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-29",
+"code": "489790",
+"name": "한화비전",
+"market": "Y",
+"period": "26년 3Q",
+"op": 1025.72,
+"op_prev": 655.78,
+"chg": 56.41,
+"turn": false,
+"basis": "연결",
+"rcp": "20261029800140",
+"made": "2026-10-29 10:41",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-29/489790"
+},
+{
+"day": "2026-10-29",
 "code": "099320",
 "name": "쎄트렉아이",
 "market": "K",
