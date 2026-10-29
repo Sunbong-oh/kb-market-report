@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-29",
+"code": "0088M0",
+"name": "메쥬",
+"market": "K",
+"period": "",
+"op": 20.92,
+"op_prev": 8.75,
+"chg": 139.1,
+"turn": false,
+"basis": null,
+"rcp": "20261029900274",
+"made": "2026-10-29 14:24",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-29/0088M0"
+},
+{
+"day": "2026-10-29",
 "code": "489790",
 "name": "한화비전",
 "market": "Y",
