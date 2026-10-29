@@ -1,5 +1,20 @@
 [
 {
+"day": "2026-10-29",
+"code": "099320",
+"name": "쎄트렉아이",
+"market": "K",
+"period": "",
+"op": 82.39,
+"op_prev": 13.67,
+"chg": 502.7,
+"turn": false,
+"basis": null,
+"rcp": "20261029900104",
+"made": "2026-10-29 10:16",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-29/099320"
+},
+{
 "day": "2026-10-28",
 "code": "0126Z0",
 "name": "삼성에피스홀딩스",
