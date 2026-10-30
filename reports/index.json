@@ -1,5 +1,20 @@
 [
 {
+"day": "2026-10-30",
+"code": "232680",
+"name": "라온로보틱스",
+"market": "K",
+"period": "",
+"op": 39.33,
+"op_prev": 5.65,
+"chg": 596.1,
+"turn": false,
+"basis": null,
+"rcp": "20261030900257",
+"made": "2026-10-30 10:31",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-30/232680"
+},
+{
 "day": "2026-10-29",
 "code": "006650",
 "name": "대한유화",
