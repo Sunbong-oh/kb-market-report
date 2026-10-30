@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-30",
+"code": "142280",
+"name": "녹십자엠에스",
+"market": "K",
+"period": "",
+"op": 11.370000000000001,
+"op_prev": 7.43,
+"chg": 53.0,
+"turn": false,
+"basis": null,
+"rcp": "20261030900795",
+"made": "2026-10-30 15:42",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-30/142280"
+},
+{
+"day": "2026-10-30",
 "code": "004020",
 "name": "현대제철",
 "market": "Y",
