@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-30",
+"code": "004020",
+"name": "현대제철",
+"market": "Y",
+"period": "26년3분기",
+"op": 871.0,
+"op_prev": 577.0,
+"chg": 51.0,
+"turn": false,
+"basis": null,
+"rcp": "20261030800538",
+"made": "2026-10-30 14:02",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-30/004020"
+},
+{
+"day": "2026-10-30",
 "code": "232680",
 "name": "라온로보틱스",
 "market": "K",
