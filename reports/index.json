@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-10-30",
+"code": "215000",
+"name": "골프존",
+"market": "K",
+"period": "26년3분기",
+"op": 100.31,
+"op_prev": 66.24,
+"chg": 51.4,
+"turn": false,
+"basis": null,
+"rcp": "20261030901397",
+"made": "2026-10-30 18:27",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-10-30/215000"
+},
+{
+"day": "2026-10-30",
 "code": "142280",
 "name": "녹십자엠에스",
 "market": "K",
