@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-02",
+"code": "020000",
+"name": "한섬",
+"market": "Y",
+"period": "",
+"op": 75.74,
+"op_prev": 46.06,
+"chg": 64.4,
+"turn": false,
+"basis": null,
+"rcp": "20261102800439",
+"made": "2026-11-02 14:31",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-02/020000"
+},
+{
+"day": "2026-11-02",
 "code": "309930",
 "name": "조이웍스앤코",
 "market": "K",
