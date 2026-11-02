@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-02",
+"code": "022100",
+"name": "포스코DX",
+"market": "Y",
+"period": "",
+"op": 168.61,
+"op_prev": 98.61,
+"chg": 71.0,
+"turn": false,
+"basis": null,
+"rcp": "20261102800277",
+"made": "2026-11-02 10:32",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-02/022100"
+},
+{
+"day": "2026-11-02",
 "code": "003670",
 "name": "포스코퓨처엠",
 "market": "Y",
