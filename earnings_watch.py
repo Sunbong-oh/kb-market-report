@@ -582,6 +582,14 @@ def run(now: datetime, dry: bool = False) -> None:
                 it["cons"] = lines + [c for c in it.get("cons") or [] if "컨센서스(네이버)" not in c]
                 it["prelim_rcp"] = p["rcp"]
                 print("  잠정실적 숫자 반영:", it["name"], lines[0], flush=True)
+    # 컨센서스 대비 줄이 없는 '급증' 카드(이 기능 전에 나간 카드)는 잠정실적 숫자로 한 번 채운다
+    for it in items.values():
+        p = pre_all.get(it.get("code") or "")
+        if it.get("surge") and p and p["day"] == it["day"] and not any("컨센" in c for c in it.get("cons") or []):
+            s = {"unit": 1.0, "q": p["q"], "consol": p.get("consol", True), "cns": kr_surge.consensus(it["code"], p["q"]),
+                 "op": {"now": (p.get("op") or [None])[0]}, "sales": {"now": (p.get("sales") or [None])[0]}}
+            it["cons"] = (it.get("cons") or [])[:1] + [kr_surge.cons_line(s)] + (it.get("cons") or [])[1:]
+            print("  컨센서스 대비 채움:", it["name"], it["cons"][1], flush=True)
     # 감시 기간이 끝난 항목도 사흘 동안 주가 반응을 갱신하고, 발표 후 첫 정규장이 끝나면 한 번 알린다
     seen = {t["key"] for t in targets(now)}
     for it in items.values():
