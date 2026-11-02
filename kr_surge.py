@@ -9,7 +9,10 @@
 공시 표의 '영업이익 / 당해실적'  줄에서 당기·전기 실적과 전기대비 증감율, 흑자적자전환 여부를 읽어
   · 전기 대비 증감율이 MIN_CHG(%) 이상이거나 흑자전환이고
   · 영업이익이 MIN_OP(억원) 이상인
-종목만 남긴다. 혼자 돌려 보려면: python kr_surge.py [YYYY-MM-DD]
+종목만 남긴다. 카드·텔레그램에는 컨센서스(예상치) 대비도 함께 적는다:
+  KB OpenAPI 투자정보 TR에는 컨센서스 TR이 없어(IVM10050 종목기업개요도 후행 PER/EPS뿐)
+  네이버 증권 분기 재무의 컨센서스 열(isConsensus=Y)을 쓰고 출처를 적는다. 없으면 '컨센 없음'.
+혼자 돌려 보려면: python kr_surge.py [YYYY-MM-DD]
 """
 
 from __future__ import annotations
@@ -140,6 +143,47 @@ def quarter_of(day: str) -> str:
     return f"{y - 1}.12" if q == 0 else f"{y}.{q:02d}"
 
 
+CONS_URL = "https://m.stock.naver.com/api/stock/{}/finance/quarter"
+CONS_SRC = "네이버 증권"
+BEAT = 10.0  # 컨센서스 대비 ±10% 넘으면 어닝 서프라이즈 / 어닝 쇼크로 적는다
+
+
+def consensus(code: str, q: str) -> dict | None:
+    """네이버 증권 분기 재무의 컨센서스 열(isConsensus=Y)에서 그 분기(q: YYYY.MM)의 매출액·영업이익 예상치(억원).
+    KB OpenAPI 투자정보 TR에는 컨센서스(추정 실적) TR이 없어 네이버 값을 쓴다. 없으면 None."""
+    try:
+        j = json.loads(_get(CONS_URL.format(code)))
+    except Exception as e:
+        print("  컨센서스 조회 실패:", code, type(e).__name__, e, flush=True)
+        return None
+    info = j.get("financeInfo") or {}
+    key = q.replace(".", "")
+    if not any(c.get("key") == key and c.get("isConsensus") == "Y" for c in info.get("trTitleList") or []):
+        return None
+    out: dict = {"q": q, "src": CONS_SRC}
+    for row in info.get("rowList") or []:
+        k = {"매출액": "sales", "영업이익": "op"}.get(row.get("title"))
+        v = _num(str(((row.get("columns") or {}).get(key) or {}).get("value") or ""))
+        if k and v is not None:
+            out[k] = v
+    return out if "op" in out or "sales" in out else None
+
+
+def vs_cons(actual: float | None, cons: float | None) -> tuple[str, str] | None:
+    """실제(억원) vs 컨센서스(억원) → ('+12.3%', '어닝 서프라이즈') 꼴. 컨센서스가 0 이하면 %를 쓰지 않는다."""
+    if actual is None or cons is None:
+        return None
+    if cons <= 0:
+        if actual > 0:
+            return "흑자", "어닝 서프라이즈"
+        return f"적자 {'축소' if actual > cons else '확대'}", ("어닝 서프라이즈" if actual > cons else "어닝 쇼크")
+    if actual < 0:
+        return "적자", "어닝 쇼크"
+    pct = (actual / cons - 1) * 100
+    tag = "어닝 서프라이즈" if pct >= BEAT else "어닝 쇼크" if pct <= -BEAT else "컨센 부합"
+    return f"{pct:+.1f}%", tag
+
+
 def prelim(d: dict, day: str, n: dict) -> dict | None:
     """잠정실적 숫자를 억원으로 정리 (재무제표 공부 › 분기 실적에 쓴다)."""
     u = n.get("unit")
@@ -172,6 +216,7 @@ def check(d: dict, day: str, min_chg: float = MIN_CHG, min_op: float = MIN_OP, n
         return None
     return {"rcp": d["rcp"], "name": d["corp"], "code": code, "title": d["title"], "period": n["period"],
             "unit": n["unit"], "turn": turn, "op": op, "sales": n.get("sales"), "net": n.get("net"),
+            "q": quarter_of(day), "consol": "연결" in d["title"], "cns": consensus(code, quarter_of(day)),
             "eok": amount, "chg": op["chg"], "at": disc_time(code, d["rcp"], day),
             "url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={d['rcp']}"}
 
@@ -202,7 +247,7 @@ def summary(s: dict) -> list[str]:
     o, u = s["op"], s["unit"]
     head = f"영업이익 {eok(o['now'], u)}"
     head += " (전분기 적자 → 흑자전환)" if s["turn"] else f" · 전분기 {eok(o['prev'], u)} 대비 {o['chg']:+.1f}%"
-    lines = [head]
+    lines = [head, cons_line(s)]  # 전분기 대비 바로 아래에 컨센서스(예상치) 대비
     if s.get("sales") and s["sales"].get("now") is not None:
         sl = f"매출 {eok(s['sales']['now'], u)}"
         if s["sales"].get("chg") is not None:
@@ -211,6 +256,24 @@ def summary(s: dict) -> list[str]:
     if o.get("yoy") is not None:
         lines.append(f"전년 동기 대비 {o['yoy']:+.1f}%")
     return lines
+
+
+def cons_line(s: dict) -> str:
+    """컨센서스(예상치) 대비 줄. 컨센서스가 없으면 '컨센 없음'."""
+    c, u = s.get("cns"), s["unit"]
+    q = s.get("q") or ""
+    if not c:
+        return f"컨센서스 대비: 컨센 없음 ({q} 예상치 미제공 · {CONS_SRC})"
+    parts = []
+    for lab, k in (("영업이익", "op"), ("매출", "sales")):
+        now = (s.get(k) or {}).get("now")
+        r = vs_cons(None if now is None else now * u, c.get(k))
+        if r:
+            parts.append(f"{lab} 컨센 {eok(c[k], 1.0)} 대비 {r[0]}" + (f" [{r[1]}]" if k == "op" else ""))
+    if not parts:
+        return f"컨센서스 대비: 컨센 없음 ({q} 예상치 미제공 · {CONS_SRC})"
+    basis = "" if s.get("consol", True) else " · 공시는 별도 기준"
+    return " · ".join(parts) + f" ({q} 컨센서스 · {CONS_SRC}{basis})"
 
 
 if __name__ == "__main__":
