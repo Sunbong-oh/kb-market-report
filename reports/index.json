@@ -1,6 +1,36 @@
 [
 {
 "day": "2026-11-02",
+"code": "309930",
+"name": "조이웍스앤코",
+"market": "K",
+"period": "",
+"op": 22.41,
+"op_prev": -11.16,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261102900424",
+"made": "2026-11-02 14:22",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-02/309930"
+},
+{
+"day": "2026-11-02",
+"code": "234690",
+"name": "녹십자웰빙",
+"market": "K",
+"period": "",
+"op": 72.51,
+"op_prev": 46.29,
+"chg": 56.7,
+"turn": false,
+"basis": null,
+"rcp": "20261102900429",
+"made": "2026-11-02 14:21",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-02/234690"
+},
+{
+"day": "2026-11-02",
 "code": "022100",
 "name": "포스코DX",
 "market": "Y",
