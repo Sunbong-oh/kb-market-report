@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-02",
+"code": "003670",
+"name": "포스코퓨처엠",
+"market": "Y",
+"period": "26년3분기",
+"op": 821.44,
+"op_prev": 266.89,
+"chg": 207.8,
+"turn": false,
+"basis": null,
+"rcp": "20261102800270",
+"made": "2026-11-02 10:26",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-02/003670"
+},
+{
+"day": "2026-11-02",
 "code": "006280",
 "name": "녹십자",
 "market": "Y",
