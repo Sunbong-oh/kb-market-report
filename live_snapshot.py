@@ -74,6 +74,53 @@ def snapshot() -> dict:
     return out
 
 
+# ---- KB증권 Open API 접속 이상 알림 (2026-10 KB 공지: 해외 IP 접속 차단 예정 → 이 작업은 미국 GitHub 서버에서 돈다) ----
+KB_ALERT_MIN = 5            # 장중(09:00~15:30)에 이만큼(분) 이어서 KB 시장 데이터를 못 받으면 텔레그램으로 한 번 알린다
+KB_ALERT = {"since": None, "sent": "", "why": ""}
+
+
+def telegram(text: str) -> None:
+    token, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat:
+        print("  텔레그램 설정 없음:", text[:60], flush=True)
+        return
+    try:
+        httpx.post(f"https://api.telegram.org/bot{token}/sendMessage", data={"chat_id": chat, "text": text}, timeout=20)
+    except httpx.HTTPError as e:
+        print("  텔레그램 실패:", type(e).__name__, e, flush=True)
+
+
+def kb_why() -> str:
+    """KB 서버가 왜 못 주는지 한 줄 (리포트 서버가 받은 KB 오류 문구)."""
+    try:
+        r = httpx.get(URL + "/api/market", timeout=60)
+        return f"HTTP {r.status_code} {r.text[:200]}"
+    except httpx.HTTPError as e:
+        return f"{type(e).__name__} {e}"[:200]
+
+
+def kb_watch(t: datetime, ok: bool, why: str = "") -> None:
+    """장중 KB 접속이 KB_ALERT_MIN 분 넘게 끊기면 한 번, 그 뒤 다시 되면 한 번 알린다 (하루 한 번씩)."""
+    hm, day = t.strftime("%H:%M"), t.strftime("%Y-%m-%d")
+    if ok:
+        if KB_ALERT["sent"] == day:
+            telegram(f"✅ KB증권 Open API 다시 연결됨 ({day} {hm})\n홈페이지 장중 수급이 다시 갱신됩니다.")
+            KB_ALERT["sent"] = day + " 복구"
+        KB_ALERT["since"] = None
+        return
+    if not ("09:00" <= hm <= "15:30"):
+        return
+    KB_ALERT["since"] = KB_ALERT["since"] or t
+    KB_ALERT["why"] = why or KB_ALERT["why"]
+    if t - KB_ALERT["since"] >= timedelta(minutes=KB_ALERT_MIN) and not KB_ALERT["sent"].startswith(day):
+        KB_ALERT["sent"] = day
+        telegram("⚠️ KB증권 Open API 접속 이상\n"
+                 f"{KB_ALERT['since']:%H:%M}부터 {KB_ALERT_MIN}분 넘게 KB 시장 데이터를 못 받았습니다 (홈페이지 장중 수급 멈춤).\n"
+                 f"원인 문구: {KB_ALERT['why'] or '알 수 없음'}\n"
+                 "KB 해외 IP 차단(GitHub 서버는 미국)이면 회사 PC(국내 IP)에서 받도록 바꿔야 합니다.")
+        print(hm, "KB 접속 이상 알림 보냄:", KB_ALERT["why"], flush=True)
+
+
 def has_today(snap: dict, today: str) -> bool:
     market = snap.get("/api/market") or {}
     kospi = (snap.get("/api/indices/intraday") or {}).get("KGG01P") or {}
@@ -458,6 +505,7 @@ def main() -> None:
                     misses = 0
                 except RuntimeError as e:
                     print(hm, "서버 시작 실패, 5분 뒤 다시:", e)
+                    kb_watch(t, False, f"리포트 서버 시작 실패: {e}")
                     time.sleep(300)
                     continue
             try:
@@ -466,6 +514,7 @@ def main() -> None:
                 # → 올리지 않고(화면의 기준 시각이 멈춰 이상을 알 수 있다) 세 번 이어지면 서버를 다시 띄운다
                 if "/api/market" not in snap:
                     misses += 1
+                    kb_watch(t, False, kb_why())
                     print(hm, f"시장 데이터 못 받음({misses}회) → 올리지 않음", flush=True)
                     if misses >= 3 and proc:
                         proc.terminate()
@@ -474,6 +523,7 @@ def main() -> None:
                     time.sleep(20)
                     continue
                 misses = 0
+                kb_watch(t, True)
                 remote, keep = remote_tree()
                 if not seeded:
                     flows, seeded = seed_flows(remote, today), True
