@@ -394,30 +394,20 @@ def prelim_lines(p: dict, code: str) -> list[str]:
     """실적 속보 카드(캘린더 ★ 국내 종목)에 넣을 실제 발표 숫자: 컨센서스 대비 · 전분기 · 전년 동기."""
     eo = lambda v: "-" if v is None else (f"{v / 10000:,.1f}조" if abs(v) >= 10000 else f"{v:,.0f}억")
     pct = lambda a, b: f"{(a / b - 1) * 100:+.1f}%" if a is not None and b and b > 0 else None
-    cons = {}
-    j = get(f"https://m.stock.naver.com/api/stock/{code}/finance/quarter") or {}
-    info = j.get("financeInfo") or {}
-    key = p["q"].replace(".", "")
-    col = next((c for c in info.get("trTitleList") or [] if c.get("key") == key and c.get("isConsensus") == "Y"), None)
-    if col:
-        for row in info.get("rowList") or []:
-            v = str(((row.get("columns") or {}).get(key) or {}).get("value") or "").replace(",", "")
-            try:
-                cons[row.get("title")] = float(v)
-            except ValueError:
-                pass
+    cons = kr_surge.consensus(code, p["q"]) or {}
     out = []
-    for lab, k, ck in (("영업이익", "op", "영업이익"), ("매출", "sales", "매출액")):
+    for lab, k in (("영업이익", "op"), ("매출", "sales")):
         now, prev, yoy = (p.get(k) or [None, None, None])[:3]
         if now is None:
             continue
-        c = pct(now, cons.get(ck))
-        line = f"{lab} {eo(now)}" + (f" · 컨센서스 {eo(cons[ck])} 대비 {c}" if c else "")
+        c = kr_surge.vs_cons(now, cons.get(k))
+        line = f"{lab} {eo(now)}" + (f" · 컨센서스 {eo(cons[k])} 대비 {c[0]}" + (f" [{c[1]}]" if k == "op" else "") if c else "")
         line += " (" + " · ".join(x for x in (f"전분기 대비 {pct(now, prev)}" if pct(now, prev) else "",
                                              f"전년 동기 대비 {pct(now, yoy)}" if pct(now, yoy) else "") if x) + ")"
         out.append(line.replace(" ()", ""))
     if out:
-        out.append(f"{p['q']} 잠정실적({'연결' if p.get('consol') else '별도'}) · DART {p['day'][5:].replace('-', '/')} 공시")
+        src = f"컨센서스 {kr_surge.CONS_SRC}" if cons else "컨센 없음"
+        out.append(f"{p['q']} 잠정실적({'연결' if p.get('consol') else '별도'}) · DART {p['day'][5:].replace('-', '/')} 공시 · {src}")
     return out
 
 
@@ -592,6 +582,14 @@ def run(now: datetime, dry: bool = False) -> None:
                 it["cons"] = lines + [c for c in it.get("cons") or [] if "컨센서스(네이버)" not in c]
                 it["prelim_rcp"] = p["rcp"]
                 print("  잠정실적 숫자 반영:", it["name"], lines[0], flush=True)
+    # 컨센서스 대비 줄이 없는 '급증' 카드(이 기능 전에 나간 카드)는 잠정실적 숫자로 한 번 채운다
+    for it in items.values():
+        p = pre_all.get(it.get("code") or "")
+        if it.get("surge") and p and p["day"] == it["day"] and not any("컨센" in c for c in it.get("cons") or []):
+            s = {"unit": 1.0, "q": p["q"], "consol": p.get("consol", True), "cns": kr_surge.consensus(it["code"], p["q"]),
+                 "op": {"now": (p.get("op") or [None])[0]}, "sales": {"now": (p.get("sales") or [None])[0]}}
+            it["cons"] = (it.get("cons") or [])[:1] + [kr_surge.cons_line(s)] + (it.get("cons") or [])[1:]
+            print("  컨센서스 대비 채움:", it["name"], it["cons"][1], flush=True)
     # 감시 기간이 끝난 항목도 사흘 동안 주가 반응을 갱신하고, 발표 후 첫 정규장이 끝나면 한 번 알린다
     seen = {t["key"] for t in targets(now)}
     for it in items.values():
