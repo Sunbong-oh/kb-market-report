@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-02",
+"code": "249420",
+"name": "일동제약",
+"market": "Y",
+"period": "26년3분기",
+"op": 71.44,
+"op_prev": 19.8,
+"chg": 260.8,
+"turn": false,
+"basis": null,
+"rcp": "20261102800776",
+"made": "2026-11-02 17:16",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-02/249420"
+},
+{
+"day": "2026-11-02",
 "code": "020000",
 "name": "한섬",
 "market": "Y",
