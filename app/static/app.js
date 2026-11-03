@@ -173,6 +173,9 @@ async function loadThemes() {
       if (t.leaders?.length) parts.push("주도주 " + t.leaders.map((s) => `<b>${esc(s.name)}</b> <span class="${cls(s.change_pct)}">${signed(s.change_pct, 2)}%</span>`).join(", "));
       return parts.join("<br>");
     };
+    // 테마 옆 '이유': 그날 뉴스 제목 한두 줄 (서버가 테마 이름·원인 표현으로 고른 것, 누르면 기사)
+    const why = (t) => (t.reason || []).length ? `<span class="why">← ${t.reason.map((r) => r.u
+      ? `<a href="${esc(r.u)}" target="_blank" rel="noopener">${esc(r.t)}</a>` : esc(r.t)).join(" · ")}</span>` : "";
     // 한 줄 요약: 상위 3개 테마 이름(괄호 설명 제외)과 평균 등락률
     const short = (n) => String(n).replace(/\(.*?\)/g, "").trim();
     const pcts = d.themes.map((t) => t.change_pct).filter((v) => v != null);
@@ -187,7 +190,7 @@ async function loadThemes() {
     const lead = d.themes.length ? `<p class="theme-lead">오늘은 ${issLead}<b>${d.themes.slice(0, 3).map((t) => esc(short(t.name))).join(" · ")}</b> 테마가 강세
       (상위 ${d.themes.length}개 평균 <span class="${cls(pcts[0])}">${signed(pcts.reduce((a, c) => a + c, 0) / (pcts.length || 1), 2)}%</span>)</p>` : "";
     $("#themes").innerHTML = d.themes.length ? lead + issueHtml + d.themes.map((t, i) => `
-      <div class="theme-row"><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span>
+      <div class="theme-row"><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}${why(t)}</span>
       <span class="pct ${cls(t.change_pct)}">${signed(t.change_pct, 2)}%</span>
       ${sum(t) ? `<span class="tsum">${sum(t)}</span>` : ""}</div>`).join("") : `<div class="empty">테마 데이터 없음</div>`;
   } catch (e) { fail($("#themes"), e); }
