@@ -41,6 +41,8 @@ TXT = ROOT / "reports" / "close_briefing.txt"
 MP3 = ROOT / "reports" / "close_briefing.mp3"
 
 VOICE = "ko-KR-HyunsuMultilingualNeural"  # 출근길 브리핑과 같은 목소리
+# 기본 목소리가 응답하지 않을 때(가끔 NoAudioReceived) 대신 쓸 남성 목소리. 2026-11-03 회차가 이 때문에 빠졌다
+FALLBACK_VOICES = ("ko-KR-HyunsuNeural", "ko-KR-InJoonNeural")
 RATE = "+15%"
 PITCH = "-8Hz"
 # GitHub Pages 없이 podcast 브랜치 파일을 그대로 주소로 쓴다(팟캐스트 앱은 형식을 enclosure type으로 판단)
@@ -557,8 +559,9 @@ def eleven_tts(text: str, path: Path) -> bool:
     return path.stat().st_size > 10000
 
 
-async def _edge(text: str, path: Path) -> None:
-    """원고를 PAUSE 기준으로 나눠 따로 읽히고, 사이에 무음(쉼표 개수 x 0.5초)을 이어 붙인다."""
+async def _edge(text: str, path: Path, voice: str = VOICE) -> None:
+    """원고를 PAUSE 기준으로 나눠 따로 읽히고, 사이에 무음(쉼표 개수 x 0.5초)을 이어 붙인다.
+    서비스가 조각 하나에 가끔 소리를 안 주므로(NoAudioReceived), 조각마다 쉬었다가 세 번까지 다시 청한다."""
     import edge_tts
     silence = SILENCE.read_bytes() if SILENCE.exists() else b""
     buf = bytearray()
@@ -572,7 +575,15 @@ async def _edge(text: str, path: Path) -> None:
         if not piece:
             continue
         tmp = path.with_suffix(".part.mp3")
-        await edge_tts.Communicate(piece, VOICE, rate=SLOW_RATE if slow else RATE, pitch=PITCH).save(str(tmp))
+        for k in range(3):
+            try:
+                await edge_tts.Communicate(piece, voice, rate=SLOW_RATE if slow else RATE, pitch=PITCH).save(str(tmp))
+                break
+            except Exception as e:
+                if k == 2:
+                    raise
+                print(f"  조각 재시도({k + 1}/3):", type(e).__name__, file=sys.stderr)
+                await asyncio.sleep(3 * (k + 1))
         buf += tmp.read_bytes()
         tmp.unlink(missing_ok=True)
     path.write_bytes(bytes(buf))
@@ -593,14 +604,15 @@ def synth(text: str, path: Path, attempts: int = 3) -> int | None:
     if eleven_tts(re.sub(f"{PAUSE}+", "\n\n", text).replace(SLOW, "").replace(SLOW_END, ""), path):
         print("음성: 내 목소리(ElevenLabs)")
         return ELEVEN_KBPS
-    for i in range(attempts):
+    # 기본 목소리로 몇 번 시도한 뒤에도 안 되면, 회차가 빠지는 것보다 나으니 다른 목소리로 만든다
+    for i, voice in enumerate([VOICE] * attempts + list(FALLBACK_VOICES)):
         try:
-            asyncio.run(_edge(text, path))
+            asyncio.run(_edge(text, path, voice))
             if path.exists() and path.stat().st_size > 10000:
-                print(f"음성: 기본 음성({VOICE})")
+                print(f"음성: {'기본' if voice == VOICE else '대체'} 음성({voice})")
                 return EDGE_KBPS
         except Exception as e:
-            print(f"TTS 실패({i + 1}/{attempts}):", type(e).__name__, e, file=sys.stderr)
+            print(f"TTS 실패({i + 1}, {voice}):", type(e).__name__, e, file=sys.stderr)
     return None
 
 
