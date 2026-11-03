@@ -132,9 +132,11 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          # 한글을 curl 인자로 넘기면 윈도우 실행기에서 ?로 깨진다(2026-11-03 '??????') -> 파일로 써서 보낸다
+          printf '%s\n%s\n' "⚠️ 장마감 음성 브리핑 실패(리포트는 발송됨)" "음성만 다시 만들기: trigger-podcast/ 폴더에 요청 파일을 올리거나 Actions에서 mode=podcast로 실행" > tg_msg.txt
           curl -s "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
             --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
-            --data-urlencode $'text=⚠️ 장마감 음성 브리핑 실패(리포트는 발송됨)\n음성만 다시 만들기: trigger-podcast/ 폴더에 요청 파일을 올리거나 Actions에서 mode=podcast로 실행' > /dev/null || true
+            --data-urlencode "text@tg_msg.txt" > /dev/null || true
 
       - name: 실패 알림 (텔레그램)
         if: failure()
@@ -193,6 +195,7 @@ jobs:
       - name: 실패 알림 (텔레그램)
         if: failure()
         run: |
+          printf '%s\n' "⚠️ 음성만 다시 만들기 실패" > tg_msg.txt
           curl -s "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
             --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
-            --data-urlencode $'text=⚠️ 음성만 다시 만들기 실패' > /dev/null || true
+            --data-urlencode "text@tg_msg.txt" > /dev/null || true
