@@ -411,9 +411,14 @@ def prelim_lines(p: dict, code: str) -> list[str]:
     return out
 
 
+def tg_tag(line: str) -> str:
+    """텔레그램은 글자색을 못 쓰므로 컨센 판정 앞에 색 동그라미: 서프라이즈 🔴 · 쇼크 🔵 · 부합은 그대로."""
+    return line.replace("[어닝 서프라이즈]", "🔴[어닝 서프라이즈]").replace("[어닝 쇼크]", "🔵[어닝 쇼크]")
+
+
 def surge_message(it: dict) -> str:
     lines = [f"🚀 국내 실적 급증 · {it['name']}({it['code']})", it["item"], ""]
-    lines += [f"▶ {c}" for c in it["cons"]]
+    lines += [f"▶ {tg_tag(c)}" for c in it["cons"]]
     lines += [f"📈 {px_line(r)}" for r in it.get("px") or []]
     lines += [""] + [f"• {a['t']} ({a['o']} {a['dt']})" for a in it["news"]]
     if it.get("report"):
