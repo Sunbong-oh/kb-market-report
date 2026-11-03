@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-03",
+"code": "047810",
+"name": "한국항공우주",
+"market": "Y",
+"period": "",
+"op": 794.0,
+"op_prev": 484.0,
+"chg": 63.9,
+"turn": false,
+"basis": null,
+"rcp": "20261103800386",
+"made": "2026-11-03 15:41",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-03/047810"
+},
+{
+"day": "2026-11-03",
 "code": "381970",
 "name": "KG모빌리티플랫폼",
 "market": "Y",
