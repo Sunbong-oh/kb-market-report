@@ -1,6 +1,36 @@
 [
 {
 "day": "2026-11-03",
+"code": "089590",
+"name": "제주항공",
+"market": "Y",
+"period": "",
+"op": 549.0,
+"op_prev": -524.0,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261103800430",
+"made": "2026-11-03 16:12",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-03/089590"
+},
+{
+"day": "2026-11-03",
+"code": "222800",
+"name": "심텍",
+"market": "K",
+"period": "",
+"op": 1017.87,
+"op_prev": 628.9,
+"chg": 61.8,
+"turn": false,
+"basis": null,
+"rcp": "20261103900445",
+"made": "2026-11-03 16:11",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-03/222800"
+},
+{
+"day": "2026-11-03",
 "code": "047810",
 "name": "한국항공우주",
 "market": "Y",
