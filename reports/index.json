@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-03",
+"code": "381970",
+"name": "KG모빌리티플랫폼",
+"market": "Y",
+"period": "",
+"op": 74.98,
+"op_prev": -336.35,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261103800218",
+"made": "2026-11-03 13:15",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-03/381970"
+},
+{
+"day": "2026-11-03",
 "code": "196170",
 "name": "알테오젠",
 "market": "K",
