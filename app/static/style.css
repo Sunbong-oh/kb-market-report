@@ -113,6 +113,8 @@ body.report .hts, body.report #program-card { display: none; }
 .theme-row:last-child { border-bottom: 0; }
 .theme-row .rank { color: var(--muted); font-size: 12px; text-align: center; }
 .theme-row .tname { font-weight: 700; }
+.theme-row .why { margin-left: 8px; font-size: 12.5px; font-weight: 700; color: #d9480f; }
+.theme-row .why a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .theme-row .pct { font-weight: 800; }
 .theme-row .tsum { grid-column: 2 / 4; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 .theme-row .tsum b { color: var(--ink); font-weight: 600; }

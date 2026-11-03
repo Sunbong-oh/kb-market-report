@@ -45,6 +45,78 @@ def _stock_pct(s: dict) -> float | None:
     return pct
 
 
+# ---- 테마가 오른 이유: 그날 뉴스 제목 한 줄 (주도주 종목 뉴스 + 네이버 뉴스 검색 '○○주', 최근 하루) ----
+# 테마 이름이 들어 있고 '…기대·수혜·소식에·급락에' 같은 원인 표현이 있는 제목을 고른다. 증시 시황 기사는 뺀다.
+SEARCH = "https://m.search.naver.com/search.naver"
+CAUSE = re.compile(r"기대|수혜|소식|우려|논의|급락에|급등에|영향|효과|호재|덕분|발표|계약|수주|승인|정책|인수|유출|해킹|합병|통합|분쟁|지분|경쟁|급증|인상|인하|규제|지원")
+NOISE = re.compile(r"시황|증시|월가|뉴욕|나스닥|코스피|코스닥|마감|\[이 시각|올댓차이나|잠든 사이")
+
+
+def _kw(name: str) -> list[str]:
+    """테마 이름 → 제목에서 찾을 말: '항공/저가 항공사(LCC)' → ['항공', '저가 항공사', 'LCC']."""
+    out = []
+    for t in re.split(r"[/(),·]", name or ""):
+        t = re.sub(r"\s*등$", "", t.strip())
+        t = re.sub(r"(관련주|주|업)$", "", t) if len(t) > 2 else t
+        if len(t) >= 2 and t not in out:
+            out.append(t)
+    return out
+
+
+async def _search_titles(http: httpx.AsyncClient, q: str) -> list[tuple[str, str]]:
+    try:
+        r = await http.get(SEARCH, params={"where": "m_news", "sort": "1", "query": q, "nso": "so:dd,p:1d"},
+                           headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"})
+        h = r.text
+    except Exception:
+        return []
+    return [(html.unescape(re.sub(r"<[^>]+>", "", m.group(2))).strip(), html.unescape(m.group(1)))
+            for m in re.finditer(r'<a [^>]*href="(https?://[^"]+)"[^>]*>\s*<span class="sds-comps-text[^"]*headline1[^"]*">(.*?)</span>', h, re.S)]
+
+
+async def _reason(http: httpx.AsyncClient, name: str, stocks: list[dict]) -> list[dict]:
+    """이유 한두 줄 [{t, u}] (서로 다른 이야기면 두 개까지). 못 찾으면 빈 목록."""
+    kws = _kw(name)
+    if not kws:
+        return []
+    cands: dict[str, list] = {}  # 제목 → [링크, 주도주 몇 곳 뉴스에 있었나]
+    for q in (kws[0] if kws[0].endswith("주") else kws[0] + "주", kws[0] + " 관련주"):
+        for t, u in await _search_titles(http, q):
+            cands.setdefault(t, [u, 0])
+    today = datetime.now(KST).strftime("%Y%m%d")
+    for st in stocks[:3]:
+        try:
+            r = await http.get(NEWS.format(st["code"]), params={"page": 1, "pageSize": 8})
+            data = r.json()
+        except Exception:
+            continue
+        rows = []
+        for g in data if isinstance(data, list) else [data]:
+            if isinstance(g, dict):
+                rows += g.get("items") or ([g] if "title" in g else [])
+        for it in rows:
+            t = html.unescape(re.sub(r"<[^>]+>", "", str(it.get("title") or ""))).strip()
+            if t and str(it.get("datetime", "")).startswith(today):
+                link = (f"https://n.news.naver.com/mnews/article/{it['officeId']}/{it['articleId']}"
+                        if it.get("officeId") and it.get("articleId") else "")
+                c = cands.setdefault(t, [link, 0])
+                c[1] += 1
+
+    def score(t: str, n: int) -> int:
+        sc = (3 if any(k in t for k in kws) else 0) + min(2, len(CAUSE.findall(t))) + (1 if n >= 2 else 0)
+        return sc - (4 if NOISE.search(t) else 0)
+    ranked = sorted(((score(t, v[1]), t, v[0]) for t, v in cands.items()), key=lambda x: -x[0])
+    words = lambda t: set(re.findall(r"[가-힣A-Za-z]{2,}", t))
+    out = []
+    for sc, t, u in ranked:
+        if sc < 4 or len(out) >= 2:
+            break
+        if any(len(words(t) & words(o["full"])) >= 2 for o in out):  # 같은 이야기면 하나만
+            continue
+        out.append({"t": re.sub(r"^\s*(\[[^\]]*\]\s*)+", "", t).strip(), "u": u or None, "full": t})
+    return [{"t": o["t"], "u": o["u"]} for o in out]
+
+
 async def _naver_themes(count: int, leaders: int) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, timeout=10, follow_redirects=True) as http:
         res = await http.get(BASE, params={"page": 1, "pageSize": count})
@@ -62,6 +134,10 @@ async def _naver_themes(count: int, leaders: int) -> list[dict]:
                 stocks = sorted(rows, key=lambda s: s["change_pct"], reverse=True)[:leaders]
             except Exception:
                 pass  # 주도주를 못 가져와도 테마 등락률은 보여준다
+            try:
+                why = await _reason(http, g.get("name") or "", stocks)
+            except Exception:
+                why = []
             return {
                 "name": g.get("name"),
                 "change_pct": _f(g.get("changeRate")),
@@ -71,6 +147,7 @@ async def _naver_themes(count: int, leaders: int) -> list[dict]:
                 "steady": g.get("steadyCount"),
                 "leaders": stocks,
                 "url": f"https://stock.naver.com/market/stock/kr/theme/{g['no']}" if g.get("no") else None,
+                "reason": why,
             }
 
         return list(await asyncio.gather(*(detail(g) for g in groups)))
