@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- 라이트/다크를 페이지가 직접 처리한다고 알려, 텔레그램·안드로이드 웹뷰의 강제 다크(흰 글씨) 변환을 막는다 -->
+  <meta name="color-scheme" content="light dark">
+  <title>KB 주식매매</title>
+  <style>
+:root {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --ink: #1b1f24;
+  --muted: #7a828c;
+  --line: #e7e9ec;
+  --kb: #ffbc00;
+  --kb-ink: #544a3d;
+  --up: #d93b3b;
+  --down: #2f6fdb;
+  --flat: #6b7280;
+  --ok: #178a4c;
+  --ok-bg: #e8f6ee;
+  --bad-bg: #fdecec;
+  --warn-bg: #fff6dc;
+  --radius: 12px;
+  color-scheme: light dark;
+  --foreign: #e03131;
+  --inst: #16a085;
+  --indiv: #e08a00;
+  --label: #15803d;  /* 코스피·코스닥·선물 등 구분 이름 (초록) */
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111317;
+    --card: #1a1d22;
+    --ink: #e8eaed;
+    --muted: #8b939d;
+    --line: #2a2e35;
+    --up: #ff6b6b;
+    --down: #5b9bff;
+    --ok: #4ccf88;
+    --ok-bg: #16301f;
+    --bad-bg: #3a1c1c;
+    --warn-bg: #3a3116;
+    --foreign: #ff5c5c;
+    --inst: #3fd1b0;
+    --indiv: #ffb13d;
+    --label: #4ade80;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.45 "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+code { font-size: 12px; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 5;
+}
+.brand { font-weight: 800; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+.brand small { color: var(--muted); font-weight: 500; font-size: 12px; }
+.logo { background: var(--kb); color: var(--kb-ink); border-radius: 6px; padding: 2px 7px; font-size: 15px; }
+.badges { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.badge { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); }
+.badge.live { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+.badge.demo { background: var(--warn-bg); border-color: transparent; }
+.badge.paper { background: var(--bg); }
+.badge.rule-on { background: var(--bad-bg); color: var(--up); border-color: transparent; font-weight: 600; }
+.clock { font-size: 12px; color: var(--muted); margin-left: 4px; }
+
+.banner { margin: 12px 20px 0; padding: 10px 14px; border-radius: 10px; background: var(--warn-bg); font-size: 13px; }
+
+.grid {
+  display: grid; gap: 14px; padding: 14px 20px 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: span 3; }
+@media (max-width: 1080px) {
+  .grid { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+  .span-2, .span-3 { grid-column: span 1; }
+}
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; min-width: 0; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.card h2 { font-size: 15px; margin: 0; }
+.muted { color: var(--muted); font-size: 12px; }
+
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--flat); }
+
+/* 지수 */
+.index-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.index { padding: 10px 12px; border-radius: 10px; background: var(--bg); }
+.index .n { font-size: 15px; font-weight: 800; color: var(--label); letter-spacing: .2px; }
+.index .v { font-size: 20px; font-weight: 700; }
+/* 리포트 제목 띠: 날짜 + 장마감 수급 (주황색) */
+.report-title { display: none; }
+body.report .report-title {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  background: #f97316; color: #fff; border-radius: var(--radius); padding: 14px 18px;
+}
+.report-title .t { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+.report-title .d { font-size: 15px; font-weight: 700; opacity: .95; }
+body.report .topbar { display: none; }  /* 제목 띠가 머리글 역할을 한다 */
+
+/* 텔레그램 리포트(?report=1): 매매창(주문·주문내역·모의매매 배지) 제외 */
+body.report .trade-only, body.report .badge.paper, body.report #rule-badge { display: none; }
+/* 리포트는 수치 중심: 분 단위 기록이 필요한 선물·지수 추이 차트는 뺀다 (선물 수급 수치는 '투자자별 순매수'에 있음) */
+body.report .hts, body.report #program-card { display: none; }
+
+/* 강세 테마 · 등락 종목수 */
+.theme-lead { margin: 0 0 6px; padding: 10px 12px; background: var(--bg); border-radius: 10px; font-size: 14px; line-height: 1.5; }
+.theme-row { display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 8px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.theme-row:last-child { border-bottom: 0; }
+.theme-row .rank { color: var(--muted); font-size: 12px; text-align: center; }
+.theme-row .tname { font-weight: 700; }
+.theme-row .why { margin-left: 8px; font-size: 12.5px; font-weight: 700; color: #d9480f; }
+.theme-row .why a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.theme-row .pct { font-weight: 800; }
+.theme-row .tsum { grid-column: 2 / 4; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.theme-row .tsum b { color: var(--ink); font-weight: 600; }
+.theme-row.issue { background: rgba(243, 152, 0, .12); margin: 0 -8px; padding: 9px 8px; border-radius: 8px; }
+.theme-row.issue .tname small { font-size: 11px; font-weight: 800; color: #fff; background: #F39800; padding: 1px 6px; border-radius: 6px; vertical-align: 1px; }
+.theme-row.issue .tsum a { color: var(--muted); text-decoration: underline; }
+.tv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.tv-col .sub-head { margin-top: 0; }
+.tv-row { display: grid; grid-template-columns: 16px 1fr auto; gap: 0 6px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.tv-row:last-child { border-bottom: 0; }
+.tv-row .rank { color: var(--muted); font-size: 11.5px; text-align: center; }
+.tv-row .tv-n { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-row .pct { font-weight: 800; font-size: 12.5px; }
+.tv-row .tv-v { grid-column: 2 / 4; font-size: 12px; color: var(--muted); }
+.sub-head { font-size: 14px; margin: 16px 0 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.bb { margin-bottom: 14px; }
+.bb-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+.bb-head b { font-size: 15px; font-weight: 800; color: var(--label); }
+.bb-bar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; background: var(--bg); }
+.bb-bar span { display: flex; align-items: center; justify-content: center; min-width: 0; color: #fff; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; }
+.bb-bar .u { background: var(--up); }
+.bb-bar .s { background: var(--flat); }
+.bb-bar .d { background: var(--down); }
+.bb-foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.mini { width: 100%; height: 64px; display: block; margin-top: 8px; }
+.mini text { fill: var(--muted); font-size: 10px; }
+.mini-note { font-size: 11px; min-height: 0; }
+.breadth { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
+
+/* 테이블 */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 6px 6px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl .r { text-align: right; }
+.tbl.click tbody tr { cursor: pointer; }
+.tbl.click tbody tr:hover { background: var(--bg); }
+.card { overflow-x: auto; }
+
+/* 종목 */
+.search { display: flex; gap: 6px; }
+.search input { width: 170px; }
+.search-box { position: relative; }
+.suggest {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 10; min-width: 100%; width: max-content; max-width: 280px;
+  margin: 0; padding: 4px; list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / .14);
+}
+.suggest li { display: flex; justify-content: space-between; gap: 14px; padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+.suggest li .c { color: var(--muted); font-size: 12px; }
+.suggest li.on, .suggest li:hover { background: var(--bg); }
+.suggest li.none { color: var(--muted); cursor: default; }
+input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; }
+button { padding: 7px 14px; border: 0; border-radius: 8px; background: var(--kb); color: var(--kb-ink); font: inherit; font-weight: 700; cursor: pointer; }
+button.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); font-weight: 500; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.quick { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.quick button { background: var(--bg); color: var(--ink); font-weight: 500; font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); }
+.quote-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.quote-head .name { font-size: 18px; font-weight: 700; }
+.quote-head .price { font-size: 30px; font-weight: 800; }
+.quote-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px 16px; margin-top: 12px; }
+.kv { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--line); padding: 3px 0; font-size: 13px; }
+.kv span:first-child { color: var(--muted); }
+
+/* 주문 */
+.rule-box { padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 12px; }
+.rule-box.ok { background: var(--ok-bg); color: var(--ok); }
+.rule-box.block { background: var(--bad-bg); color: var(--up); font-weight: 600; }
+.order-form { display: grid; gap: 10px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.seg input { display: none; }
+.seg span { display: block; text-align: center; padding: 8px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; font-weight: 700; }
+.seg input:checked + .buy { background: var(--up); color: #fff; border-color: var(--up); }
+.seg input:checked + .sell { background: var(--down); color: #fff; border-color: var(--down); }
+.field { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.field input { width: 140px; text-align: right; }
+/* 입력칸 글자색을 강제로 지정 (웹뷰 강제 다크에서 흰 글씨·흰 배경이 되지 않도록) */
+.order-form input[type=text] {
+  color: var(--ink); -webkit-text-fill-color: var(--ink); background: var(--card);
+  font-size: 17px; font-weight: 700; opacity: 1;
+}
+.stepper { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.stepper input { width: 120px; border: 0; border-radius: 0; text-align: center; }
+.stepper .step { background: var(--bg); color: var(--ink); border-radius: 0; padding: 0 14px; font-size: 18px; font-weight: 700; }
+.seg-type span { padding: 6px; font-weight: 600; font-size: 13px; }
+.seg-type input:checked + span { background: var(--ink); color: var(--card); border-color: var(--ink); }
+.price-hint { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); margin-top: -4px; }
+button.link { background: none; color: var(--down); padding: 0; font-weight: 600; font-size: 12px; white-space: nowrap; }
+#price-field.disabled { opacity: .45; pointer-events: none; }
+.pill.open { background: var(--warn-bg); color: var(--ink); }
+.pill.cancelled { background: var(--bg); color: var(--muted); }
+button.mini-btn { padding: 2px 8px; font-size: 11px; font-weight: 600; background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
+.est { font-size: 13px; color: var(--muted); text-align: right; }
+.order-msg { font-size: 13px; min-height: 20px; }
+.order-msg.ok { color: var(--ok); }
+.order-msg.bad { color: var(--up); }
+
+/* 프로그램 / 수급 바 */
+.pgm { display: grid; gap: 8px; }
+.bar-row { display: grid; grid-template-columns: 70px 1fr 90px; align-items: center; gap: 8px; font-size: 13px; }
+.bar-track { position: relative; height: 14px; background: var(--bg); border-radius: 4px; }
+.bar-track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line); }
+.bar { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.bar.pos { left: 50%; background: var(--up); }
+.bar.neg { right: 50%; background: var(--down); }
+.bar-row .val { text-align: right; font-weight: 600; }
+.inv-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 700px) { .inv-cols { grid-template-columns: 1fr; } }
+.inv-cols h3, .inv-group h3 { font-size: 15px; margin: 0 0 8px; color: var(--label); font-weight: 800; }
+.bar-row.hl { font-weight: 700; }
+
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs button { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 500; font-size: 12px; padding: 4px 10px; }
+.tabs button.on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+
+.spark { width: 100%; height: 70px; margin-top: 8px; }
+.legend { font-size: 11px; color: var(--muted); display: flex; gap: 10px; align-items: center; }
+.legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: -6px; }
+.l3 { background: var(--kb); }
+.l10 { background: var(--down); }
+
+.col { display: grid; gap: 14px; align-content: start; min-width: 0; }
+@media (max-width: 1080px) { .col { grid-column: span 1; } }
+
+.macro { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }  /* 환율 · 금리를 좌우로 나란히 */
+.stat { background: var(--bg); border-radius: 10px; padding: 12px 12px; min-width: 0; }
+.stat .n { font-size: 15px; font-weight: 800; color: var(--label); }
+.stat .n .muted { display: block; font-size: 11px; }
+.stat .v { font-size: 22px; font-weight: 800; }
+.stat > div:last-child > div:last-child { font-size: 13px; }
+
+/* 선물 분봉 */
+.fut-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.fut-head .price { font-size: 24px; font-weight: 800; }
+.fut-head .flow { font-size: 13px; color: var(--muted); }
+.fut-head .flow b { font-size: 15px; }
+.chart-wrap { position: relative; }
+.fut-chart { width: 100%; height: 320px; display: block; } /* 실제 높이는 JS가 폭에 맞춰 설정 */
+.fut-chart text { fill: var(--muted); font-size: 11px; }
+.fut-chart.narrow text { font-size: 9.5px; }
+.fut-chart .grid line { stroke: var(--line); }
+.fut-chart .cross { stroke: var(--muted); stroke-dasharray: 3 3; }
+.tip {
+  position: absolute; top: 6px; pointer-events: none; background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgb(0 0 0 / .12); white-space: nowrap;
+}
+.legend { flex-wrap: wrap; gap: 14px; margin-top: 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.sw { width: 8px; height: 10px; border-radius: 1px; }
+.up-bg { background: var(--up); }
+.down-bg { background: var(--down); }
+.ln { width: 14px; height: 3px; border-radius: 2px; }
+.ln.foreign { background: var(--foreign); }
+.ln.inst { background: var(--inst); }
+.ln.indiv { background: var(--indiv); }
+.ln.fut { background: var(--ink); }
+
+/* HTS 0783 투자자별매매동향-추이 스타일 */
+.hts-table-wrap { overflow-x: auto; margin-bottom: 8px; }
+.hts-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.hts-table th, .hts-table td { border: 1px solid var(--line); padding: 5px 10px; text-align: right; white-space: nowrap; }
+.hts-table th { background: var(--bg); font-weight: 600; text-align: center; }
+.hts-table td:first-child { text-align: center; color: var(--muted); background: var(--bg); }
+.hts-chart { display: grid; grid-template-columns: minmax(0, 1fr) 76px; border: 1px solid var(--line); }
+.hts-chart .chart-wrap { border-right: 1px solid var(--line); }
+.hts-checks { display: flex; flex-direction: column; gap: 14px; padding: 12px 8px; font-size: 13px; }
+.hts-checks label { display: flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; }
+.hts-checks input { accent-color: var(--series, var(--ink)); }
+.hts-checks .sw2 { width: 10px; height: 3px; border-radius: 2px; }
+@media (max-width: 700px) {
+  .hts-chart { grid-template-columns: 1fr; }
+  .hts-chart .chart-wrap { border-right: 0; border-bottom: 1px solid var(--line); }
+  .hts-checks { flex-direction: row; flex-wrap: wrap; gap: 12px; }
+}
+.inv-group + .inv-group { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.inv-group > h4 { margin: 0 0 10px; font-size: 13px; }
+.scale-note { font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 4px; white-space: nowrap; }
+/* 콜옵션 · 풋옵션은 폰에서도 항상 좌우로 나란히 */
+.inv-cols.pair { grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+.inv-cols.pair .bar-row { grid-template-columns: 44px 1fr 46px; gap: 6px; font-size: 12.5px; }
+.inv-cols.two { grid-template-columns: repeat(2, 1fr); }
+.inv-cols.three { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 900px) { .inv-cols.two, .inv-cols.three { grid-template-columns: 1fr; } }
+
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.summary div { background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+.summary .n { font-size: 12px; color: var(--muted); }
+.summary .v { font-size: 18px; font-weight: 700; }
+.pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+.pill.filled { background: var(--ok-bg); color: var(--ok); }
+.pill.rejected { background: var(--bad-bg); color: var(--up); }
+.err { color: var(--up); font-size: 13px; }
+.empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+.foot { text-align: center; color: var(--muted); font-size: 12px; padding: 0 20px 24px; }
+
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">KB</span> 주식매매 <small>OpenAPI</small></div>
+  <div class="badges">
+    <span id="mode-badge" class="badge"></span>
+    <span class="badge paper">모의매매</span>
+    <span id="rule-badge" class="badge"></span>
+    <span id="clock" class="clock"></span>
+  </div>
+</header>
+
+<div id="snapshot-banner" class="banner" hidden></div>
+<div id="demo-banner" class="banner" hidden>
+  데모 모드: <code>.env</code>에 KB_OPENAPI_APP_KEY / KB_OPENAPI_APP_SECRET이 없어 <b>가짜 데이터</b>를 표시합니다.
+</div>
+
+<main class="grid">
+  <!-- 리포트 제목 띠 (텔레그램 리포트·스냅샷에서만 보임) -->
+  <section class="report-title span-3" id="report-title"></section>
+
+  <!-- 지수 / 환율·금리 -->
+  <section class="card span-2">
+    <div class="card-head"><h2>시장 지수</h2><span class="muted" id="market-time"></span></div>
+    <div id="indices" class="index-row"></div>
+    <div id="breadth" class="breadth"></div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>환율 · 금리</h2></div>
+    <div class="macro">
+      <div class="stat"><div class="n">원/달러 <span class="muted">IVA60190</span></div><div id="usdkrw"></div></div>
+      <div class="stat"><div class="n">국고채 10년 <span class="muted" id="bond-date">IVA10370</span></div><div id="tsy10"></div></div>
+    </div>
+  </section>
+
+  <!-- 선물 분봉 -->
+  <section class="card span-3 hts">
+    <div class="card-head">
+      <h2>투자자별 매매동향 · 추이 <span class="muted" id="fut-name"></span></h2>
+      <span class="muted">지수선물 · 시간별 · 누적 · 금액(억원)</span>
+    </div>
+    <div id="fut-head" class="fut-head"></div>
+    <div class="hts-table-wrap"><table class="hts-table" id="fut-table"></table></div>
+    <div class="hts-chart">
+      <div class="chart-wrap">
+        <svg id="fut-chart" class="fut-chart" role="img" aria-label="KOSPI200 선물지수와 투자자별 선물 순매수 추이"></svg>
+        <div id="fut-tip" class="tip" hidden></div>
+      </div>
+      <div class="hts-checks" id="fut-checks"></div>
+    </div>
+    <p class="muted" id="fut-note"></p>
+  </section>
+
+  <!-- 종목 -->
+  <div class="col span-2 trade-only">
+    <section class="card">
+      <div class="card-head">
+        <h2>종목 현재가</h2>
+        <form id="search" class="search" role="search">
+          <div class="search-box">
+            <input id="code" placeholder="종목명 (예: 삼성전자)" value="삼성전자" autocomplete="off"
+                   role="combobox" aria-expanded="false" aria-controls="suggest" aria-label="종목명 또는 코드">
+            <ul id="suggest" class="suggest" role="listbox" hidden></ul>
+          </div>
+          <button type="submit">조회</button>
+        </form>
+      </div>
+      <div class="quick" id="quick"></div>
+      <div id="quote" class="quote"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>종목 프로그램 매매 추이</h2><span class="muted" id="pgm-stock-name"></span></div>
+      <table class="tbl" id="program-stock"></table>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card trade-only">
+      <div class="card-head"><h2>주문</h2><span class="muted" id="order-name"></span></div>
+      <div id="rule-box" class="rule-box"></div>
+      <form id="order-form" class="order-form">
+        <div class="seg">
+          <label><input type="radio" name="side" value="buy" checked><span class="buy">매수</span></label>
+          <label><input type="radio" name="side" value="sell"><span class="sell">매도</span></label>
+        </div>
+        <div class="seg seg-type">
+          <label><input type="radio" name="otype" value="limit" checked><span>지정가</span></label>
+          <label><input type="radio" name="otype" value="market"><span>시장가</span></label>
+        </div>
+        <div class="field" id="price-field">
+          <span>가격</span>
+          <div class="stepper">
+            <button type="button" class="step" data-target="price" data-dir="-1" aria-label="가격 한 호가 내리기">−</button>
+            <input id="price" type="text" inputmode="numeric" autocomplete="off" aria-label="지정가">
+            <button type="button" class="step" data-target="price" data-dir="1" aria-label="가격 한 호가 올리기">+</button>
+          </div>
+        </div>
+        <div class="price-hint"><span id="tick-hint"></span><button type="button" class="link" id="use-current">현재가 입력</button></div>
+        <div class="field">
+          <span>수량</span>
+          <div class="stepper">
+            <button type="button" class="step" data-target="qty" data-dir="-1" aria-label="수량 줄이기">−</button>
+            <input id="qty" type="text" inputmode="numeric" autocomplete="off" value="10" aria-label="수량">
+            <button type="button" class="step" data-target="qty" data-dir="1" aria-label="수량 늘리기">+</button>
+          </div>
+        </div>
+        <div class="est" id="est"></div>
+        <div class="est" id="power"></div>
+        <button type="submit" id="order-btn">주문</button>
+        <div id="order-msg" class="order-msg"></div>
+      </form>
+    </section>
+
+    <section class="card" id="program-card">
+      <div class="card-head"><h2>프로그램 매매 (시장)</h2><span class="muted">IVSA0070</span></div>
+      <div id="program-market"></div>
+    </section>
+  </div>
+
+  <!-- 수급 -->
+  <section class="card span-3">
+    <div class="card-head"><h2>투자자별 매매동향 (오늘)</h2><span class="muted">현물 · 선물 · 옵션</span></div>
+    <div id="investors"></div>
+  </section>
+
+  <!-- 오늘의 강세 테마 · 등락 종목수 -->
+  <section class="card span-3" id="themes-card">
+    <div class="card-head"><h2>오늘의 강세 테마</h2><span class="muted" id="themes-source"></span></div>
+    <div id="themes"></div>
+    <h3 class="sub-head">등락 종목수</h3>
+    <div id="breadth-bars"></div>
+  </section>
+
+  <!-- 거래대금 상위 -->
+  <section class="card span-3" id="topvalue-card">
+    <div class="card-head"><h2>거래대금 상위</h2><span class="muted" id="topvalue-source">코스피 · 코스닥 각 10종목 (ETF 제외)</span></div>
+    <div id="topvalue"></div>
+  </section>
+
+  <section class="card span-3 trade-only">
+    <div class="card-head"><h2>주문 내역</h2><span class="muted">규칙에 의해 거절된 주문도 기록됩니다</span></div>
+    <table class="tbl" id="orders"></table>
+  </section>
+</main>
+
+<footer class="foot">
+  데이터: KB증권 OpenAPI (B2C 투자정보) · 주문은 로컬 모의매매이며 실제 계좌와 연동되지 않습니다.
+</footer>
+<script>
+window.__SNAPSHOT__ = {"/api/status": {"demo_mode": false, "trading_mode": "paper", "now": "2026-11-03 15:58:18", "rule": {"window": "09:00~10:00", "active": false, "max_change_pct": 0.0}}, "/api/market": {"time": "20261103", "indices": [{"id": "KGG01P", "name": "KOSPI", "value": 5648.79, "change": -210.29, "change_pct": -3.59}, {"id": "QGG01P", "name": "KOSDAQ", "value": 704.39, "change": -29.97, "change_pct": -4.08}, {"id": "CME@NQ", "name": "NASDAQ선물", "value": 28077.0, "change": -50.5, "change_pct": -0.18}, {"id": "A016C000", "name": "KOSPI200 선물", "value": 885.15, "change": -33.5, "change_pct": -3.65}], "program": {"arbitrage": 76139, "non_arbitrage": -998715, "total": -922576}, "investors": [{"code": "0008", "name": "개인", "kospi": 16606, "kosdaq": 3196, "futures": -986, "call": -3, "put": -24}, {"code": "0009", "name": "외국인", "kospi": -15295, "kosdaq": -761, "futures": -679, "call": -10, "put": 49}, {"code": "0018", "name": "기관계", "kospi": -5112, "kosdaq": -2345, "futures": 1485, "call": 12, "put": -24}, {"code": "0001", "name": "금융투자", "kospi": -3449, "kosdaq": -72, "futures": 8240, "call": 12, "put": -25}, {"code": "0003", "name": "투신", "kospi": -1551, "kosdaq": -963, "futures": -7002, "call": 0, "put": 0}, {"code": "0004", "name": "은행", "kospi": -77, "kosdaq": -23, "futures": -20, "call": 0, "put": 0}], "futures": {"code": "A016C000", "name": "KOSPI200 선물 202612", "price": 885.15, "change": -33.5, "change_pct": -3.65, "volume": 136832, "open_interest": 149218}, "breadth": {"kospi": {"ulmt": 4, "up": 217, "unchng": 61, "dwn": 658, "llmt": 0}, "kosdaq": {"ulmt": 3, "up": 319, "unchng": 157, "dwn": 1350, "llmt": 0}}}, "/api/macro": {"usd_krw": {"rate": 1340.9, "change": -5.1, "change_pct": -0.38, "time": "155301"}, "treasury_10y": {"date": "20261103", "time": "15:55", "yield": 4.01, "change": -0.032, "source": "naver"}}, "/api/indices/intraday": {"KGG01P": {"date": "20261103", "prev_close": 5859.08, "points": [{"t": "0900", "c": 5711.46}, {"t": "0901", "c": 5695.78}, {"t": "0902", "c": 5695.64}, {"t": "0903", "c": 5706.02}, {"t": "0904", "c": 5691.09}, {"t": "0905", "c": 5675.42}, {"t": "0906", "c": 5665.94}, {"t": "0907", "c": 5670.54}, {"t": "0908", "c": 5654.53}, {"t": "0909", "c": 5647.29}, {"t": "0910", "c": 5655.14}, {"t": "0911", "c": 5660.87}, {"t": "0912", "c": 5664.55}, {"t": "0913", "c": 5662.18}, {"t": "0914", "c": 5663.0}, {"t": "0915", "c": 5676.64}, {"t": "0916", "c": 5665.49}, {"t": "0917", "c": 5672.27}, {"t": "0918", "c": 5670.8}, {"t": "0919", "c": 5669.73}, {"t": "0920", "c": 5663.74}, {"t": "0921", "c": 5677.43}, {"t": "0922", "c": 5676.62}, {"t": "0923", "c": 5673.94}, {"t": "0924", "c": 5663.63}, {"t": "0925", "c": 5672.67}, {"t": "0926", "c": 5678.93}, {"t": "0927", "c": 5684.5}, {"t": "0928", "c": 5684.66}, {"t": "0929", "c": 5682.07}, {"t": "0930", "c": 5676.9}, {"t": "0931", "c": 5680.82}, {"t": "0932", "c": 5679.56}, {"t": "0933", "c": 5677.91}, {"t": "0934", "c": 5686.76}, {"t": "0935", "c": 5682.38}, {"t": "0936", "c": 5683.58}, {"t": "0937", "c": 5682.24}, {"t": "0938", "c": 5682.19}, {"t": "0939", "c": 5675.81}, {"t": "0940", "c": 5665.7}, {"t": "0941", "c": 5664.26}, {"t": "0942", "c": 5658.46}, {"t": "0943", "c": 5655.2}, {"t": "0944", "c": 5645.23}, {"t": "0945", "c": 5655.23}, {"t": "0946", "c": 5663.27}, {"t": "0947", "c": 5665.49}, {"t": "0948", "c": 5660.06}, {"t": "0949", "c": 5647.94}, {"t": "0950", "c": 5654.2}, {"t": "0951", "c": 5645.65}, {"t": "0952", "c": 5641.63}, {"t": "0953", "c": 5641.07}, {"t": "0954", "c": 5638.85}, {"t": "0955", "c": 5646.98}, {"t": "0956", "c": 5652.05}, {"t": "0957", "c": 5651.99}, {"t": "0958", "c": 5655.93}, {"t": "0959", "c": 5661.88}, {"t": "1000", "c": 5661.98}, {"t": "1001", "c": 5669.44}, {"t": "1002", "c": 5690.94}, {"t": "1003", "c": 5690.94}, {"t": "1004", "c": 5694.59}, {"t": "1005", "c": 5701.13}, {"t": "1006", "c": 5704.64}, {"t": "1007", "c": 5708.51}, {"t": "1008", "c": 5702.74}, {"t": "1009", "c": 5706.34}, {"t": "1010", "c": 5708.18}, {"t": "1011", "c": 5701.08}, {"t": "1012", "c": 5701.98}, {"t": "1013", "c": 5706.6}, {"t": "1014", "c": 5704.6}, {"t": "1015", "c": 5704.01}, {"t": "1016", "c": 5714.97}, {"t": "1017", "c": 5716.52}, {"t": "1018", "c": 5726.63}, {"t": "1019", "c": 5729.98}, {"t": "1020", "c": 5726.38}, {"t": "1021", "c": 5723.84}, {"t": "1022", "c": 5726.98}, {"t": "1023", "c": 5719.34}, {"t": "1024", "c": 5714.21}, {"t": "1025", "c": 5713.17}, {"t": "1026", "c": 5704.79}, {"t": "1027", "c": 5706.78}, {"t": "1028", "c": 5706.19}, {"t": "1029", "c": 5713.92}, {"t": "1030", "c": 5715.75}, {"t": "1031", "c": 5708.63}, {"t": "1032", "c": 5712.68}, {"t": "1033", "c": 5713.73}, {"t": "1034", "c": 5719.39}, {"t": "1035", "c": 5712.43}, {"t": "1036", "c": 5723.16}, {"t": "1037", "c": 5708.07}, {"t": "1038", "c": 5702.31}, {"t": "1039", "c": 5714.58}, {"t": "1040", "c": 5716.49}, {"t": "1041", "c": 5709.64}, {"t": "1042", "c": 5709.66}, {"t": "1043", "c": 5703.45}, {"t": "1044", "c": 5714.5}, {"t": "1045", "c": 5716.01}, {"t": "1046", "c": 5714.85}, {"t": "1047", "c": 5710.35}, {"t": "1048", "c": 5717.37}, {"t": "1049", "c": 5709.52}, {"t": "1050", "c": 5721.14}, {"t": "1051", "c": 5716.54}, {"t": "1052", "c": 5721.6}, {"t": "1053", "c": 5732.07}, {"t": "1054", "c": 5721.47}, {"t": "1055", "c": 5720.32}, {"t": "1056", "c": 5715.44}, {"t": "1057", "c": 5715.95}, {"t": "1058", "c": 5720.7}, {"t": "1059", "c": 5717.33}, {"t": "1100", "c": 5707.16}, {"t": "1101", "c": 5714.16}, {"t": "1102", "c": 5720.97}, {"t": "1103", "c": 5718.54}, {"t": "1104", "c": 5717.68}, {"t": "1105", "c": 5715.61}, {"t": "1106", "c": 5710.36}, {"t": "1107", "c": 5714.82}, {"t": "1108", "c": 5709.7}, {"t": "1109", "c": 5709.76}, {"t": "1110", "c": 5706.97}, {"t": "1111", "c": 5708.55}, {"t": "1112", "c": 5709.16}, {"t": "1113", "c": 5722.49}, {"t": "1114", "c": 5722.06}, {"t": "1115", "c": 5715.13}, {"t": "1116", "c": 5716.9}, {"t": "1117", "c": 5710.36}, {"t": "1118", "c": 5717.41}, {"t": "1119", "c": 5713.7}, {"t": "1120", "c": 5711.02}, {"t": "1121", "c": 5710.57}, {"t": "1122", "c": 5717.82}, {"t": "1123", "c": 5719.26}, {"t": "1124", "c": 5712.11}, {"t": "1125", "c": 5722.54}, {"t": "1126", "c": 5719.06}, {"t": "1127", "c": 5705.34}, {"t": "1128", "c": 5703.41}, {"t": "1129", "c": 5701.17}, {"t": "1130", "c": 5700.85}, {"t": "1131", "c": 5694.79}, {"t": "1132", "c": 5701.36}, {"t": "1133", "c": 5698.8}, {"t": "1134", "c": 5698.68}, {"t": "1135", "c": 5704.73}, {"t": "1136", "c": 5704.06}, {"t": "1137", "c": 5704.31}, {"t": "1138", "c": 5702.6}, {"t": "1139", "c": 5702.67}, {"t": "1140", "c": 5698.76}, {"t": "1141", "c": 5697.27}, {"t": "1142", "c": 5688.14}, {"t": "1143", "c": 5684.08}, {"t": "1144", "c": 5685.48}, {"t": "1145", "c": 5680.77}, {"t": "1146", "c": 5677.28}, {"t": "1147", "c": 5671.07}, {"t": "1148", "c": 5672.26}, {"t": "1149", "c": 5679.19}, {"t": "1150", "c": 5680.73}, {"t": "1151", "c": 5682.35}, {"t": "1152", "c": 5681.49}, {"t": "1153", "c": 5671.88}, {"t": "1154", "c": 5667.22}, {"t": "1155", "c": 5664.06}, {"t": "1156", "c": 5663.17}, {"t": "1157", "c": 5662.73}, {"t": "1158", "c": 5661.78}, {"t": "1159", "c": 5654.32}, {"t": "1200", "c": 5660.54}, {"t": "1201", "c": 5656.0}, {"t": "1202", "c": 5658.13}, {"t": "1203", "c": 5667.61}, {"t": "1204", "c": 5664.96}, {"t": "1205", "c": 5665.04}, {"t": "1206", "c": 5669.06}, {"t": "1207", "c": 5668.38}, {"t": "1208", "c": 5668.73}, {"t": "1209", "c": 5666.55}, {"t": "1210", "c": 5666.75}, {"t": "1211", "c": 5661.49}, {"t": "1212", "c": 5658.02}, {"t": "1213", "c": 5655.66}, {"t": "1214", "c": 5654.53}, {"t": "1215", "c": 5658.72}, {"t": "1216", "c": 5663.11}, {"t": "1217", "c": 5656.98}, {"t": "1218", "c": 5658.89}, {"t": "1219", "c": 5660.12}, {"t": "1220", "c": 5662.59}, {"t": "1221", "c": 5665.3}, {"t": "1222", "c": 5671.79}, {"t": "1223", "c": 5674.08}, {"t": "1224", "c": 5671.84}, {"t": "1225", "c": 5673.56}, {"t": "1226", "c": 5674.18}, {"t": "1227", "c": 5664.33}, {"t": "1228", "c": 5657.8}, {"t": "1229", "c": 5657.14}, {"t": "1230", "c": 5660.09}, {"t": "1231", "c": 5658.3}, {"t": "1232", "c": 5654.91}, {"t": "1233", "c": 5655.35}, {"t": "1234", "c": 5658.25}, {"t": "1235", "c": 5652.39}, {"t": "1236", "c": 5651.65}, {"t": "1237", "c": 5652.16}, {"t": "1238", "c": 5660.97}, {"t": "1239", "c": 5656.79}, {"t": "1240", "c": 5658.22}, {"t": "1241", "c": 5657.48}, {"t": "1242", "c": 5657.63}, {"t": "1243", "c": 5654.71}, {"t": "1244", "c": 5655.48}, {"t": "1245", "c": 5659.16}, {"t": "1246", "c": 5670.13}, {"t": "1247", "c": 5673.87}, {"t": "1248", "c": 5675.85}, {"t": "1249", "c": 5671.43}, {"t": "1250", "c": 5670.0}, {"t": "1251", "c": 5672.21}, {"t": "1252", "c": 5675.16}, {"t": "1253", "c": 5674.3}, {"t": "1254", "c": 5675.48}, {"t": "1255", "c": 5669.55}, {"t": "1256", "c": 5662.73}, {"t": "1257", "c": 5661.39}, {"t": "1258", "c": 5661.77}, {"t": "1259", "c": 5662.79}, {"t": "1300", "c": 5656.53}, {"t": "1301", "c": 5653.33}, {"t": "1302", "c": 5648.43}, {"t": "1303", "c": 5651.67}, {"t": "1304", "c": 5645.95}, {"t": "1305", "c": 5646.03}, {"t": "1306", "c": 5647.38}, {"t": "1307", "c": 5646.11}, {"t": "1308", "c": 5646.55}, {"t": "1309", "c": 5646.37}, {"t": "1310", "c": 5638.88}, {"t": "1311", "c": 5642.93}, {"t": "1312", "c": 5642.94}, {"t": "1313", "c": 5641.5}, {"t": "1314", "c": 5640.25}, {"t": "1315", "c": 5633.8}, {"t": "1316", "c": 5631.05}, {"t": "1317", "c": 5632.48}, {"t": "1318", "c": 5627.78}, {"t": "1319", "c": 5620.46}, {"t": "1320", "c": 5617.19}, {"t": "1321", "c": 5622.35}, {"t": "1322", "c": 5624.71}, {"t": "1323", "c": 5627.41}, {"t": "1324", "c": 5622.75}, {"t": "1325", "c": 5626.81}, {"t": "1326", "c": 5636.93}, {"t": "1327", "c": 5636.84}, {"t": "1328", "c": 5640.76}, {"t": "1329", "c": 5646.44}, {"t": "1330", "c": 5642.88}, {"t": "1331", "c": 5637.35}, {"t": "1332", "c": 5636.06}, {"t": "1333", "c": 5639.54}, {"t": "1334", "c": 5639.57}, {"t": "1335", "c": 5638.63}, {"t": "1336", "c": 5632.55}, {"t": "1337", "c": 5630.57}, {"t": "1338", "c": 5625.18}, {"t": "1339", "c": 5626.63}, {"t": "1340", "c": 5622.78}, {"t": "1341", "c": 5617.79}, {"t": "1342", "c": 5621.45}, {"t": "1343", "c": 5627.85}, {"t": "1344", "c": 5620.51}, {"t": "1345", "c": 5626.78}, {"t": "1346", "c": 5626.15}, {"t": "1347", "c": 5627.95}, {"t": "1348", "c": 5620.4}, {"t": "1349", "c": 5615.8}, {"t": "1350", "c": 5626.21}, {"t": "1351", "c": 5629.53}, {"t": "1352", "c": 5624.72}, {"t": "1353", "c": 5622.55}, {"t": "1354", "c": 5624.5}, {"t": "1355", "c": 5621.49}, {"t": "1356", "c": 5624.23}, {"t": "1357", "c": 5638.81}, {"t": "1358", "c": 5639.66}, {"t": "1359", "c": 5632.17}, {"t": "1400", "c": 5629.39}, {"t": "1401", "c": 5629.22}, {"t": "1402", "c": 5628.85}, {"t": "1403", "c": 5630.47}, {"t": "1404", "c": 5628.05}, {"t": "1405", "c": 5625.42}, {"t": "1406", "c": 5625.03}, {"t": "1407", "c": 5634.77}, {"t": "1408", "c": 5632.76}, {"t": "1409", "c": 5634.41}, {"t": "1410", "c": 5634.03}, {"t": "1411", "c": 5633.19}, {"t": "1412", "c": 5632.54}, {"t": "1413", "c": 5630.26}, {"t": "1414", "c": 5628.87}, {"t": "1415", "c": 5633.33}, {"t": "1416", "c": 5640.1}, {"t": "1417", "c": 5638.94}, {"t": "1418", "c": 5637.94}, {"t": "1419", "c": 5640.06}, {"t": "1420", "c": 5635.73}, {"t": "1421", "c": 5640.15}, {"t": "1422", "c": 5637.31}, {"t": "1423", "c": 5635.68}, {"t": "1424", "c": 5636.41}, {"t": "1425", "c": 5634.94}, {"t": "1426", "c": 5632.76}, {"t": "1427", "c": 5639.07}, {"t": "1428", "c": 5639.49}, {"t": "1429", "c": 5638.76}, {"t": "1430", "c": 5632.97}, {"t": "1431", "c": 5630.0}, {"t": "1432", "c": 5629.66}, {"t": "1433", "c": 5624.84}, {"t": "1434", "c": 5622.32}, {"t": "1435", "c": 5625.35}, {"t": "1436", "c": 5635.73}, {"t": "1437", "c": 5636.07}, {"t": "1438", "c": 5638.86}, {"t": "1439", "c": 5637.82}, {"t": "1440", "c": 5646.72}, {"t": "1441", "c": 5649.76}, {"t": "1442", "c": 5651.32}, {"t": "1443", "c": 5649.46}, {"t": "1444", "c": 5640.96}, {"t": "1445", "c": 5641.74}, {"t": "1446", "c": 5643.03}, {"t": "1447", "c": 5645.91}, {"t": "1448", "c": 5646.34}, {"t": "1449", "c": 5643.52}, {"t": "1450", "c": 5648.82}, {"t": "1451", "c": 5643.62}, {"t": "1452", "c": 5644.24}, {"t": "1453", "c": 5649.68}, {"t": "1454", "c": 5647.28}, {"t": "1455", "c": 5651.55}, {"t": "1456", "c": 5645.41}, {"t": "1457", "c": 5640.98}, {"t": "1458", "c": 5644.08}, {"t": "1459", "c": 5649.43}, {"t": "1500", "c": 5642.86}, {"t": "1501", "c": 5641.43}, {"t": "1502", "c": 5640.13}, {"t": "1503", "c": 5638.37}, {"t": "1504", "c": 5639.86}, {"t": "1505", "c": 5640.87}, {"t": "1506", "c": 5636.37}, {"t": "1507", "c": 5637.94}, {"t": "1508", "c": 5637.03}, {"t": "1509", "c": 5636.75}, {"t": "1510", "c": 5635.21}, {"t": "1511", "c": 5631.06}, {"t": "1512", "c": 5634.83}, {"t": "1513", "c": 5629.78}, {"t": "1514", "c": 5634.19}, {"t": "1515", "c": 5636.13}, {"t": "1516", "c": 5631.99}, {"t": "1517", "c": 5640.84}, {"t": "1518", "c": 5634.39}, {"t": "1519", "c": 5626.08}, {"t": "1530", "c": 5648.79}]}, "QGG01P": {"date": "20261103", "prev_close": 734.36, "points": [{"t": "0900", "c": 722.07}, {"t": "0901", "c": 718.76}, {"t": "0902", "c": 719.36}, {"t": "0903", "c": 718.81}, {"t": "0904", "c": 719.37}, {"t": "0905", "c": 717.08}, {"t": "0906", "c": 715.84}, {"t": "0907", "c": 715.73}, {"t": "0908", "c": 716.23}, {"t": "0909", "c": 715.55}, {"t": "0910", "c": 714.93}, {"t": "0911", "c": 714.2}, {"t": "0912", "c": 714.39}, {"t": "0913", "c": 712.91}, {"t": "0914", "c": 712.64}, {"t": "0915", "c": 713.79}, {"t": "0916", "c": 714.51}, {"t": "0917", "c": 714.1}, {"t": "0918", "c": 713.56}, {"t": "0919", "c": 713.78}, {"t": "0920", "c": 714.32}, {"t": "0921", "c": 715.87}, {"t": "0922", "c": 717.06}, {"t": "0923", "c": 716.67}, {"t": "0924", "c": 716.34}, {"t": "0925", "c": 717.03}, {"t": "0926", "c": 717.52}, {"t": "0927", "c": 717.99}, {"t": "0928", "c": 717.73}, {"t": "0929", "c": 716.91}, {"t": "0930", "c": 716.83}, {"t": "0931", "c": 716.84}, {"t": "0932", "c": 715.8}, {"t": "0933", "c": 715.27}, {"t": "0934", "c": 716.13}, {"t": "0935", "c": 715.45}, {"t": "0936", "c": 715.23}, {"t": "0937", "c": 715.2}, {"t": "0938", "c": 715.16}, {"t": "0939", "c": 714.17}, {"t": "0940", "c": 713.72}, {"t": "0941", "c": 713.33}, {"t": "0942", "c": 712.4}, {"t": "0943", "c": 711.61}, {"t": "0944", "c": 711.23}, {"t": "0945", "c": 710.84}, {"t": "0946", "c": 711.14}, {"t": "0947", "c": 711.63}, {"t": "0948", "c": 710.76}, {"t": "0949", "c": 709.54}, {"t": "0950", "c": 709.65}, {"t": "0951", "c": 709.25}, {"t": "0952", "c": 709.35}, {"t": "0953", "c": 709.28}, {"t": "0954", "c": 708.73}, {"t": "0955", "c": 708.85}, {"t": "0956", "c": 709.68}, {"t": "0957", "c": 709.68}, {"t": "0958", "c": 709.8}, {"t": "0959", "c": 710.41}, {"t": "1000", "c": 710.77}, {"t": "1001", "c": 710.93}, {"t": "1002", "c": 712.27}, {"t": "1003", "c": 712.73}, {"t": "1004", "c": 713.88}, {"t": "1005", "c": 713.8}, {"t": "1006", "c": 714.12}, {"t": "1007", "c": 714.75}, {"t": "1008", "c": 714.92}, {"t": "1009", "c": 715.08}, {"t": "1010", "c": 715.33}, {"t": "1011", "c": 714.19}, {"t": "1012", "c": 714.1}, {"t": "1013", "c": 714.14}, {"t": "1014", "c": 714.21}, {"t": "1015", "c": 714.34}, {"t": "1016", "c": 715.5}, {"t": "1017", "c": 716.0}, {"t": "1018", "c": 716.69}, {"t": "1019", "c": 717.13}, {"t": "1020", "c": 717.06}, {"t": "1021", "c": 717.3}, {"t": "1022", "c": 717.94}, {"t": "1023", "c": 717.71}, {"t": "1024", "c": 717.88}, {"t": "1025", "c": 717.51}, {"t": "1026", "c": 716.57}, {"t": "1027", "c": 716.82}, {"t": "1028", "c": 716.92}, {"t": "1029", "c": 717.73}, {"t": "1030", "c": 718.16}, {"t": "1031", "c": 718.65}, {"t": "1032", "c": 718.72}, {"t": "1033", "c": 718.64}, {"t": "1034", "c": 718.59}, {"t": "1035", "c": 718.62}, {"t": "1036", "c": 719.08}, {"t": "1037", "c": 718.17}, {"t": "1038", "c": 717.79}, {"t": "1039", "c": 718.58}, {"t": "1040", "c": 719.7}, {"t": "1041", "c": 719.62}, {"t": "1042", "c": 719.44}, {"t": "1043", "c": 719.47}, {"t": "1044", "c": 720.72}, {"t": "1045", "c": 720.93}, {"t": "1046", "c": 721.38}, {"t": "1047", "c": 720.93}, {"t": "1048", "c": 720.79}, {"t": "1049", "c": 720.04}, {"t": "1050", "c": 720.63}, {"t": "1051", "c": 720.28}, {"t": "1052", "c": 720.31}, {"t": "1053", "c": 720.49}, {"t": "1054", "c": 720.5}, {"t": "1055", "c": 720.01}, {"t": "1056", "c": 719.12}, {"t": "1057", "c": 719.04}, {"t": "1058", "c": 718.74}, {"t": "1059", "c": 718.61}, {"t": "1100", "c": 717.28}, {"t": "1101", "c": 717.42}, {"t": "1102", "c": 718.28}, {"t": "1103", "c": 718.73}, {"t": "1104", "c": 718.63}, {"t": "1105", "c": 718.61}, {"t": "1106", "c": 718.25}, {"t": "1107", "c": 718.38}, {"t": "1108", "c": 718.03}, {"t": "1109", "c": 717.63}, {"t": "1110", "c": 717.22}, {"t": "1111", "c": 717.44}, {"t": "1112", "c": 717.18}, {"t": "1113", "c": 718.03}, {"t": "1114", "c": 718.44}, {"t": "1115", "c": 717.84}, {"t": "1116", "c": 717.34}, {"t": "1117", "c": 716.95}, {"t": "1118", "c": 716.98}, {"t": "1119", "c": 717.08}, {"t": "1120", "c": 717.07}, {"t": "1121", "c": 716.97}, {"t": "1122", "c": 717.11}, {"t": "1123", "c": 717.22}, {"t": "1124", "c": 716.98}, {"t": "1125", "c": 717.38}, {"t": "1126", "c": 717.48}, {"t": "1127", "c": 716.44}, {"t": "1128", "c": 715.83}, {"t": "1129", "c": 715.81}, {"t": "1130", "c": 715.69}, {"t": "1131", "c": 715.17}, {"t": "1132", "c": 715.56}, {"t": "1133", "c": 715.43}, {"t": "1134", "c": 714.96}, {"t": "1135", "c": 714.81}, {"t": "1136", "c": 715.13}, {"t": "1137", "c": 715.25}, {"t": "1138", "c": 715.16}, {"t": "1139", "c": 714.83}, {"t": "1140", "c": 714.16}, {"t": "1141", "c": 714.02}, {"t": "1142", "c": 713.76}, {"t": "1143", "c": 713.12}, {"t": "1144", "c": 712.92}, {"t": "1145", "c": 712.66}, {"t": "1146", "c": 712.39}, {"t": "1147", "c": 712.09}, {"t": "1148", "c": 711.88}, {"t": "1149", "c": 712.06}, {"t": "1150", "c": 712.16}, {"t": "1151", "c": 712.45}, {"t": "1152", "c": 712.58}, {"t": "1153", "c": 712.07}, {"t": "1154", "c": 711.87}, {"t": "1155", "c": 711.7}, {"t": "1156", "c": 711.51}, {"t": "1157", "c": 711.38}, {"t": "1158", "c": 711.2}, {"t": "1159", "c": 711.05}, {"t": "1200", "c": 710.99}, {"t": "1201", "c": 711.01}, {"t": "1202", "c": 711.21}, {"t": "1203", "c": 711.62}, {"t": "1204", "c": 711.49}, {"t": "1205", "c": 711.6}, {"t": "1206", "c": 712.1}, {"t": "1207", "c": 712.13}, {"t": "1208", "c": 712.15}, {"t": "1209", "c": 711.79}, {"t": "1210", "c": 711.7}, {"t": "1211", "c": 711.67}, {"t": "1212", "c": 711.49}, {"t": "1213", "c": 711.35}, {"t": "1214", "c": 711.3}, {"t": "1215", "c": 711.25}, {"t": "1216", "c": 711.56}, {"t": "1217", "c": 711.3}, {"t": "1218", "c": 711.18}, {"t": "1219", "c": 711.25}, {"t": "1220", "c": 711.42}, {"t": "1221", "c": 711.39}, {"t": "1222", "c": 711.58}, {"t": "1223", "c": 711.57}, {"t": "1224", "c": 711.72}, {"t": "1225", "c": 711.77}, {"t": "1226", "c": 711.75}, {"t": "1227", "c": 711.44}, {"t": "1228", "c": 710.7}, {"t": "1229", "c": 710.45}, {"t": "1230", "c": 710.42}, {"t": "1231", "c": 710.22}, {"t": "1232", "c": 709.97}, {"t": "1233", "c": 709.79}, {"t": "1234", "c": 709.74}, {"t": "1235", "c": 709.51}, {"t": "1236", "c": 709.4}, {"t": "1237", "c": 709.35}, {"t": "1238", "c": 709.85}, {"t": "1239", "c": 709.96}, {"t": "1240", "c": 709.76}, {"t": "1241", "c": 709.8}, {"t": "1242", "c": 709.68}, {"t": "1243", "c": 709.73}, {"t": "1244", "c": 709.56}, {"t": "1245", "c": 709.56}, {"t": "1246", "c": 709.97}, {"t": "1247", "c": 710.02}, {"t": "1248", "c": 710.32}, {"t": "1249", "c": 710.05}, {"t": "1250", "c": 709.87}, {"t": "1251", "c": 709.88}, {"t": "1252", "c": 709.88}, {"t": "1253", "c": 709.62}, {"t": "1254", "c": 709.7}, {"t": "1255", "c": 709.47}, {"t": "1256", "c": 709.3}, {"t": "1257", "c": 709.09}, {"t": "1258", "c": 708.87}, {"t": "1259", "c": 709.08}, {"t": "1300", "c": 708.76}, {"t": "1301", "c": 708.25}, {"t": "1302", "c": 707.88}, {"t": "1303", "c": 707.5}, {"t": "1304", "c": 707.15}, {"t": "1305", "c": 706.99}, {"t": "1306", "c": 707.03}, {"t": "1307", "c": 706.9}, {"t": "1308", "c": 706.96}, {"t": "1309", "c": 706.85}, {"t": "1310", "c": 706.66}, {"t": "1311", "c": 706.77}, {"t": "1312", "c": 707.14}, {"t": "1313", "c": 706.95}, {"t": "1314", "c": 706.77}, {"t": "1315", "c": 706.59}, {"t": "1316", "c": 706.2}, {"t": "1317", "c": 706.02}, {"t": "1318", "c": 705.75}, {"t": "1319", "c": 705.53}, {"t": "1320", "c": 705.22}, {"t": "1321", "c": 705.42}, {"t": "1322", "c": 705.2}, {"t": "1323", "c": 705.65}, {"t": "1324", "c": 705.58}, {"t": "1325", "c": 705.62}, {"t": "1326", "c": 706.46}, {"t": "1327", "c": 706.62}, {"t": "1328", "c": 707.0}, {"t": "1329", "c": 707.21}, {"t": "1330", "c": 706.99}, {"t": "1331", "c": 706.68}, {"t": "1332", "c": 706.3}, {"t": "1333", "c": 706.39}, {"t": "1334", "c": 706.27}, {"t": "1335", "c": 706.13}, {"t": "1336", "c": 705.63}, {"t": "1337", "c": 705.17}, {"t": "1338", "c": 704.81}, {"t": "1339", "c": 704.84}, {"t": "1340", "c": 704.3}, {"t": "1341", "c": 703.91}, {"t": "1342", "c": 704.04}, {"t": "1343", "c": 704.34}, {"t": "1344", "c": 704.14}, {"t": "1345", "c": 703.94}, {"t": "1346", "c": 703.72}, {"t": "1347", "c": 704.05}, {"t": "1348", "c": 703.85}, {"t": "1349", "c": 703.75}, {"t": "1350", "c": 704.13}, {"t": "1351", "c": 704.18}, {"t": "1352", "c": 703.94}, {"t": "1353", "c": 703.82}, {"t": "1354", "c": 703.87}, {"t": "1355", "c": 703.77}, {"t": "1356", "c": 703.94}, {"t": "1357", "c": 704.59}, {"t": "1358", "c": 704.86}, {"t": "1359", "c": 704.7}, {"t": "1400", "c": 704.28}, {"t": "1401", "c": 704.39}, {"t": "1402", "c": 704.15}, {"t": "1403", "c": 704.09}, {"t": "1404", "c": 704.07}, {"t": "1405", "c": 703.73}, {"t": "1406", "c": 703.39}, {"t": "1407", "c": 703.64}, {"t": "1408", "c": 703.42}, {"t": "1409", "c": 703.61}, {"t": "1410", "c": 703.69}, {"t": "1411", "c": 703.69}, {"t": "1412", "c": 703.39}, {"t": "1413", "c": 703.38}, {"t": "1414", "c": 703.11}, {"t": "1415", "c": 703.87}, {"t": "1416", "c": 704.82}, {"t": "1417", "c": 704.75}, {"t": "1418", "c": 705.43}, {"t": "1419", "c": 705.22}, {"t": "1420", "c": 705.34}, {"t": "1421", "c": 705.65}, {"t": "1422", "c": 705.52}, {"t": "1423", "c": 705.13}, {"t": "1424", "c": 705.1}, {"t": "1425", "c": 704.94}, {"t": "1426", "c": 704.88}, {"t": "1427", "c": 705.33}, {"t": "1428", "c": 705.51}, {"t": "1429", "c": 705.41}, {"t": "1430", "c": 705.29}, {"t": "1431", "c": 704.64}, {"t": "1432", "c": 704.38}, {"t": "1433", "c": 704.24}, {"t": "1434", "c": 703.75}, {"t": "1435", "c": 703.76}, {"t": "1436", "c": 704.12}, {"t": "1437", "c": 704.09}, {"t": "1438", "c": 704.33}, {"t": "1439", "c": 704.29}, {"t": "1440", "c": 705.06}, {"t": "1441", "c": 705.56}, {"t": "1442", "c": 705.92}, {"t": "1443", "c": 705.65}, {"t": "1444", "c": 704.91}, {"t": "1445", "c": 704.53}, {"t": "1446", "c": 704.34}, {"t": "1447", "c": 704.47}, {"t": "1448", "c": 704.13}, {"t": "1449", "c": 703.81}, {"t": "1450", "c": 704.06}, {"t": "1451", "c": 703.92}, {"t": "1452", "c": 703.83}, {"t": "1453", "c": 703.75}, {"t": "1454", "c": 703.91}, {"t": "1455", "c": 703.95}, {"t": "1456", "c": 703.52}, {"t": "1457", "c": 703.3}, {"t": "1458", "c": 703.26}, {"t": "1459", "c": 703.39}, {"t": "1500", "c": 703.39}, {"t": "1501", "c": 703.39}, {"t": "1502", "c": 703.28}, {"t": "1503", "c": 703.06}, {"t": "1504", "c": 703.1}, {"t": "1505", "c": 703.16}, {"t": "1506", "c": 703.18}, {"t": "1507", "c": 703.14}, {"t": "1508", "c": 703.23}, {"t": "1509", "c": 703.17}, {"t": "1510", "c": 703.08}, {"t": "1511", "c": 702.77}, {"t": "1512", "c": 702.7}, {"t": "1513", "c": 702.55}, {"t": "1514", "c": 702.53}, {"t": "1515", "c": 703.04}, {"t": "1516", "c": 703.05}, {"t": "1517", "c": 703.57}, {"t": "1518", "c": 703.47}, {"t": "1519", "c": 703.77}, {"t": "1530", "c": 704.39}]}}, "/api/futures?minutes=1": {"futures": {"code": "A016C000", "name": "KOSPI200 선물 202612", "price": 885.15, "change": -33.5, "change_pct": -3.65, "volume": 136832, "open_interest": 149218}, "bars": [{"t": "0845", "o": 897.0, "h": 897.0, "l": 891.95, "c": 891.95, "v": 1026, "oi": 151497}, {"t": "0846", "o": 891.7, "h": 892.45, "l": 891.25, "c": 891.55, "v": 467, "oi": 151388}, {"t": "0847", "o": 891.4, "h": 894.1, "l": 891.25, "c": 894.05, "v": 322, "oi": 151348}, {"t": "0848", "o": 893.8, "h": 895.25, "l": 893.35, "c": 894.35, "v": 239, "oi": 151320}, {"t": "0849", "o": 894.4, "h": 894.45, "l": 892.75, "c": 893.15, "v": 142, "oi": 151299}, {"t": "0850", "o": 893.35, "h": 893.35, "l": 890.85, "c": 891.8, "v": 194, "oi": 151283}, {"t": "0851", "o": 892.0, "h": 892.15, "l": 891.55, "c": 891.75, "v": 85, "oi": 151292}, {"t": "0852", "o": 891.75, "h": 891.75, "l": 891.15, "c": 891.45, "v": 72, "oi": 151289}, {"t": "0853", "o": 891.5, "h": 892.85, "l": 891.25, "c": 892.85, "v": 89, "oi": 151310}, {"t": "0854", "o": 892.7, "h": 894.0, "l": 892.7, "c": 893.85, "v": 77, "oi": 151289}, {"t": "0855", "o": 893.7, "h": 893.85, "l": 892.4, "c": 892.6, "v": 75, "oi": 151297}, {"t": "0856", "o": 892.45, "h": 892.7, "l": 891.6, "c": 891.75, "v": 75, "oi": 151298}, {"t": "0857", "o": 891.95, "h": 892.15, "l": 891.2, "c": 891.5, "v": 69, "oi": 151307}, {"t": "0858", "o": 891.5, "h": 892.25, "l": 891.5, "c": 892.0, "v": 58, "oi": 151320}, {"t": "0859", "o": 892.3, "h": 893.65, "l": 892.05, "c": 893.3, "v": 162, "oi": 151339}, {"t": "0900", "o": 893.6, "h": 895.65, "l": 893.2, "c": 894.35, "v": 905, "oi": 151397}, {"t": "0901", "o": 894.45, "h": 895.2, "l": 890.1, "c": 890.15, "v": 1070, "oi": 151371}, {"t": "0902", "o": 890.2, "h": 892.2, "l": 889.25, "c": 891.2, "v": 979, "oi": 151463}, {"t": "0903", "o": 891.15, "h": 893.8, "l": 891.15, "c": 892.8, "v": 823, "oi": 151404}, {"t": "0904", "o": 892.85, "h": 893.4, "l": 890.3, "c": 890.55, "v": 563, "oi": 151368}, {"t": "0905", "o": 890.45, "h": 890.7, "l": 887.7, "c": 888.05, "v": 778, "oi": 151365}, {"t": "0906", "o": 887.9, "h": 888.15, "l": 886.25, "c": 886.9, "v": 1037, "oi": 151286}, {"t": "0907", "o": 886.75, "h": 887.45, "l": 885.4, "c": 886.5, "v": 762, "oi": 151388}, {"t": "0908", "o": 886.55, "h": 886.65, "l": 883.6, "c": 883.85, "v": 721, "oi": 151338}, {"t": "0909", "o": 883.8, "h": 884.75, "l": 883.25, "c": 883.65, "v": 510, "oi": 151321}, {"t": "0910", "o": 883.8, "h": 886.25, "l": 883.6, "c": 886.05, "v": 567, "oi": 151324}, {"t": "0911", "o": 886.1, "h": 886.5, "l": 885.25, "c": 885.8, "v": 412, "oi": 151339}, {"t": "0912", "o": 885.9, "h": 887.1, "l": 885.5, "c": 886.55, "v": 564, "oi": 151372}, {"t": "0913", "o": 886.5, "h": 887.25, "l": 885.1, "c": 885.4, "v": 394, "oi": 151403}, {"t": "0914", "o": 885.5, "h": 886.2, "l": 885.3, "c": 885.75, "v": 292, "oi": 151354}, {"t": "0915", "o": 885.7, "h": 888.5, "l": 885.3, "c": 887.25, "v": 667, "oi": 151261}, {"t": "0916", "o": 887.25, "h": 887.7, "l": 885.25, "c": 886.45, "v": 434, "oi": 151189}, {"t": "0917", "o": 886.5, "h": 888.35, "l": 886.2, "c": 887.65, "v": 395, "oi": 151176}, {"t": "0918", "o": 887.6, "h": 887.7, "l": 886.5, "c": 887.15, "v": 346, "oi": 151164}, {"t": "0919", "o": 887.05, "h": 887.7, "l": 885.6, "c": 885.7, "v": 351, "oi": 151157}, {"t": "0920", "o": 885.7, "h": 886.85, "l": 885.45, "c": 886.45, "v": 372, "oi": 151122}, {"t": "0921", "o": 886.6, "h": 888.85, "l": 886.6, "c": 888.45, "v": 479, "oi": 151086}, {"t": "0922", "o": 888.45, "h": 889.35, "l": 887.25, "c": 888.0, "v": 462, "oi": 151044}, {"t": "0923", "o": 887.9, "h": 888.5, "l": 886.6, "c": 887.4, "v": 414, "oi": 150996}, {"t": "0924", "o": 887.5, "h": 888.1, "l": 885.1, "c": 885.65, "v": 431, "oi": 150944}, {"t": "0925", "o": 885.65, "h": 888.15, "l": 885.4, "c": 887.9, "v": 470, "oi": 150935}, {"t": "0926", "o": 887.8, "h": 888.85, "l": 887.2, "c": 887.9, "v": 263, "oi": 150890}, {"t": "0927", "o": 887.8, "h": 890.6, "l": 887.75, "c": 890.2, "v": 300, "oi": 150887}, {"t": "0928", "o": 890.2, "h": 890.2, "l": 888.7, "c": 889.1, "v": 331, "oi": 150875}, {"t": "0929", "o": 889.15, "h": 889.8, "l": 888.35, "c": 889.35, "v": 207, "oi": 150905}, {"t": "0930", "o": 889.5, "h": 889.55, "l": 887.8, "c": 888.75, "v": 336, "oi": 150951}, {"t": "0931", "o": 888.8, "h": 889.8, "l": 888.2, "c": 888.7, "v": 291, "oi": 150991}, {"t": "0932", "o": 888.7, "h": 889.05, "l": 887.75, "c": 887.8, "v": 196, "oi": 151001}, {"t": "0933", "o": 887.75, "h": 889.25, "l": 887.05, "c": 888.7, "v": 268, "oi": 150966}, {"t": "0934", "o": 889.0, "h": 890.7, "l": 889.0, "c": 889.9, "v": 361, "oi": 150985}, {"t": "0935", "o": 890.0, "h": 890.05, "l": 888.5, "c": 889.1, "v": 304, "oi": 151016}, {"t": "0936", "o": 889.2, "h": 889.75, "l": 888.55, "c": 889.25, "v": 127, "oi": 151035}, {"t": "0937", "o": 889.3, "h": 890.2, "l": 888.9, "c": 889.1, "v": 217, "oi": 151032}, {"t": "0938", "o": 889.35, "h": 889.85, "l": 888.6, "c": 889.0, "v": 266, "oi": 151034}, {"t": "0939", "o": 889.0, "h": 889.05, "l": 886.95, "c": 887.1, "v": 389, "oi": 151038}, {"t": "0940", "o": 886.9, "h": 887.8, "l": 885.95, "c": 886.3, "v": 415, "oi": 151080}, {"t": "0941", "o": 886.35, "h": 887.6, "l": 885.85, "c": 886.0, "v": 349, "oi": 151068}, {"t": "0942", "o": 886.0, "h": 886.1, "l": 884.75, "c": 885.25, "v": 383, "oi": 151092}, {"t": "0943", "o": 885.3, "h": 885.7, "l": 883.9, "c": 884.55, "v": 585, "oi": 151122}, {"t": "0944", "o": 884.55, "h": 884.7, "l": 882.4, "c": 882.55, "v": 728, "oi": 151119}, {"t": "0945", "o": 882.45, "h": 885.65, "l": 882.35, "c": 884.8, "v": 638, "oi": 151177}, {"t": "0946", "o": 884.75, "h": 886.25, "l": 884.65, "c": 885.95, "v": 289, "oi": 151133}, {"t": "0947", "o": 885.9, "h": 887.05, "l": 885.8, "c": 886.3, "v": 303, "oi": 151129}, {"t": "0948", "o": 886.35, "h": 887.0, "l": 885.3, "c": 885.45, "v": 397, "oi": 151134}, {"t": "0949", "o": 885.25, "h": 885.3, "l": 882.9, "c": 884.0, "v": 432, "oi": 151082}, {"t": "0950", "o": 884.0, "h": 885.1, "l": 883.5, "c": 884.45, "v": 301, "oi": 151082}, {"t": "0951", "o": 884.4, "h": 884.6, "l": 882.7, "c": 882.95, "v": 278, "oi": 151052}, {"t": "0952", "o": 882.95, "h": 884.05, "l": 882.95, "c": 883.5, "v": 211, "oi": 151070}, {"t": "0953", "o": 883.45, "h": 883.55, "l": 882.15, "c": 883.25, "v": 282, "oi": 151082}, {"t": "0954", "o": 883.3, "h": 883.3, "l": 882.4, "c": 882.85, "v": 99, "oi": 151085}, {"t": "0955", "o": 882.85, "h": 884.7, "l": 882.8, "c": 884.7, "v": 254, "oi": 151092}, {"t": "0956", "o": 884.7, "h": 885.35, "l": 884.55, "c": 885.25, "v": 196, "oi": 151106}, {"t": "0957", "o": 885.25, "h": 885.35, "l": 884.3, "c": 884.75, "v": 146, "oi": 151116}, {"t": "0958", "o": 884.65, "h": 886.35, "l": 884.6, "c": 886.05, "v": 314, "oi": 151116}, {"t": "0959", "o": 886.15, "h": 888.55, "l": 886.05, "c": 888.25, "v": 529, "oi": 151097}, {"t": "1000", "o": 888.15, "h": 888.15, "l": 886.45, "c": 887.45, "v": 545, "oi": 151202}, {"t": "1001", "o": 887.3, "h": 888.15, "l": 886.35, "c": 888.15, "v": 339, "oi": 151238}, {"t": "1002", "o": 888.1, "h": 891.35, "l": 887.75, "c": 890.7, "v": 767, "oi": 151204}, {"t": "1003", "o": 890.65, "h": 892.05, "l": 889.8, "c": 891.3, "v": 595, "oi": 151174}, {"t": "1004", "o": 891.35, "h": 892.7, "l": 891.05, "c": 892.55, "v": 576, "oi": 151126}, {"t": "1005", "o": 892.5, "h": 894.3, "l": 892.15, "c": 893.5, "v": 577, "oi": 151114}, {"t": "1006", "o": 893.5, "h": 894.25, "l": 892.9, "c": 893.1, "v": 310, "oi": 151128}, {"t": "1007", "o": 893.15, "h": 896.35, "l": 892.8, "c": 894.4, "v": 776, "oi": 151128}, {"t": "1008", "o": 894.45, "h": 894.6, "l": 893.45, "c": 894.55, "v": 336, "oi": 151107}, {"t": "1009", "o": 894.55, "h": 894.75, "l": 893.45, "c": 894.6, "v": 319, "oi": 151136}, {"t": "1010", "o": 894.8, "h": 895.9, "l": 894.15, "c": 894.55, "v": 442, "oi": 151141}, {"t": "1011", "o": 894.7, "h": 895.0, "l": 892.55, "c": 893.9, "v": 526, "oi": 151154}, {"t": "1012", "o": 893.8, "h": 894.5, "l": 893.6, "c": 893.9, "v": 326, "oi": 151118}, {"t": "1013", "o": 893.75, "h": 894.95, "l": 893.65, "c": 894.45, "v": 263, "oi": 151141}, {"t": "1014", "o": 894.3, "h": 894.5, "l": 893.2, "c": 893.55, "v": 277, "oi": 151138}, {"t": "1015", "o": 893.55, "h": 894.75, "l": 892.85, "c": 892.9, "v": 331, "oi": 151163}, {"t": "1016", "o": 892.85, "h": 896.15, "l": 892.85, "c": 896.15, "v": 444, "oi": 151241}, {"t": "1017", "o": 896.2, "h": 897.2, "l": 895.05, "c": 895.05, "v": 666, "oi": 151282}, {"t": "1018", "o": 895.2, "h": 897.85, "l": 895.2, "c": 897.8, "v": 370, "oi": 151272}, {"t": "1019", "o": 897.85, "h": 899.1, "l": 897.45, "c": 898.1, "v": 629, "oi": 151319}, {"t": "1020", "o": 898.2, "h": 899.2, "l": 897.55, "c": 898.15, "v": 390, "oi": 151351}, {"t": "1021", "o": 898.4, "h": 898.65, "l": 897.3, "c": 897.95, "v": 202, "oi": 151374}, {"t": "1022", "o": 897.8, "h": 898.4, "l": 897.2, "c": 897.8, "v": 150, "oi": 151369}, {"t": "1023", "o": 897.75, "h": 898.0, "l": 896.15, "c": 897.5, "v": 414, "oi": 151388}, {"t": "1024", "o": 897.2, "h": 897.4, "l": 895.45, "c": 896.05, "v": 235, "oi": 151417}, {"t": "1025", "o": 896.0, "h": 896.0, "l": 894.8, "c": 894.85, "v": 275, "oi": 151461}, {"t": "1026", "o": 894.9, "h": 895.05, "l": 894.0, "c": 894.0, "v": 284, "oi": 151447}, {"t": "1027", "o": 894.05, "h": 895.2, "l": 893.65, "c": 894.4, "v": 270, "oi": 151453}, {"t": "1028", "o": 894.4, "h": 894.7, "l": 893.4, "c": 894.05, "v": 328, "oi": 151454}, {"t": "1029", "o": 893.95, "h": 895.65, "l": 893.85, "c": 895.05, "v": 429, "oi": 151403}, {"t": "1030", "o": 895.1, "h": 895.65, "l": 894.5, "c": 895.4, "v": 281, "oi": 151368}, {"t": "1031", "o": 895.35, "h": 895.9, "l": 893.25, "c": 893.55, "v": 333, "oi": 151368}, {"t": "1032", "o": 893.65, "h": 895.15, "l": 893.25, "c": 895.1, "v": 171, "oi": 151357}, {"t": "1033", "o": 895.2, "h": 895.45, "l": 893.95, "c": 894.1, "v": 129, "oi": 151363}, {"t": "1034", "o": 894.2, "h": 896.5, "l": 893.95, "c": 895.85, "v": 366, "oi": 151348}, {"t": "1035", "o": 895.85, "h": 896.2, "l": 894.6, "c": 896.2, "v": 323, "oi": 151368}, {"t": "1036", "o": 896.3, "h": 897.25, "l": 895.5, "c": 896.75, "v": 357, "oi": 151353}, {"t": "1037", "o": 896.55, "h": 896.6, "l": 893.25, "c": 893.75, "v": 310, "oi": 151390}, {"t": "1038", "o": 893.7, "h": 894.05, "l": 892.9, "c": 893.75, "v": 240, "oi": 151372}, {"t": "1039", "o": 893.65, "h": 896.0, "l": 893.65, "c": 895.25, "v": 252, "oi": 151384}, {"t": "1040", "o": 895.8, "h": 896.75, "l": 895.5, "c": 895.95, "v": 179, "oi": 151380}, {"t": "1041", "o": 895.85, "h": 895.85, "l": 893.55, "c": 894.45, "v": 258, "oi": 151371}, {"t": "1042", "o": 894.5, "h": 895.0, "l": 894.05, "c": 894.3, "v": 91, "oi": 151382}, {"t": "1043", "o": 894.2, "h": 894.3, "l": 892.65, "c": 892.7, "v": 308, "oi": 151370}, {"t": "1044", "o": 892.7, "h": 895.95, "l": 892.5, "c": 895.35, "v": 275, "oi": 151367}, {"t": "1045", "o": 895.25, "h": 896.35, "l": 893.6, "c": 896.05, "v": 258, "oi": 151388}, {"t": "1046", "o": 896.05, "h": 896.25, "l": 895.05, "c": 895.25, "v": 167, "oi": 151367}, {"t": "1047", "o": 895.3, "h": 896.0, "l": 894.05, "c": 895.95, "v": 213, "oi": 151329}, {"t": "1048", "o": 896.0, "h": 896.3, "l": 894.7, "c": 895.15, "v": 180, "oi": 151321}, {"t": "1049", "o": 895.3, "h": 895.3, "l": 893.3, "c": 894.25, "v": 159, "oi": 151317}, {"t": "1050", "o": 894.3, "h": 896.55, "l": 893.95, "c": 896.1, "v": 253, "oi": 151330}, {"t": "1051", "o": 896.25, "h": 896.95, "l": 894.75, "c": 895.35, "v": 165, "oi": 151347}, {"t": "1052", "o": 895.5, "h": 897.0, "l": 895.2, "c": 896.75, "v": 213, "oi": 151334}, {"t": "1053", "o": 896.8, "h": 898.6, "l": 896.75, "c": 897.25, "v": 400, "oi": 151364}, {"t": "1054", "o": 897.35, "h": 897.45, "l": 895.8, "c": 896.8, "v": 246, "oi": 151243}, {"t": "1055", "o": 896.5, "h": 897.0, "l": 895.55, "c": 896.4, "v": 204, "oi": 151252}, {"t": "1056", "o": 896.3, "h": 896.75, "l": 895.2, "c": 895.65, "v": 119, "oi": 151246}, {"t": "1057", "o": 895.6, "h": 895.7, "l": 894.6, "c": 895.35, "v": 162, "oi": 151234}, {"t": "1058", "o": 895.3, "h": 896.9, "l": 894.85, "c": 896.45, "v": 154, "oi": 151235}, {"t": "1059", "o": 896.5, "h": 897.0, "l": 895.2, "c": 895.5, "v": 186, "oi": 151236}, {"t": "1100", "o": 895.35, "h": 895.4, "l": 893.25, "c": 894.05, "v": 352, "oi": 151186}, {"t": "1101", "o": 894.0, "h": 896.4, "l": 893.75, "c": 896.15, "v": 201, "oi": 151195}, {"t": "1102", "o": 895.9, "h": 897.55, "l": 895.9, "c": 896.45, "v": 361, "oi": 151189}, {"t": "1103", "o": 896.65, "h": 897.6, "l": 896.15, "c": 896.5, "v": 181, "oi": 151197}, {"t": "1104", "o": 896.55, "h": 897.1, "l": 895.4, "c": 895.5, "v": 167, "oi": 151177}, {"t": "1105", "o": 895.5, "h": 896.2, "l": 894.35, "c": 894.7, "v": 274, "oi": 151211}, {"t": "1106", "o": 894.7, "h": 895.4, "l": 894.35, "c": 894.8, "v": 172, "oi": 151206}, {"t": "1107", "o": 894.75, "h": 896.0, "l": 894.45, "c": 895.6, "v": 118, "oi": 151193}, {"t": "1108", "o": 895.1, "h": 895.75, "l": 894.5, "c": 894.5, "v": 90, "oi": 151205}, {"t": "1109", "o": 894.6, "h": 895.5, "l": 894.4, "c": 894.9, "v": 140, "oi": 151227}, {"t": "1110", "o": 894.95, "h": 894.95, "l": 894.1, "c": 894.45, "v": 137, "oi": 151212}, {"t": "1111", "o": 894.5, "h": 895.35, "l": 893.9, "c": 893.95, "v": 182, "oi": 151201}, {"t": "1112", "o": 894.0, "h": 894.75, "l": 893.65, "c": 894.25, "v": 131, "oi": 151176}, {"t": "1113", "o": 894.1, "h": 897.05, "l": 894.1, "c": 896.85, "v": 326, "oi": 151135}, {"t": "1114", "o": 896.8, "h": 897.25, "l": 896.55, "c": 896.85, "v": 152, "oi": 151123}, {"t": "1115", "o": 896.95, "h": 897.4, "l": 895.15, "c": 895.6, "v": 271, "oi": 151078}, {"t": "1116", "o": 895.45, "h": 895.65, "l": 895.0, "c": 895.0, "v": 136, "oi": 151088}, {"t": "1117", "o": 895.05, "h": 895.4, "l": 894.45, "c": 895.1, "v": 199, "oi": 151079}, {"t": "1118", "o": 894.9, "h": 895.95, "l": 894.4, "c": 895.6, "v": 127, "oi": 151066}, {"t": "1119", "o": 895.5, "h": 895.9, "l": 894.65, "c": 895.7, "v": 140, "oi": 151041}, {"t": "1120", "o": 895.75, "h": 895.75, "l": 894.45, "c": 894.65, "v": 161, "oi": 151029}, {"t": "1121", "o": 894.45, "h": 895.5, "l": 894.3, "c": 895.0, "v": 88, "oi": 151025}, {"t": "1122", "o": 894.85, "h": 896.7, "l": 894.75, "c": 895.65, "v": 172, "oi": 150995}, {"t": "1123", "o": 895.75, "h": 896.6, "l": 895.5, "c": 895.75, "v": 147, "oi": 150983}, {"t": "1124", "o": 895.7, "h": 896.2, "l": 894.5, "c": 896.05, "v": 191, "oi": 150948}, {"t": "1125", "o": 896.1, "h": 896.85, "l": 895.95, "c": 896.65, "v": 208, "oi": 150955}, {"t": "1126", "o": 896.45, "h": 896.55, "l": 895.4, "c": 895.55, "v": 99, "oi": 150950}, {"t": "1127", "o": 895.6, "h": 895.8, "l": 894.0, "c": 894.35, "v": 194, "oi": 150960}, {"t": "1128", "o": 894.2, "h": 894.45, "l": 892.95, "c": 893.25, "v": 375, "oi": 150973}, {"t": "1129", "o": 893.2, "h": 893.7, "l": 892.8, "c": 893.1, "v": 360, "oi": 150930}, {"t": "1130", "o": 893.25, "h": 893.8, "l": 892.4, "c": 892.95, "v": 363, "oi": 150926}, {"t": "1131", "o": 892.8, "h": 893.15, "l": 891.4, "c": 893.1, "v": 517, "oi": 150924}, {"t": "1132", "o": 893.1, "h": 894.2, "l": 892.7, "c": 893.65, "v": 184, "oi": 150930}, {"t": "1133", "o": 893.55, "h": 894.1, "l": 893.3, "c": 893.9, "v": 108, "oi": 150915}, {"t": "1134", "o": 893.95, "h": 894.1, "l": 892.9, "c": 893.35, "v": 79, "oi": 150912}, {"t": "1135", "o": 893.3, "h": 894.6, "l": 892.85, "c": 894.25, "v": 224, "oi": 150920}, {"t": "1136", "o": 894.15, "h": 894.75, "l": 894.05, "c": 894.7, "v": 92, "oi": 150928}, {"t": "1137", "o": 894.6, "h": 895.1, "l": 894.0, "c": 894.35, "v": 88, "oi": 150918}, {"t": "1138", "o": 894.3, "h": 894.45, "l": 893.8, "c": 893.85, "v": 92, "oi": 150923}, {"t": "1139", "o": 893.85, "h": 894.4, "l": 893.65, "c": 893.7, "v": 77, "oi": 150928}, {"t": "1140", "o": 893.75, "h": 893.75, "l": 892.6, "c": 892.95, "v": 191, "oi": 150926}, {"t": "1141", "o": 892.85, "h": 892.9, "l": 891.95, "c": 892.2, "v": 190, "oi": 150932}, {"t": "1142", "o": 892.1, "h": 892.15, "l": 891.15, "c": 891.2, "v": 256, "oi": 150940}, {"t": "1143", "o": 891.1, "h": 891.1, "l": 890.2, "c": 890.5, "v": 223, "oi": 150939}, {"t": "1144", "o": 890.55, "h": 890.95, "l": 890.45, "c": 890.6, "v": 174, "oi": 150906}, {"t": "1145", "o": 890.55, "h": 890.75, "l": 890.1, "c": 890.15, "v": 155, "oi": 150900}, {"t": "1146", "o": 890.05, "h": 890.8, "l": 888.9, "c": 889.0, "v": 292, "oi": 150891}, {"t": "1147", "o": 889.05, "h": 889.2, "l": 888.25, "c": 888.85, "v": 223, "oi": 150881}, {"t": "1148", "o": 888.8, "h": 889.25, "l": 888.65, "c": 888.9, "v": 169, "oi": 150866}, {"t": "1149", "o": 888.8, "h": 889.7, "l": 888.8, "c": 889.5, "v": 164, "oi": 150908}, {"t": "1150", "o": 889.4, "h": 890.5, "l": 889.15, "c": 890.45, "v": 174, "oi": 150937}, {"t": "1151", "o": 890.4, "h": 890.85, "l": 890.1, "c": 890.75, "v": 120, "oi": 150936}, {"t": "1152", "o": 890.4, "h": 890.4, "l": 889.45, "c": 889.55, "v": 83, "oi": 150940}, {"t": "1153", "o": 889.45, "h": 889.7, "l": 887.85, "c": 888.15, "v": 230, "oi": 150912}, {"t": "1154", "o": 888.2, "h": 888.2, "l": 887.25, "c": 887.4, "v": 250, "oi": 150917}, {"t": "1155", "o": 887.45, "h": 887.55, "l": 886.6, "c": 887.0, "v": 305, "oi": 150942}, {"t": "1156", "o": 886.9, "h": 887.4, "l": 886.75, "c": 886.85, "v": 241, "oi": 150918}, {"t": "1157", "o": 886.8, "h": 887.0, "l": 886.2, "c": 886.7, "v": 189, "oi": 150913}, {"t": "1158", "o": 886.65, "h": 887.3, "l": 886.4, "c": 887.1, "v": 270, "oi": 150936}, {"t": "1159", "o": 887.05, "h": 887.15, "l": 885.2, "c": 885.35, "v": 319, "oi": 150965}, {"t": "1200", "o": 885.4, "h": 887.05, "l": 885.35, "c": 886.0, "v": 271, "oi": 150990}, {"t": "1201", "o": 885.9, "h": 886.4, "l": 885.2, "c": 886.15, "v": 185, "oi": 150986}, {"t": "1202", "o": 886.1, "h": 887.35, "l": 886.05, "c": 886.9, "v": 233, "oi": 150995}, {"t": "1203", "o": 886.75, "h": 888.1, "l": 886.7, "c": 887.45, "v": 189, "oi": 150994}, {"t": "1204", "o": 887.35, "h": 887.6, "l": 886.5, "c": 887.35, "v": 96, "oi": 150994}, {"t": "1205", "o": 887.25, "h": 888.1, "l": 887.25, "c": 887.9, "v": 75, "oi": 151011}, {"t": "1206", "o": 887.9, "h": 888.35, "l": 887.4, "c": 888.1, "v": 156, "oi": 151021}, {"t": "1207", "o": 888.05, "h": 888.6, "l": 887.6, "c": 888.1, "v": 115, "oi": 151025}, {"t": "1208", "o": 888.05, "h": 888.85, "l": 887.8, "c": 888.05, "v": 151, "oi": 151023}, {"t": "1209", "o": 887.95, "h": 888.3, "l": 887.3, "c": 887.85, "v": 111, "oi": 151016}, {"t": "1210", "o": 887.75, "h": 887.95, "l": 887.2, "c": 887.65, "v": 183, "oi": 151048}, {"t": "1211", "o": 887.55, "h": 887.9, "l": 886.1, "c": 886.2, "v": 250, "oi": 151013}, {"t": "1212", "o": 886.1, "h": 887.2, "l": 885.9, "c": 886.55, "v": 229, "oi": 150984}, {"t": "1213", "o": 886.4, "h": 886.8, "l": 885.8, "c": 886.7, "v": 139, "oi": 150969}, {"t": "1214", "o": 886.65, "h": 886.8, "l": 886.0, "c": 886.0, "v": 118, "oi": 150968}, {"t": "1215", "o": 885.9, "h": 887.4, "l": 885.9, "c": 887.25, "v": 212, "oi": 150951}, {"t": "1216", "o": 887.3, "h": 887.7, "l": 886.95, "c": 887.05, "v": 123, "oi": 150952}, {"t": "1217", "o": 886.85, "h": 887.2, "l": 885.95, "c": 886.0, "v": 111, "oi": 150926}, {"t": "1218", "o": 885.95, "h": 886.6, "l": 885.9, "c": 886.45, "v": 109, "oi": 150922}, {"t": "1219", "o": 886.4, "h": 887.25, "l": 886.25, "c": 887.15, "v": 119, "oi": 150930}, {"t": "1220", "o": 887.05, "h": 888.05, "l": 887.0, "c": 887.55, "v": 151, "oi": 150931}, {"t": "1221", "o": 887.5, "h": 888.1, "l": 887.35, "c": 887.85, "v": 161, "oi": 150938}, {"t": "1222", "o": 887.75, "h": 889.2, "l": 887.7, "c": 888.5, "v": 198, "oi": 150928}, {"t": "1223", "o": 888.45, "h": 889.1, "l": 888.4, "c": 888.95, "v": 92, "oi": 150923}, {"t": "1224", "o": 888.9, "h": 889.25, "l": 888.3, "c": 888.35, "v": 192, "oi": 150927}, {"t": "1225", "o": 888.4, "h": 889.25, "l": 887.9, "c": 888.85, "v": 118, "oi": 150917}, {"t": "1226", "o": 888.8, "h": 888.95, "l": 888.2, "c": 888.3, "v": 94, "oi": 150920}, {"t": "1227", "o": 888.25, "h": 888.3, "l": 887.3, "c": 887.45, "v": 140, "oi": 150914}, {"t": "1228", "o": 887.4, "h": 887.6, "l": 885.35, "c": 885.95, "v": 311, "oi": 150930}, {"t": "1229", "o": 886.2, "h": 886.35, "l": 885.35, "c": 886.2, "v": 177, "oi": 150976}, {"t": "1230", "o": 886.15, "h": 887.15, "l": 885.95, "c": 886.65, "v": 213, "oi": 150943}, {"t": "1231", "o": 886.65, "h": 887.1, "l": 885.5, "c": 885.5, "v": 148, "oi": 150934}, {"t": "1232", "o": 885.6, "h": 886.05, "l": 885.1, "c": 885.25, "v": 205, "oi": 150912}, {"t": "1233", "o": 885.15, "h": 886.1, "l": 885.05, "c": 885.95, "v": 352, "oi": 150899}, {"t": "1234", "o": 885.9, "h": 886.3, "l": 885.45, "c": 885.95, "v": 168, "oi": 150855}, {"t": "1235", "o": 885.85, "h": 885.9, "l": 884.7, "c": 884.7, "v": 212, "oi": 150861}, {"t": "1236", "o": 884.75, "h": 885.3, "l": 884.6, "c": 884.75, "v": 105, "oi": 150861}, {"t": "1237", "o": 884.7, "h": 885.9, "l": 884.45, "c": 885.75, "v": 152, "oi": 150899}, {"t": "1238", "o": 885.6, "h": 887.25, "l": 885.55, "c": 886.8, "v": 197, "oi": 150880}, {"t": "1239", "o": 886.75, "h": 886.95, "l": 885.7, "c": 885.95, "v": 113, "oi": 150856}, {"t": "1240", "o": 886.0, "h": 886.15, "l": 885.4, "c": 885.8, "v": 90, "oi": 150852}, {"t": "1241", "o": 885.7, "h": 886.7, "l": 885.6, "c": 886.2, "v": 108, "oi": 150856}, {"t": "1242", "o": 886.05, "h": 886.05, "l": 885.2, "c": 885.75, "v": 107, "oi": 150867}, {"t": "1243", "o": 885.75, "h": 886.15, "l": 885.4, "c": 885.65, "v": 71, "oi": 150866}, {"t": "1244", "o": 885.85, "h": 886.2, "l": 885.4, "c": 885.9, "v": 122, "oi": 150900}, {"t": "1245", "o": 885.85, "h": 887.0, "l": 885.75, "c": 886.8, "v": 97, "oi": 150893}, {"t": "1246", "o": 886.85, "h": 888.5, "l": 886.85, "c": 888.35, "v": 273, "oi": 150926}, {"t": "1247", "o": 888.25, "h": 888.6, "l": 888.05, "c": 888.5, "v": 190, "oi": 150909}, {"t": "1248", "o": 888.6, "h": 890.35, "l": 888.6, "c": 889.7, "v": 312, "oi": 150908}, {"t": "1249", "o": 889.55, "h": 889.65, "l": 888.4, "c": 888.95, "v": 215, "oi": 150970}, {"t": "1250", "o": 889.1, "h": 889.15, "l": 887.6, "c": 889.05, "v": 204, "oi": 150993}, {"t": "1251", "o": 888.95, "h": 889.15, "l": 888.55, "c": 888.7, "v": 84, "oi": 151005}, {"t": "1252", "o": 888.5, "h": 888.85, "l": 888.05, "c": 888.1, "v": 80, "oi": 151002}, {"t": "1253", "o": 888.05, "h": 889.35, "l": 888.05, "c": 889.15, "v": 126, "oi": 150995}, {"t": "1254", "o": 889.1, "h": 890.15, "l": 888.85, "c": 888.85, "v": 192, "oi": 151002}, {"t": "1255", "o": 888.85, "h": 889.0, "l": 887.8, "c": 888.0, "v": 235, "oi": 150977}, {"t": "1256", "o": 887.9, "h": 888.35, "l": 886.8, "c": 886.95, "v": 286, "oi": 150959}, {"t": "1257", "o": 886.9, "h": 887.2, "l": 886.6, "c": 886.9, "v": 112, "oi": 150952}, {"t": "1258", "o": 886.9, "h": 887.4, "l": 886.3, "c": 886.65, "v": 183, "oi": 150967}, {"t": "1259", "o": 886.6, "h": 887.9, "l": 886.4, "c": 887.0, "v": 166, "oi": 150976}, {"t": "1300", "o": 887.0, "h": 887.3, "l": 885.0, "c": 885.15, "v": 277, "oi": 150855}, {"t": "1301", "o": 885.1, "h": 885.65, "l": 884.75, "c": 885.15, "v": 193, "oi": 150861}, {"t": "1302", "o": 885.1, "h": 885.35, "l": 884.3, "c": 884.5, "v": 186, "oi": 150855}, {"t": "1303", "o": 884.45, "h": 885.1, "l": 884.4, "c": 885.0, "v": 95, "oi": 150871}, {"t": "1304", "o": 884.95, "h": 885.0, "l": 884.05, "c": 884.05, "v": 99, "oi": 150922}, {"t": "1305", "o": 884.0, "h": 884.9, "l": 884.0, "c": 884.8, "v": 98, "oi": 150922}, {"t": "1306", "o": 884.8, "h": 885.3, "l": 884.35, "c": 884.35, "v": 100, "oi": 150917}, {"t": "1307", "o": 884.3, "h": 884.75, "l": 884.25, "c": 884.5, "v": 106, "oi": 150915}, {"t": "1308", "o": 884.4, "h": 885.25, "l": 884.4, "c": 885.05, "v": 103, "oi": 150902}, {"t": "1309", "o": 885.0, "h": 885.05, "l": 884.6, "c": 885.0, "v": 78, "oi": 150886}, {"t": "1310", "o": 884.95, "h": 885.0, "l": 883.55, "c": 883.55, "v": 258, "oi": 150849}, {"t": "1311", "o": 883.55, "h": 884.65, "l": 883.55, "c": 884.1, "v": 166, "oi": 150835}, {"t": "1312", "o": 884.0, "h": 885.15, "l": 883.55, "c": 883.7, "v": 153, "oi": 150821}, {"t": "1313", "o": 883.75, "h": 883.85, "l": 883.35, "c": 883.45, "v": 113, "oi": 150809}, {"t": "1314", "o": 883.4, "h": 883.7, "l": 883.15, "c": 883.3, "v": 116, "oi": 150816}, {"t": "1315", "o": 883.3, "h": 883.35, "l": 882.05, "c": 882.2, "v": 338, "oi": 150837}, {"t": "1316", "o": 882.1, "h": 882.5, "l": 881.6, "c": 882.2, "v": 456, "oi": 150878}, {"t": "1317", "o": 882.25, "h": 882.6, "l": 881.55, "c": 881.55, "v": 186, "oi": 150884}, {"t": "1318", "o": 881.5, "h": 881.7, "l": 881.1, "c": 881.25, "v": 235, "oi": 150910}, {"t": "1319", "o": 881.2, "h": 881.25, "l": 880.15, "c": 880.5, "v": 315, "oi": 150947}, {"t": "1320", "o": 880.5, "h": 880.95, "l": 879.65, "c": 880.1, "v": 255, "oi": 150971}, {"t": "1321", "o": 880.0, "h": 881.2, "l": 880.0, "c": 880.8, "v": 275, "oi": 150926}, {"t": "1322", "o": 880.85, "h": 881.4, "l": 880.6, "c": 880.95, "v": 175, "oi": 150946}, {"t": "1323", "o": 881.0, "h": 881.35, "l": 880.9, "c": 881.0, "v": 110, "oi": 150954}, {"t": "1324", "o": 880.95, "h": 881.4, "l": 880.1, "c": 881.3, "v": 140, "oi": 150963}, {"t": "1325", "o": 881.35, "h": 882.05, "l": 881.35, "c": 881.4, "v": 226, "oi": 150993}, {"t": "1326", "o": 881.45, "h": 883.5, "l": 881.45, "c": 882.9, "v": 433, "oi": 151023}, {"t": "1327", "o": 882.95, "h": 883.6, "l": 882.55, "c": 883.3, "v": 175, "oi": 151015}, {"t": "1328", "o": 883.25, "h": 884.5, "l": 883.25, "c": 884.0, "v": 222, "oi": 151000}, {"t": "1329", "o": 884.05, "h": 884.7, "l": 884.05, "c": 884.4, "v": 137, "oi": 151005}, {"t": "1330", "o": 884.4, "h": 885.0, "l": 883.75, "c": 884.05, "v": 202, "oi": 151015}, {"t": "1331", "o": 884.2, "h": 884.2, "l": 882.5, "c": 882.8, "v": 212, "oi": 151000}, {"t": "1332", "o": 882.75, "h": 883.8, "l": 882.55, "c": 883.45, "v": 154, "oi": 151003}, {"t": "1333", "o": 883.55, "h": 884.1, "l": 883.3, "c": 883.4, "v": 65, "oi": 151011}, {"t": "1334", "o": 883.3, "h": 883.95, "l": 883.15, "c": 883.35, "v": 97, "oi": 151012}, {"t": "1335", "o": 883.4, "h": 883.65, "l": 883.05, "c": 883.35, "v": 97, "oi": 151023}, {"t": "1336", "o": 883.25, "h": 883.7, "l": 881.65, "c": 881.85, "v": 181, "oi": 151065}, {"t": "1337", "o": 881.85, "h": 881.85, "l": 880.8, "c": 881.4, "v": 220, "oi": 151037}, {"t": "1338", "o": 881.35, "h": 881.45, "l": 880.25, "c": 880.75, "v": 204, "oi": 151045}, {"t": "1339", "o": 880.8, "h": 881.25, "l": 880.45, "c": 881.15, "v": 184, "oi": 151060}, {"t": "1340", "o": 881.25, "h": 881.25, "l": 879.6, "c": 879.6, "v": 173, "oi": 151074}, {"t": "1341", "o": 879.55, "h": 879.9, "l": 879.35, "c": 879.4, "v": 132, "oi": 151085}, {"t": "1342", "o": 879.45, "h": 880.65, "l": 879.4, "c": 880.65, "v": 158, "oi": 151088}, {"t": "1343", "o": 880.7, "h": 881.7, "l": 880.65, "c": 881.2, "v": 207, "oi": 151126}, {"t": "1344", "o": 881.25, "h": 881.35, "l": 880.5, "c": 880.9, "v": 153, "oi": 151146}, {"t": "1345", "o": 880.9, "h": 881.45, "l": 880.65, "c": 881.35, "v": 184, "oi": 151124}, {"t": "1346", "o": 881.25, "h": 881.6, "l": 880.75, "c": 881.15, "v": 89, "oi": 151102}, {"t": "1347", "o": 881.2, "h": 881.7, "l": 880.9, "c": 881.1, "v": 108, "oi": 151086}, {"t": "1348", "o": 881.0, "h": 881.0, "l": 880.25, "c": 880.3, "v": 112, "oi": 151073}, {"t": "1349", "o": 880.3, "h": 881.0, "l": 880.0, "c": 880.9, "v": 249, "oi": 151069}, {"t": "1350", "o": 880.9, "h": 882.1, "l": 880.8, "c": 881.85, "v": 178, "oi": 151117}, {"t": "1351", "o": 881.85, "h": 881.9, "l": 881.1, "c": 881.35, "v": 115, "oi": 151093}, {"t": "1352", "o": 881.3, "h": 881.3, "l": 880.6, "c": 881.1, "v": 94, "oi": 151102}, {"t": "1353", "o": 881.15, "h": 881.2, "l": 880.8, "c": 881.15, "v": 65, "oi": 151107}, {"t": "1354", "o": 881.05, "h": 881.35, "l": 880.65, "c": 880.75, "v": 113, "oi": 151098}, {"t": "1355", "o": 880.8, "h": 881.0, "l": 880.6, "c": 880.9, "v": 45, "oi": 151102}, {"t": "1356", "o": 880.8, "h": 881.9, "l": 880.8, "c": 881.9, "v": 113, "oi": 151108}, {"t": "1357", "o": 881.95, "h": 883.25, "l": 881.9, "c": 883.0, "v": 269, "oi": 151100}, {"t": "1358", "o": 883.05, "h": 883.4, "l": 882.75, "c": 882.9, "v": 129, "oi": 151076}, {"t": "1359", "o": 882.85, "h": 882.85, "l": 882.0, "c": 882.2, "v": 129, "oi": 151046}, {"t": "1400", "o": 882.2, "h": 882.25, "l": 881.15, "c": 881.5, "v": 266, "oi": 151014}, {"t": "1401", "o": 881.4, "h": 882.5, "l": 881.15, "c": 882.35, "v": 183, "oi": 150994}, {"t": "1402", "o": 882.25, "h": 882.3, "l": 881.55, "c": 881.95, "v": 105, "oi": 150998}, {"t": "1403", "o": 881.95, "h": 882.25, "l": 881.6, "c": 881.9, "v": 70, "oi": 150987}, {"t": "1404", "o": 881.8, "h": 882.25, "l": 881.4, "c": 882.05, "v": 159, "oi": 150978}, {"t": "1405", "o": 881.95, "h": 881.95, "l": 880.7, "c": 880.9, "v": 179, "oi": 150962}, {"t": "1406", "o": 880.95, "h": 881.3, "l": 880.6, "c": 881.25, "v": 95, "oi": 150949}, {"t": "1407", "o": 881.1, "h": 882.8, "l": 881.1, "c": 881.95, "v": 255, "oi": 150932}, {"t": "1408", "o": 881.85, "h": 882.55, "l": 881.7, "c": 882.3, "v": 123, "oi": 150930}, {"t": "1409", "o": 882.3, "h": 883.6, "l": 882.3, "c": 883.2, "v": 199, "oi": 150915}, {"t": "1410", "o": 883.1, "h": 883.25, "l": 882.5, "c": 882.95, "v": 219, "oi": 150910}, {"t": "1411", "o": 883.0, "h": 883.0, "l": 881.85, "c": 882.3, "v": 135, "oi": 150907}, {"t": "1412", "o": 882.25, "h": 882.65, "l": 882.1, "c": 882.2, "v": 122, "oi": 150941}, {"t": "1413", "o": 882.25, "h": 882.8, "l": 882.25, "c": 882.5, "v": 105, "oi": 150936}, {"t": "1414", "o": 882.35, "h": 882.4, "l": 881.15, "c": 881.65, "v": 170, "oi": 150947}, {"t": "1415", "o": 881.55, "h": 883.85, "l": 881.5, "c": 883.3, "v": 270, "oi": 150928}, {"t": "1416", "o": 883.35, "h": 884.6, "l": 883.2, "c": 883.9, "v": 301, "oi": 150893}, {"t": "1417", "o": 884.0, "h": 884.4, "l": 883.0, "c": 884.15, "v": 309, "oi": 150925}, {"t": "1418", "o": 884.15, "h": 884.65, "l": 883.35, "c": 883.8, "v": 168, "oi": 150935}, {"t": "1419", "o": 883.85, "h": 884.1, "l": 883.25, "c": 883.55, "v": 136, "oi": 150941}, {"t": "1420", "o": 883.55, "h": 883.85, "l": 882.6, "c": 883.35, "v": 244, "oi": 150946}, {"t": "1421", "o": 883.35, "h": 884.55, "l": 883.1, "c": 883.95, "v": 175, "oi": 150968}, {"t": "1422", "o": 883.9, "h": 884.3, "l": 883.1, "c": 883.1, "v": 139, "oi": 150979}, {"t": "1423", "o": 883.2, "h": 883.75, "l": 883.15, "c": 883.5, "v": 89, "oi": 150982}, {"t": "1424", "o": 883.3, "h": 883.85, "l": 883.05, "c": 883.35, "v": 127, "oi": 150986}, {"t": "1425", "o": 883.3, "h": 883.4, "l": 882.6, "c": 882.95, "v": 186, "oi": 151003}, {"t": "1426", "o": 882.9, "h": 883.7, "l": 882.85, "c": 883.2, "v": 144, "oi": 150998}, {"t": "1427", "o": 883.15, "h": 884.1, "l": 883.05, "c": 884.0, "v": 185, "oi": 150994}, {"t": "1428", "o": 883.95, "h": 884.2, "l": 883.55, "c": 884.1, "v": 166, "oi": 151016}, {"t": "1429", "o": 884.0, "h": 884.1, "l": 883.4, "c": 883.85, "v": 141, "oi": 151012}, {"t": "1430", "o": 883.75, "h": 883.9, "l": 882.7, "c": 883.1, "v": 182, "oi": 151016}, {"t": "1431", "o": 882.9, "h": 882.95, "l": 881.9, "c": 882.35, "v": 162, "oi": 151024}, {"t": "1432", "o": 882.4, "h": 882.8, "l": 881.75, "c": 881.75, "v": 195, "oi": 151037}, {"t": "1433", "o": 881.75, "h": 882.5, "l": 880.65, "c": 880.8, "v": 264, "oi": 151064}, {"t": "1434", "o": 880.7, "h": 881.25, "l": 880.5, "c": 881.25, "v": 149, "oi": 151122}, {"t": "1435", "o": 881.25, "h": 882.2, "l": 881.2, "c": 881.95, "v": 240, "oi": 151133}, {"t": "1436", "o": 882.05, "h": 884.0, "l": 882.05, "c": 883.45, "v": 377, "oi": 151126}, {"t": "1437", "o": 883.6, "h": 883.75, "l": 883.05, "c": 883.55, "v": 159, "oi": 151142}, {"t": "1438", "o": 883.45, "h": 884.15, "l": 883.25, "c": 883.45, "v": 173, "oi": 151154}, {"t": "1439", "o": 883.5, "h": 884.15, "l": 883.3, "c": 884.15, "v": 166, "oi": 151146}, {"t": "1440", "o": 884.0, "h": 885.65, "l": 883.55, "c": 885.25, "v": 419, "oi": 151129}, {"t": "1441", "o": 885.15, "h": 886.75, "l": 884.65, "c": 886.7, "v": 546, "oi": 151100}, {"t": "1442", "o": 886.6, "h": 887.1, "l": 885.6, "c": 885.85, "v": 481, "oi": 151065}, {"t": "1443", "o": 885.85, "h": 885.9, "l": 885.1, "c": 885.2, "v": 176, "oi": 151050}, {"t": "1444", "o": 885.2, "h": 885.4, "l": 883.6, "c": 883.7, "v": 310, "oi": 151059}, {"t": "1445", "o": 883.75, "h": 884.95, "l": 883.45, "c": 884.7, "v": 245, "oi": 151068}, {"t": "1446", "o": 884.65, "h": 885.4, "l": 884.45, "c": 885.25, "v": 165, "oi": 151068}, {"t": "1447", "o": 885.25, "h": 885.75, "l": 884.95, "c": 885.6, "v": 197, "oi": 151067}, {"t": "1448", "o": 885.6, "h": 886.2, "l": 884.7, "c": 884.9, "v": 335, "oi": 151074}, {"t": "1449", "o": 884.8, "h": 885.0, "l": 884.3, "c": 884.8, "v": 149, "oi": 151051}, {"t": "1450", "o": 884.7, "h": 885.85, "l": 884.4, "c": 885.75, "v": 179, "oi": 151025}, {"t": "1451", "o": 885.85, "h": 885.85, "l": 884.85, "c": 885.1, "v": 122, "oi": 151011}, {"t": "1452", "o": 885.1, "h": 885.35, "l": 884.75, "c": 885.2, "v": 145, "oi": 151012}, {"t": "1453", "o": 885.3, "h": 886.15, "l": 885.25, "c": 886.05, "v": 271, "oi": 150990}, {"t": "1454", "o": 886.15, "h": 886.15, "l": 885.3, "c": 885.5, "v": 172, "oi": 150957}, {"t": "1455", "o": 885.45, "h": 886.35, "l": 885.35, "c": 885.5, "v": 235, "oi": 150944}, {"t": "1456", "o": 885.45, "h": 886.0, "l": 885.1, "c": 885.45, "v": 216, "oi": 150886}, {"t": "1457", "o": 885.45, "h": 885.8, "l": 884.2, "c": 885.55, "v": 373, "oi": 150855}, {"t": "1458", "o": 885.6, "h": 885.75, "l": 884.9, "c": 885.35, "v": 140, "oi": 150876}, {"t": "1459", "o": 885.25, "h": 885.95, "l": 885.15, "c": 885.8, "v": 240, "oi": 150886}, {"t": "1500", "o": 885.75, "h": 886.0, "l": 883.85, "c": 884.1, "v": 420, "oi": 150851}, {"t": "1501", "o": 884.1, "h": 885.1, "l": 884.05, "c": 884.75, "v": 238, "oi": 150791}, {"t": "1502", "o": 884.65, "h": 885.0, "l": 883.9, "c": 884.25, "v": 197, "oi": 150731}, {"t": "1503", "o": 884.35, "h": 884.65, "l": 883.95, "c": 884.2, "v": 118, "oi": 150716}, {"t": "1504", "o": 884.2, "h": 885.05, "l": 883.95, "c": 884.55, "v": 167, "oi": 150710}, {"t": "1505", "o": 884.35, "h": 884.55, "l": 883.95, "c": 884.05, "v": 136, "oi": 150685}, {"t": "1506", "o": 884.05, "h": 884.4, "l": 883.8, "c": 884.1, "v": 124, "oi": 150683}, {"t": "1507", "o": 884.2, "h": 884.2, "l": 883.6, "c": 883.9, "v": 162, "oi": 150670}, {"t": "1508", "o": 883.95, "h": 884.2, "l": 883.8, "c": 883.8, "v": 154, "oi": 150647}, {"t": "1509", "o": 883.85, "h": 884.6, "l": 883.65, "c": 884.55, "v": 162, "oi": 150636}, {"t": "1510", "o": 884.5, "h": 884.55, "l": 883.05, "c": 883.15, "v": 319, "oi": 150633}, {"t": "1511", "o": 883.15, "h": 883.6, "l": 882.85, "c": 883.1, "v": 203, "oi": 150632}, {"t": "1512", "o": 883.0, "h": 883.55, "l": 882.9, "c": 883.05, "v": 201, "oi": 150618}, {"t": "1513", "o": 883.1, "h": 883.45, "l": 882.7, "c": 882.8, "v": 183, "oi": 150615}, {"t": "1514", "o": 882.75, "h": 883.95, "l": 882.75, "c": 883.0, "v": 376, "oi": 150595}, {"t": "1515", "o": 883.05, "h": 884.35, "l": 882.85, "c": 884.05, "v": 403, "oi": 150579}, {"t": "1516", "o": 884.05, "h": 884.2, "l": 883.55, "c": 883.85, "v": 332, "oi": 150523}, {"t": "1517", "o": 883.85, "h": 884.55, "l": 883.8, "c": 884.35, "v": 466, "oi": 150537}, {"t": "1518", "o": 884.4, "h": 884.45, "l": 883.55, "c": 883.65, "v": 366, "oi": 150510}, {"t": "1519", "o": 883.6, "h": 883.7, "l": 882.25, "c": 882.4, "v": 491, "oi": 150507}, {"t": "1520", "o": 882.5, "h": 883.4, "l": 882.3, "c": 883.3, "v": 330, "oi": 150505}, {"t": "1521", "o": 883.25, "h": 884.25, "l": 882.95, "c": 884.15, "v": 395, "oi": 150522}, {"t": "1522", "o": 884.2, "h": 884.8, "l": 883.9, "c": 884.75, "v": 383, "oi": 150528}, {"t": "1523", "o": 884.75, "h": 885.45, "l": 884.7, "c": 884.85, "v": 343, "oi": 150543}, {"t": "1524", "o": 884.85, "h": 884.85, "l": 884.2, "c": 884.35, "v": 251, "oi": 150548}, {"t": "1525", "o": 884.4, "h": 884.9, "l": 884.2, "c": 884.75, "v": 345, "oi": 150538}, {"t": "1526", "o": 884.8, "h": 885.1, "l": 884.55, "c": 884.7, "v": 382, "oi": 150585}, {"t": "1527", "o": 884.75, "h": 884.95, "l": 884.55, "c": 884.85, "v": 336, "oi": 150598}, {"t": "1528", "o": 884.8, "h": 885.15, "l": 884.65, "c": 884.9, "v": 442, "oi": 150534}, {"t": "1529", "o": 884.9, "h": 885.1, "l": 884.4, "c": 884.9, "v": 735, "oi": 150549}, {"t": "1530", "o": 884.85, "h": 885.5, "l": 884.65, "c": 885.35, "v": 948, "oi": 150646}, {"t": "1531", "o": 885.3, "h": 886.4, "l": 885.2, "c": 886.4, "v": 607, "oi": 150658}, {"t": "1532", "o": 886.45, "h": 886.45, "l": 885.3, "c": 885.55, "v": 403, "oi": 150465}, {"t": "1533", "o": 885.65, "h": 885.7, "l": 885.2, "c": 885.5, "v": 309, "oi": 150483}, {"t": "1534", "o": 885.4, "h": 885.85, "l": 885.25, "c": 885.4, "v": 259, "oi": 150285}, {"t": "1545", "o": 885.15, "h": 885.15, "l": 885.15, "c": 885.15, "v": 4020, "oi": 150075}], "flows": [], "flow_date": "20261103", "current_flows": {"개인": -986, "외국인": -679, "기관계": 1485, "금융투자": 8240, "투신": -7002, "은행": -20, "외국인·코스피": -15295, "외국인·코스닥": -761}, "recording": true}, "/api/top-value": {"source": "naver", "kospi": [{"name": "SK하이닉스", "code": "000660", "price": 1398000.0, "change_pct": -5.03, "value_eok": 31078, "time": "2026-11-03T15:58:15+09:00"}, {"name": "삼성전자", "code": "005930", "price": 219500.0, "change_pct": -4.15, "value_eok": 28477, "time": "2026-11-03T15:58:17+09:00"}, {"name": "삼성전기", "code": "009150", "price": 1105000.0, "change_pct": -7.38, "value_eok": 6754, "time": "2026-11-03T15:58:20+09:00"}, {"name": "SK스퀘어", "code": "402340", "price": 899000.0, "change_pct": -5.37, "value_eok": 4127, "time": "2026-11-03T15:58:20+09:00"}, {"name": "삼성전자우", "code": "005935", "price": 171600.0, "change_pct": -3.05, "value_eok": 3836, "time": "2026-11-03T15:58:20+09:00"}, {"name": "삼성SDI", "code": "006400", "price": 488500.0, "change_pct": -9.2, "value_eok": 3794, "time": "2026-11-03T15:58:20+09:00"}, {"name": "대덕전자", "code": "353200", "price": 101000.0, "change_pct": -13.3, "value_eok": 2089, "time": "2026-11-03T15:58:19+09:00"}, {"name": "대한항공", "code": "003490", "price": 29150.0, "change_pct": 1.92, "value_eok": 1847, "time": "2026-11-03T15:58:20+09:00"}, {"name": "한진칼", "code": "180640", "price": 175200.0, "change_pct": 29.97, "value_eok": 1722, "time": "2026-11-03T15:58:19+09:00"}, {"name": "LG에너지솔루션", "code": "373220", "price": 338000.0, "change_pct": -5.06, "value_eok": 1701, "time": "2026-11-03T15:58:19+09:00"}], "kosdaq": [{"name": "래블업", "code": "0147B0", "price": 14220.0, "change_pct": -25.16, "value_eok": 7850, "time": "2026-11-03T15:58:20+09:00"}, {"name": "인텔리빅스", "code": "420610", "price": 22300.0, "change_pct": -1.33, "value_eok": 4445, "time": "2026-11-03T15:58:19+09:00"}, {"name": "원익홀딩스", "code": "030530", "price": 32350.0, "change_pct": 0.0, "value_eok": 1606, "time": "2026-11-03T15:58:20+09:00"}, {"name": "안랩", "code": "053800", "price": 113600.0, "change_pct": -2.24, "value_eok": 1516, "time": "2026-11-03T15:58:19+09:00"}, {"name": "지니언스", "code": "263860", "price": 29300.0, "change_pct": 6.74, "value_eok": 1315, "time": "2026-11-03T15:58:18+09:00"}, {"name": "주성엔지니어링", "code": "036930", "price": 155100.0, "change_pct": -7.68, "value_eok": 1226, "time": "2026-11-03T15:58:19+09:00"}, {"name": "영광", "code": "359410", "price": 15630.0, "change_pct": -27.3, "value_eok": 1008, "time": "2026-11-03T15:58:18+09:00"}, {"name": "티앤이코리아", "code": "0053F0", "price": 19020.0, "change_pct": 10.65, "value_eok": 975, "time": "2026-11-03T15:58:19+09:00"}, {"name": "라온시큐어", "code": "042510", "price": 17080.0, "change_pct": -8.47, "value_eok": 956, "time": "2026-11-03T15:58:18+09:00"}, {"name": "심텍", "code": "222800", "price": 112300.0, "change_pct": -6.73, "value_eok": 768, "time": "2026-11-03T15:58:16+09:00"}], "time": "2026-11-03T15:58:20+09:00"}, "/api/themes": {"source": "naver", "themes": [{"name": "항공/저가 항공사(LCC)", "change_pct": 3.76, "total": 9, "rise": 6, "fall": 2, "steady": 1, "leaders": [{"name": "한진칼", "code": "180640", "change_pct": 29.97}, {"name": "AK홀딩스", "code": "006840", "change_pct": 2.27}, {"name": "대한항공", "code": "003490", "change_pct": 1.92}], "url": "https://stock.naver.com/market/stock/kr/theme/166", "reason": [{"t": "대한항공·아시아나 통합 시너지 기대…항공주 매수세 집중", "u": "https://www.pinpointnews.co.kr/news/articleView.html?idxno=500822"}, {"t": "하나증권 \"미국-이란 호르무즈 해협 재개방 논의에 국제유가 급락, 항공사 수익성 개선 기대\"", "u": "http://m.businesspost.co.kr/BP?command=mobile_view&idxno=450982"}]}, {"name": "김밥(냉동김밥 등)", "change_pct": 2.28, "total": 6, "rise": 1, "fall": 4, "steady": 1, "leaders": [{"name": "한울앤제주", "code": "276730", "change_pct": 29.99}, {"name": "CJ씨푸드", "code": "011150", "change_pct": 0.0}, {"name": "사조대림", "code": "003960", "change_pct": -0.61}], "url": "https://stock.naver.com/market/stock/kr/theme/585", "reason": []}, {"name": "주류업(주정, 에탄올 등)", "change_pct": 2.11, "total": 13, "rise": 6, "fall": 7, "steady": 0, "leaders": [{"name": "한울앤제주", "code": "276730", "change_pct": 29.99}, {"name": "롯데칠성", "code": "005300", "change_pct": 1.17}, {"name": "하이트진로홀딩스", "code": "000140", "change_pct": 1.06}], "url": "https://stock.naver.com/market/stock/kr/theme/86", "reason": []}, {"name": "편의점", "change_pct": 1.88, "total": 5, "rise": 4, "fall": 1, "steady": 0, "leaders": [{"name": "BGF리테일", "code": "282330", "change_pct": 4.96}, {"name": "유성티엔에스", "code": "024800", "change_pct": 2.61}, {"name": "이마트", "code": "139480", "change_pct": 1.62}], "url": "https://stock.naver.com/market/stock/kr/theme/384", "reason": []}, {"name": "제지", "change_pct": 1.73, "total": 14, "rise": 5, "fall": 9, "steady": 0, "leaders": [{"name": "깨끗한나라", "code": "004540", "change_pct": 29.95}, {"name": "에스엠국일", "code": "078130", "change_pct": 2.25}, {"name": "한국수출포장", "code": "002200", "change_pct": 0.96}], "url": "https://stock.naver.com/market/stock/kr/theme/63", "reason": []}], "issues": [{"name": "적자 국영사", "headline": "'적자 국영사' 떠안아 글로벌 항공그룹 키운 한진家…'수송보국 레거...", "url": "https://n.news.naver.com/mnews/article/003/0014298459", "change_pct": 26.52, "stocks": [{"name": "한진칼", "code": "180640", "change_pct": 29.97}, {"name": "한진", "code": "002320", "change_pct": 23.08}]}, {"name": "금융권 이어 증권업권에서도 연이어 해킹", "headline": "[특징주] 금융권 이어 증권업권에서도 연이어 해킹…보안주 上", "url": "https://n.news.naver.com/mnews/article/366/0001202141", "change_pct": 25.01, "stocks": [{"name": "한싹", "code": "430690", "change_pct": 29.96}, {"name": "파수AI", "code": "150900", "change_pct": 20.05}]}, {"name": "한양증권 고객정보 유출 '보안주 급등'", "headline": "한양증권 고객정보 유출 '보안주 급등'…한싹·파수AI 상한가[핫종목...", "url": "https://n.news.naver.com/mnews/article/421/0009266345", "change_pct": 11.64, "stocks": [{"name": "에스투더블유", "code": "488280", "change_pct": 14.73}, {"name": "페스카로", "code": "0015S0", "change_pct": 8.55}]}]}};
+window.__SNAPSHOT_TIME__ = "2026-11-03(화) 15:58";
+window.fetch = async (url, opts) => {
+  const u = new URL(url, "http://snapshot");
+  const body = (opts && opts.method && opts.method !== "GET") ? undefined : window.__SNAPSHOT__[u.pathname + u.search];
+  return body === undefined
+    ? new Response(JSON.stringify({ detail: "스냅샷에 없는 데이터입니다" }), { status: 404 })
+    : new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+};
+</script>
+<script>
+"use strict";
+
+const $ = (s) => document.querySelector(s);
+const QUICK = [
+  ["005930", "삼성전자"], ["000660", "SK하이닉스"], ["373220", "LG엔솔"], ["005380", "현대차"],
+  ["035420", "NAVER"], ["105560", "KB금융"], ["012450", "한화에어로"], ["035720", "카카오"],
+];
+let current = { code: "005930", quote: null };
+let futData = null;
+
+// ------------------------------------------------------------ format
+const fmt = (v, d = 0) =>
+  v === null || v === undefined || Number.isNaN(v) ? "-" :
+  Number(v).toLocaleString("ko-KR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const signed = (v, d = 0) => (v === null || v === undefined ? "-" : (v > 0 ? "+" : "") + fmt(v, d));
+const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "flat");
+const arrow = (v) => (v > 0 ? "▲" : v < 0 ? "▼" : "");
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const hhmm = (t) => (t && t.length >= 4 ? `${t.slice(0, 2)}:${t.slice(2, 4)}` : t || "");
+const ymd = (d) => (d && d.length === 8 ? `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}` : d || "");
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+  return body;
+}
+function fail(el, e) { el.innerHTML = `<div class="err">불러오기 실패: ${esc(e.message)}</div>`; }
+
+// ------------------------------------------------------------ status
+async function loadStatus() {
+  const s = await api("/api/status");
+  $("#mode-badge").textContent = s.demo_mode ? "데모 데이터" : "KB OpenAPI 연결";
+  $("#mode-badge").className = "badge " + (s.demo_mode ? "demo" : "live");
+  $("#demo-banner").hidden = !s.demo_mode;
+  const rb = $("#rule-badge");
+  rb.textContent = s.rule.active ? `상승종목 매수제한 중 ${s.rule.window}` : `매수제한 ${s.rule.window} (비활성)`;
+  rb.className = "badge " + (s.rule.active ? "rule-on" : "");
+  $("#clock").textContent = `KST ${s.now}`;
+  // 리포트 제목 띠: "2026.10.01 (목)  장마감 수급"
+  const [y, mo, d] = s.now.slice(0, 10).split("-").map(Number);
+  const wd = "일월화수목금토"[new Date(y, mo - 1, d).getDay()];
+  const title = s.now.slice(11, 16) < "15:30" && s.now.slice(11, 16) >= "08:30" ? "장중 수급" : "장마감 수급";  // 장중에 받은 것은 '장중'으로 표시
+  $("#report-title").innerHTML = `<span class="t">${title}</span><span class="d">${y}.${String(mo).padStart(2, "0")}.${String(d).padStart(2, "0")} (${wd}) · ${s.now.slice(11, 16)} 기준</span>`;
+}
+
+// ------------------------------------------------------------ market
+// 막대 길이 기준(억원): 이 금액이면 막대가 한쪽 끝까지 찬다. 넘는 값은 끝에서 잘린다.
+// scale을 안 주면 묶음 안 최댓값 기준(프로그램 매매 등).
+const BAR_SCALE = { kospi: 20000, kosdaq: 5000, futures: 30000, call: 200, put: 200 };  // 2조 · 5천억 · 3조 · 200억
+
+function barRows(items, key, hlNames = [], scale = null) {
+  const max = scale || Math.max(1, ...items.map((i) => Math.abs(i[key] || 0)));
+  return items.map((i) => {
+    const v = i[key] || 0, w = Math.min(1, Math.abs(v) / max) * 50;
+    return `<div class="bar-row ${hlNames.includes(i.name) ? "hl" : ""}">
+      <span>${esc(i.name)}</span>
+      <div class="bar-track"><div class="bar ${v >= 0 ? "pos" : "neg"}" style="width:${w}%"></div></div>
+      <span class="val ${cls(v)}">${signed(v)}</span></div>`;
+  }).join("");
+}
+
+async function loadMarket() {
+  try {
+    const m = await api("/api/market");
+    const t = m.time || "";
+    $("#market-time").textContent = "IVSA0070" + (t.length >= 12 ? ` · ${t.slice(8, 10)}:${t.slice(10, 12)}` : t ? ` · ${ymd(t.slice(0, 8))}` : "");
+    $("#indices").innerHTML = m.indices.map((i) => `
+      <div class="index"><div class="n">${esc(i.name)}</div>
+      <div class="v ${cls(i.change)}">${fmt(i.value, 2)}</div>
+      <div class="${cls(i.change)}">${arrow(i.change)} ${fmt(Math.abs(i.change ?? 0), 2)} (${signed(i.change_pct, 2)}%)</div>
+      ${MINI_IDS.includes(i.id) ? `<svg class="mini" data-id="${esc(i.id)}" role="img" aria-label="${esc(i.name)} 당일 흐름"></svg>` : ""}</div>`).join("")
+      || `<div class="empty">지수 데이터 없음</div>`;
+    drawMinis();
+    const b = m.breadth;
+    const br = (n, x) => `<span>${n} <b class="up">▲${fmt((x.up || 0) + (x.ulmt || 0))}</b> · ${fmt(x.unchng)} · <b class="down">▼${fmt((x.dwn || 0) + (x.llmt || 0))}</b></span>`;
+    $("#breadth").innerHTML = br("코스피", b.kospi) + br("코스닥", b.kosdaq);
+    // 등락 종목수: 상승(빨강)·보합(회색)·하락(파랑) 비율을 가로 막대로
+    const bbar = (n, x) => {
+      const up = (x.up || 0) + (x.ulmt || 0), dn = (x.dwn || 0) + (x.llmt || 0), st = x.unchng || 0, tot = up + dn + st || 1;
+      const seg = (c, v) => v ? `<span class="${c}" style="width:${(v / tot) * 100}%">${v / tot > 0.08 ? fmt(v) : ""}</span>` : "";
+      return `<div class="bb"><div class="bb-head"><b>${n}</b><span><span class="up">상승 ${fmt(up)}</span> · 보합 ${fmt(st)} · <span class="down">하락 ${fmt(dn)}</span></span></div>
+        <div class="bb-bar" role="img" aria-label="${n} 상승 ${up} 보합 ${st} 하락 ${dn}">${seg("u", up)}${seg("s", st)}${seg("d", dn)}</div>
+        <div class="bb-foot"><span>상승 ${fmt((up / tot) * 100, 0)}% · 상한가 ${fmt(x.ulmt || 0)}</span><span>하한가 ${fmt(x.llmt || 0)} · 하락 ${fmt((dn / tot) * 100, 0)}%</span></div></div>`;
+    };
+    $("#breadth-bars").innerHTML = bbar("코스피", b.kospi) + bbar("코스닥", b.kosdaq);
+
+    const p = m.program;
+    $("#program-market").innerHTML = `<div class="pgm">${barRows([
+      { name: "차익", v: p.arbitrage }, { name: "비차익", v: p.non_arbitrage }, { name: "합계", v: p.total },
+    ], "v", ["합계"])}</div><p class="muted">순매수 금액 · 단위는 KB 전문 원문 기준</p>`;
+
+    const main = ["외국인", "기관계", "개인"];
+    const pick = (names) => names.map((n) => m.investors.find((i) => i.name === n)).filter(Boolean);
+    // 현물: 외국인·기관계·개인·금융투자 (투신·은행 제외) / 선물·옵션: 외국인·기관계·개인
+    const spot = pick([...main, "금융투자"]), big3 = pick(main);
+    const scaleNote = (k) => BAR_SCALE[k] >= 10000 ? `${BAR_SCALE[k] / 10000}조` : `${fmt(BAR_SCALE[k])}억`;
+    const col = (title, key, rows) => `<div><h3>${title} <span class="scale-note">막대 기준 ${scaleNote(key)}</span></h3>
+      <div class="pgm">${barRows(rows, key, main, BAR_SCALE[key])}</div></div>`;
+    $("#investors").innerHTML = m.investors.length ? `
+      <div class="inv-group"><h4>현물</h4><div class="inv-cols two">${col("코스피", "kospi", spot)}${col("코스닥", "kosdaq", spot)}</div></div>
+      <div class="inv-group"><h4>선물 · 옵션 (KOSPI200)</h4>
+        ${big3.every((i) => !i.futures && !i.call && !i.put)
+          ? `<p class="muted">선물·옵션 수급은 장 마감 약 1시간 뒤 KB에서 초기화되어, 지금은 표시할 값이 없습니다.</p>`
+          : `${col("선물", "futures", big3)}
+        <div class="inv-cols pair">${col("콜옵션", "call", big3)}${col("풋옵션", "put", big3)}</div>`}</div>
+      <p class="muted">IVSA0070 투자자별 매매동향 · 단위 억원</p>` : `<div class="empty">수급 데이터 없음</div>`;
+  } catch (e) { fail($("#indices"), e); }
+}
+
+// ------------------------------------------------------------ index mini charts
+let intraday = {};
+const MINI_IDS = ["KGG01P", "QGG01P"];  // 미니차트는 코스피·코스닥만 (나스닥 선물·KOSPI200 선물은 수치만)
+
+async function loadIntraday() {
+  try { intraday = await api("/api/indices/intraday"); drawMinis(); } catch { /* 미니차트는 없어도 지수 카드는 유지 */ }
+}
+
+function drawMinis() {
+  document.querySelectorAll("svg.mini").forEach((svg) => {
+    const d = intraday[svg.dataset.id], note = document.querySelector(`[data-note="${svg.dataset.id}"]`);
+    const pts = (d?.points || []).filter((p) => p.c != null);
+    if (note) note.textContent = d?.recorded ? (pts.length ? `서버 기록 ${hhmm(pts[0].t)}~${hhmm(pts[pts.length - 1].t)}` : "서버 기록 없음 (1분마다 쌓임)") : "";
+    const W = svg.clientWidth || 200, H = 64;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    if (pts.length < 2) { svg.innerHTML = ""; return; }
+    // 코스피·코스닥은 정규장 09:00~15:30 고정 축, 나스닥 선물은 기록 구간
+    const t0 = d.recorded ? toMin(pts[0].t) : 9 * 60, t1 = d.recorded ? toMin(pts[pts.length - 1].t) : 15 * 60 + 30;
+    const prev = d.prev_close ?? pts[0].c;
+    const vals = [...pts.map((p) => p.c), prev];
+    const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+    const x = (t) => 2 + ((toMin(t) - t0) / Math.max(1, t1 - t0)) * (W - 4);
+    const y = (v) => H - 14 - ((v - lo) / span) * (H - 20);
+    const last = pts[pts.length - 1].c, color = last >= prev ? "var(--up)" : "var(--down)";
+    // 전일 종가(기준선) 위는 빨강, 아래는 파랑 - 선을 기준선과 만나는 곳에서 잘라 토막마다 색을 준다
+    const base = y(prev), segs = [];
+    let seg = null, up = null;
+    pts.forEach((p) => {
+      const q = { x: x(p.t), y: y(p.c), up: p.c >= prev };
+      if (seg && q.up !== up) {
+        const a = seg[seg.length - 1], cx = a.x + (q.x - a.x) * ((base - a.y) / ((q.y - a.y) || 1));
+        seg.push({ x: cx, y: base });
+        segs.push({ up, pts: seg });
+        seg = [{ x: cx, y: base }];
+      }
+      (seg = seg || []).push(q);
+      up = q.up;
+    });
+    if (seg && seg.length > 1) segs.push({ up, pts: seg });
+    const col = (u) => (u ? "var(--up)" : "var(--down)");
+    const path = (s) => s.pts.map((p) => `${p.x},${p.y}`).join(" ");
+    const lx = x(pts[pts.length - 1].t);
+    svg.innerHTML =
+      segs.map((s) => `<polygon points="${s.pts[0].x},${base} ${path(s)} ${s.pts[s.pts.length - 1].x},${base}"`
+                    + ` fill="${col(s.up)}" opacity=".12"/>`).join("") +
+      `<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--muted)" stroke-dasharray="3 3" opacity=".7"/>` +
+      segs.map((s) => `<polyline fill="none" stroke="${col(s.up)}" stroke-width="1.8" stroke-linejoin="round"`
+                    + ` points="${path(s)}"/>`).join("") +
+      `<circle cx="${lx}" cy="${y(last)}" r="2.5" fill="${color}"/>` +
+      `<text x="2" y="${H - 1}">${d.recorded ? hhmm(pts[0].t) : "09:00"}</text>` +
+      `<text x="${W - 2}" y="${H - 1}" text-anchor="end">${d.recorded ? hhmm(pts[pts.length - 1].t) : "15:30"}</text>`;
+  });
+}
+
+async function loadThemes() {
+  try {
+    const d = await api("/api/themes");
+    $("#themes-source").textContent = d.source === "naver" ? "네이버 금융 테마 · 등락률 상위" : "KB 업종랭킹 (네이버 테마 조회 실패 시 대체)";
+    // 요약은 수치로만: 상승·하락 종목수와 주도주 등락률
+    const sum = (t) => {
+      const parts = [];
+      if (t.total) parts.push(t.fall ? `${fmt(t.total)}종목 중 <b>${fmt(t.rise)} 상승</b> · ${fmt(t.fall)} 하락` : `<b>${fmt(t.total)}종목 모두 상승</b>`);
+      if (t.leaders?.length) parts.push("주도주 " + t.leaders.map((s) => `<b>${esc(s.name)}</b> <span class="${cls(s.change_pct)}">${signed(s.change_pct, 2)}%</span>`).join(", "));
+      return parts.join("<br>");
+    };
+    // 테마 옆 '이유': 그날 뉴스 제목 한두 줄 (서버가 테마 이름·원인 표현으로 고른 것, 누르면 기사)
+    const why = (t) => (t.reason || []).length ? `<span class="why">← ${t.reason.map((r) => r.u
+      ? `<a href="${esc(r.u)}" target="_blank" rel="noopener">${esc(r.t)}</a>` : esc(r.t)).join(" · ")}</span>` : "";
+    // 한 줄 요약: 상위 3개 테마 이름(괄호 설명 제외)과 평균 등락률
+    const short = (n) => String(n).replace(/\(.*?\)/g, "").trim();
+    const pcts = d.themes.map((t) => t.change_pct).filter((v) => v != null);
+    // 이슈 테마: 네이버 테마 목록에 없는 그날 재료 (같은 기사에 묶인 급등주들)
+    const iss = d.issues || [];
+    const issueHtml = iss.map((g) => `
+      <div class="theme-row issue"><span class="rank">🔥</span><span class="tname">${esc(g.name)} <small>이슈</small></span>
+      <span class="pct ${cls(g.change_pct)}">${signed(g.change_pct, 2)}%</span>
+      <span class="tsum">${g.stocks.map((s) => `<b>${esc(s.name)}</b> <span class="${cls(s.change_pct)}">${signed(s.change_pct, 2)}%</span>`).join(", ")}
+      <br>${g.url ? `<a href="${esc(g.url)}" target="_blank" rel="noopener">${esc(g.headline)}</a>` : esc(g.headline)}</span></div>`).join("");
+    const issLead = iss.length ? `<b>${iss.map((g) => esc(g.name)).join(" · ")}</b> 이슈와 ` : "";
+    const lead = d.themes.length ? `<p class="theme-lead">오늘은 ${issLead}<b>${d.themes.slice(0, 3).map((t) => esc(short(t.name))).join(" · ")}</b> 테마가 강세
+      (상위 ${d.themes.length}개 평균 <span class="${cls(pcts[0])}">${signed(pcts.reduce((a, c) => a + c, 0) / (pcts.length || 1), 2)}%</span>)</p>` : "";
+    $("#themes").innerHTML = d.themes.length ? lead + issueHtml + d.themes.map((t, i) => `
+      <div class="theme-row"><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}${why(t)}</span>
+      <span class="pct ${cls(t.change_pct)}">${signed(t.change_pct, 2)}%</span>
+      ${sum(t) ? `<span class="tsum">${sum(t)}</span>` : ""}</div>`).join("") : `<div class="empty">테마 데이터 없음</div>`;
+  } catch (e) { fail($("#themes"), e); }
+}
+
+// 거래대금 상위: 코스피·코스닥 각 10종목 (네이버 증권, ETF 제외). 금액은 억원, 1조 넘으면 조 단위
+async function loadTopValue() {
+  try {
+    const d = await api("/api/top-value");
+    const won = (v) => v == null ? "-" : v >= 10000 ? `${(v / 10000).toFixed(v >= 100000 ? 1 : 2)}조` : `${fmt(v)}억`;
+    const col = (title, rows) => `<div class="tv-col"><h3 class="sub-head">${title}</h3>${rows.length ? rows.map((s, i) => `
+      <div class="tv-row"><span class="rank">${i + 1}</span><span class="tv-n">${esc(s.name)}</span>
+      <span class="pct ${cls(s.change_pct)}">${signed(s.change_pct, 2)}%</span><span class="tv-v">${won(s.value_eok)}</span></div>`).join("")
+      : `<div class="empty">데이터 없음</div>`}</div>`;
+    const t = String(d.time || "");
+    $("#topvalue-source").textContent = "코스피 · 코스닥 각 10종목 (ETF 제외) · 네이버 증권" + (t.length >= 16 ? ` ${t.slice(11, 16)}` : "");
+    $("#topvalue").innerHTML = `<div class="tv-grid">${col("코스피", d.kospi || [])}${col("코스닥", d.kosdaq || [])}</div>`;
+  } catch (e) { fail($("#topvalue"), e); }
+}
+
+// 금리 변화: bp(0.01%p)와, 전일 금리 대비 변동률(%)을 괄호로 - 예: 3.5bp (+0.79%)
+function bondMove(b) {
+  if (b.change == null) return "-";
+  const prev = b.yield - b.change;
+  const pct = prev ? (b.change / prev) * 100 : null;
+  return `${fmt(Math.abs(b.change) * 100, 1)}bp` + (pct == null ? "" : ` (${signed(pct, 2)}%)`);
+}
+
+async function loadMacro() {
+  try {
+    const { usd_krw: u, treasury_10y: b } = await api("/api/macro");
+    $("#usdkrw").innerHTML = u
+      ? `<div class="v ${cls(u.change)}">${fmt(u.rate, 2)}</div><div class="${cls(u.change)}">${arrow(u.change)} ${fmt(Math.abs(u.change ?? 0), 2)} (${signed(u.change_pct, 2)}%)</div>`
+      : `<div class="empty">데이터 없음</div>`;
+    $("#bond-date").textContent = b && b.source === "naver" ? `네이버 · ${ymd(b.date)} ${b.time || ""}`
+      : b && b.date ? `IVA10370 · ${ymd(b.date)}` : "IVA10370";
+    $("#tsy10").innerHTML = b
+      ? `<div class="v ${cls(b.change)}">${fmt(b.yield, 3)}%</div><div class="${cls(b.change)}">${arrow(b.change)} ${bondMove(b)}</div>`
+      : `<div class="empty">데이터 없음</div>`;
+  } catch (e) { fail($("#usdkrw"), e); fail($("#tsy10"), e); }
+}
+
+// ------------------------------------------------------------ futures chart
+// HTS 0783 '투자자별매매동향-추이'처럼: 좌측 축 = KOSPI200 선물지수(검정),
+// 우측 축 = 투자자별 선물 순매수 누적(억원), 우측 체크박스로 계열 선택
+const SESSION_START = 8 * 60 + 45, SESSION_END = 15 * 60 + 45;
+const toMin = (t) => +t.slice(0, 2) * 60 + +t.slice(2, 4);
+const INVESTORS = [
+  { key: "개인", label: "개인", color: "#f08c00" },
+  { key: "외국인", label: "외인", color: "#e03131" },
+  { key: "기관계", label: "기관", color: "#1c7ed6" },
+  { key: "금융투자", label: "금투", color: "#2f9e44" },
+  { key: "투신", label: "투신", color: "#ae3ec9" },
+  { key: "은행", label: "은행", color: "#868e96" },
+];
+const INDEX_KEY = "지수", INDEX_COLOR = "var(--ink)";
+const futSelected = new Set(loadSelected());
+
+function loadSelected() {
+  try { const v = JSON.parse(localStorage.getItem("futSelected")); if (Array.isArray(v) && v.length) return v; } catch {}
+  return ["외국인", INDEX_KEY];
+}
+function saveSelected() { try { localStorage.setItem("futSelected", JSON.stringify([...futSelected])); } catch {} }
+
+function renderChecks() {
+  const items = [...INVESTORS.map((i) => ({ key: i.key, label: i.label, color: i.color })), { key: INDEX_KEY, label: "지수", color: INDEX_COLOR }];
+  $("#fut-checks").innerHTML = items.map((i) => `
+    <label style="--series:${i.color}"><input type="checkbox" data-key="${i.key}" ${futSelected.has(i.key) ? "checked" : ""}>
+    <span class="sw2" style="background:${i.color}"></span>${i.label}</label>`).join("");
+}
+renderChecks();
+$("#fut-checks").addEventListener("change", (e) => {
+  const k = e.target.dataset.key;
+  if (!k) return;
+  e.target.checked ? futSelected.add(k) : futSelected.delete(k);
+  saveSelected();
+  drawFutures();
+});
+
+async function loadFutures() {
+  try {
+    futData = await api(`/api/futures?minutes=1`);
+    const f = futData.futures, cf = futData.current_flows || {};
+    $("#fut-name").textContent = `· ${f.name} (${f.code})`;
+    $("#fut-head").innerHTML = `
+      <span class="price">${fmt(f.price, 2)}</span>
+      <span class="${cls(f.change)}">${arrow(f.change)} ${fmt(Math.abs(f.change ?? 0), 2)} (${signed(f.change_pct, 2)}%)</span>
+      <span class="flow">미결제 ${fmt(f.open_interest)}</span>`;
+    const names = INVESTORS.map((i) => i.key).filter((k) => k in cf);
+    $("#fut-table").innerHTML = `<thead><tr><th></th>${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead>
+      <tbody><tr><td>순매수</td>${names.map((n) => `<td class="${cls(cf[n])}">${signed(cf[n])}</td>`).join("")}</tr></tbody>`;
+    let note;
+    if (!futData.recording) note = "데모 모드: 투자자별 선물 순매수 추이는 가짜 데이터입니다.";
+    else if (!futData.flows.length) note = "투자자별 선물 순매수는 KB OpenAPI가 분 단위 추이를 제공하지 않아, 서버가 장중(08:45~15:45) 1분마다 기록합니다. 아직 기록이 없습니다.";
+    else {
+      const first = futData.flows[0].t;
+      note = `순매수 추이는 서버가 1분마다 기록한 값입니다 (${ymd(futData.flow_date)}, ${futData.flows.length}건).` +
+        (first > "0845" ? ` 08:45~${hhmm(first)}은 서버가 꺼져 있어 기록이 없습니다 (KB OpenAPI는 지난 분 단위 수급을 제공하지 않음).` : "") +
+        " 서버를 장 시작 전에 켜 두면 하루 전체가 그려집니다.";
+    }
+    $("#fut-note").textContent = note;
+    drawFutures();
+  } catch (e) { fail($("#fut-head"), e); }
+}
+
+function drawFutures() {
+  const svg = $("#fut-chart");
+  if (!futData) return;
+  // 가로로 긴 차트: 높이 = 폭의 절반 (180~420px) → 폰에서도 세로로 길어지지 않음
+  const W = svg.clientWidth || 900, H = Math.round(Math.min(420, Math.max(180, W * 0.5)));
+  svg.style.height = `${H}px`;
+  const TICKS = H < 320 ? 4 : 8;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  // 폰처럼 좁으면 좌우 축 여백·글자를 줄여 그래프 영역을 넓힌다
+  const narrow = W < 520;
+  svg.classList.toggle("narrow", narrow);
+  const L = narrow ? 44 : 66, R = narrow ? 40 : 64, T = 12, B = H - (narrow ? 20 : 26);
+  const plotW = W - L - R;
+  const x = (min) => L + ((min - SESSION_START) / (SESSION_END - SESSION_START)) * plotW;
+  const bars = futData.bars;
+  const investors = INVESTORS.filter((i) => futSelected.has(i.key));
+  const showIndex = futSelected.has(INDEX_KEY);
+
+  // 시간축: 08:45 ~ 15:45. 눈금선 30분(좁으면 1시간), 글자는 서로 겹치지 않게 간격을 두고 표시
+  const step = plotW < 560 ? 60 : 30;
+  const labelGap = narrow ? 30 : 40;
+  const hm = (m) => narrow ? `${Math.floor(m / 60)}시` : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const ty = H - (narrow ? 5 : 8);
+  let out = `<rect x="${L}" y="${T}" width="${plotW}" height="${B - T}" fill="none" stroke="var(--line)"/><g class="grid">`;
+  let lastLabel = L;
+  out += `<text x="${L}" y="${ty}" text-anchor="start">${narrow ? "8:45" : "08:45"}</text>`;
+  for (let m = 9 * 60; m <= SESSION_END; m += step) {
+    const xx = x(m);
+    out += `<line x1="${xx}" x2="${xx}" y1="${T}" y2="${B}"/>`;
+    if (xx - lastLabel >= labelGap && W - R - xx >= labelGap) {
+      out += `<text x="${xx}" y="${ty}" text-anchor="middle">${hm(m)}</text>`;
+      lastLabel = xx;
+    }
+  }
+  out += `<text x="${W - R}" y="${ty}" text-anchor="end">15:45</text></g>`;
+
+  // 좌측 축: KOSPI200 선물지수
+  if (showIndex && bars.length) {
+    const lo = Math.min(...bars.map((b) => b.c)), hi = Math.max(...bars.map((b) => b.c));
+    const pad = (hi - lo) * 0.05 || 0.5;
+    const y = (v) => B - ((v - (lo - pad)) / (hi - lo + pad * 2)) * (B - T);
+    out += `<g class="grid">`;
+    for (let i = 0; i <= TICKS; i++) {
+      const v = lo - pad + ((hi - lo + pad * 2) * i) / TICKS;
+      out += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>` +
+             `<text x="${L - 4}" y="${y(v) + 4}" text-anchor="end">${fmt(v, narrow ? 0 : 2)}</text>`;
+    }
+    out += `</g>`;
+    const pts = bars.map((b) => [x(toMin(b.t)), y(b.c)]);
+    out += `<polyline fill="none" stroke="${INDEX_COLOR}" stroke-width="${narrow ? 2.2 : 3.6}" stroke-linejoin="round" stroke-linecap="round" points="${pts.join(" ")}"/>`;
+  }
+
+  // 우측 축: 투자자별 선물 순매수 누적 (선택된 계열 공통 축)
+  const flows = futData.flows;
+  // 실제로 기록된 값만 그린다 (기록 없는 구간을 이어 그리지 않음)
+  const seriesOf = (key) => flows.filter((f) => f[key] != null).map((f) => ({ t: f.t, v: f[key] }));
+  const all = investors.map((i) => ({ ...i, s: seriesOf(i.key) })).filter((i) => i.s.length);
+  if (all.length) {
+    const vals = all.flatMap((i) => i.s.map((p) => p.v));
+    let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+    const pad = (hi - lo) * 0.05 || 100;
+    lo -= pad; hi += pad;
+    const y = (v) => B - ((v - lo) / (hi - lo)) * (B - T);
+    const tick = niceStep((hi - lo) / TICKS);
+    for (let v = Math.ceil(lo / tick) * tick; v <= hi; v += tick) {
+      out += `<text x="${W - R + 6}" y="${y(v) + 4}">${fmt(v)}</text>`;
+      if (!showIndex) out += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/>`;
+    }
+    for (const inv of all) {
+      const width = inv.key === "외국인" ? (narrow ? 2.2 : 3.6) : (narrow ? 1.5 : 2.4);
+      const pts = inv.s.map((p) => [x(toMin(p.t)), y(p.v)]);
+      // 5분 넘게 기록이 끊긴 곳은 선을 끊는다 (모두 실선)
+      let seg = [pts[0]];
+      const flush = () => {
+        if (seg.length > 1) out += `<polyline fill="none" stroke="${inv.color}" stroke-width="${width}" stroke-linejoin="round" stroke-linecap="round" points="${seg.join(" ")}"/>`;
+      };
+      for (let k = 1; k < pts.length; k++) {
+        if (toMin(inv.s[k].t) - toMin(inv.s[k - 1].t) > 5) { flush(); seg = [pts[k]]; } else seg.push(pts[k]);
+      }
+      flush();
+      const [lx, ly] = pts[pts.length - 1];
+      out += `<circle cx="${lx}" cy="${ly}" r="${width}" fill="${inv.color}"/>`;
+    }
+  }
+
+  // 좌상단 범례 (HTS처럼 ■외국인 ■KOSPI200)
+  const legend = [...investors.map((i) => [i.key, i.color]), ...(showIndex ? [["KOSPI200", INDEX_COLOR]] : [])];
+  let lx = L + 8;
+  for (const [name, color] of legend) {
+    out += `<rect x="${lx}" y="${T + 7}" width="4" height="10" fill="${color}"/><text x="${lx + 7}" y="${T + 16}" style="fill:${color};font-weight:600">${name}</text>`;
+    lx += 16 + name.length * 12;
+  }
+  out += `<line id="cross" class="cross" x1="0" x2="0" y1="${T}" y2="${B}" visibility="hidden"/>`;
+  svg.innerHTML = out;
+  svg.onmousemove = (e) => hover(e, x, plotW, L);
+  svg.onmouseleave = () => { $("#fut-tip").hidden = true; $("#cross")?.setAttribute("visibility", "hidden"); };
+}
+
+function niceStep(raw) {
+  const p = 10 ** Math.floor(Math.log10(raw || 1)), n = raw / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+}
+
+function hover(e, x, plotW, L) {
+  const svg = $("#fut-chart"), rect = svg.getBoundingClientRect();
+  const px = ((e.clientX - rect.left) / rect.width) * svg.viewBox.baseVal.width;
+  const min = SESSION_START + ((px - L) / plotW) * (SESSION_END - SESSION_START);
+  const nearest = (arr) => arr.reduce((best, r) => (Math.abs(toMin(r.t) - min) < Math.abs(toMin(best.t) - min) ? r : best), arr[0]);
+  const bar = futData.bars.length ? nearest(futData.bars) : null;
+  const flow = futData.flows.length ? nearest(futData.flows) : null;
+  if (!bar && !flow) return;
+  const t = (bar || flow).t;
+  const cross = $("#cross");
+  cross.setAttribute("x1", x(toMin(t))); cross.setAttribute("x2", x(toMin(t))); cross.setAttribute("visibility", "visible");
+  const invs = INVESTORS.filter((i) => futSelected.has(i.key) && flow && flow[i.key] != null);
+  const tip = $("#fut-tip");
+  tip.innerHTML = `<b>${hhmm(t)}</b>` +
+    (bar ? `<br>KOSPI200 <b>${fmt(bar.c, 2)}</b>` : "") +
+    invs.map((i) => `<br><span style="color:${i.color}">${i.key}</span> <b>${signed(flow[i.key])}</b>억`).join("") +
+    (invs.length && flow.t !== t ? ` <span class="muted">(${hhmm(flow.t)})</span>` : "");
+  tip.hidden = false;
+  const left = e.clientX - rect.left;
+  tip.style.left = left > rect.width / 2 ? `${left - tip.offsetWidth - 12}px` : `${left + 12}px`;
+}
+
+// ------------------------------------------------------------ quote
+async function loadQuote(code = current.code) {
+  const box = $("#quote");
+  try {
+    const q = await api(`/api/quote/${encodeURIComponent(code)}`);
+    current = { code: q.code, quote: q };
+    const kv = (k, v) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+    box.innerHTML = `
+      <div class="quote-head">
+        <span class="name">${esc(q.name)}</span><span class="muted">${esc(q.code)} ${esc(q.market)}</span>
+      </div>
+      <div class="quote-head">
+        <span class="price ${cls(q.change)}">${fmt(q.price)}</span>
+        <span class="${cls(q.change)}">${arrow(q.change)} ${fmt(Math.abs(q.change ?? 0))} (${signed(q.change_pct, 2)}%)</span>
+      </div>
+      <div class="quote-grid">
+        ${kv("전일종가", fmt(q.prev_close))}${kv("시가", fmt(q.open))}
+        ${kv("고가", `<span class="up">${fmt(q.high)}</span>`)}${kv("저가", `<span class="down">${fmt(q.low)}</span>`)}
+        ${kv("상한가", fmt(q.upper_limit))}${kv("하한가", fmt(q.lower_limit))}
+        ${kv("거래량", fmt(q.volume))}${kv("외국인비중", fmt(q.foreign_ratio, 2) + "%")}
+        ${kv("매도1호가", fmt(q.ask1))}${kv("매수1호가", fmt(q.bid1))}
+        ${kv("PER", fmt(q.per, 2))}${kv("PBR", fmt(q.pbr, 2))}
+        ${kv("250일 최고", fmt(q.high_250))}${kv("250일 최저", fmt(q.low_250))}
+      </div>`;
+    fillPriceForStock(q);
+    renderRule(q.buy_rule);
+    updateEstimate();
+    $("#pgm-stock-name").textContent = `${q.name} · IVU10450`;
+  } catch (e) { fail(box, e); $("#rule-box").innerHTML = ""; }
+  loadProgramStock();
+}
+
+function renderRule(rule) {
+  const box = $("#rule-box");
+  box.className = "rule-box " + (rule.allowed ? "ok" : "block");
+  box.textContent = (rule.allowed ? "매수 가능 · " : "매수 불가 · ") + rule.reason;
+  updateOrderButton();
+}
+
+// ------------------------------------------------------------ order form (지정가/시장가)
+let priceCode = null;   // 가격칸에 현재가를 채워 넣은 종목 (종목이 바뀔 때만 다시 채움)
+let power = null;       // 주문가능금액·보유수량
+
+// KRX 호가가격단위 (2023년 개편, 코스피·코스닥 공통) - 서버 trading.tick_size와 동일
+function tickSize(p) {
+  for (const [limit, tick] of [[2000, 1], [5000, 5], [20000, 10], [50000, 50], [200000, 100], [500000, 500]]) if (p < limit) return tick;
+  return 1000;
+}
+const side = () => document.querySelector("input[name=side]:checked").value;
+const otype = () => document.querySelector("input[name=otype]:checked").value;
+const readNum = (id) => parseInt(String($(id).value).replace(/[^\d]/g, ""), 10) || 0;
+const writeNum = (id, v) => { $(id).value = v ? Number(v).toLocaleString("ko-KR") : ""; };
+
+function priceProblem(p) {
+  const q = current.quote;
+  if (otype() !== "limit") return "";
+  if (!p) return "가격을 입력하세요";
+  if (p % tickSize(p)) return `호가단위(${fmt(tickSize(p))}원)에 맞지 않아요`;
+  if (q && q.upper_limit && p > q.upper_limit) return "상한가를 넘었어요";
+  if (q && q.lower_limit && p < q.lower_limit) return "하한가보다 낮아요";
+  return "";
+}
+
+function updateOrderButton() {
+  const s = side(), limit = otype() === "limit";
+  const blocked = s === "buy" && current.quote && !current.quote.buy_rule.allowed;
+  const bad = priceProblem(readNum("#price"));
+  const btn = $("#order-btn");
+  btn.disabled = !current.quote || blocked || !!bad || readNum("#qty") <= 0;
+  btn.textContent = blocked && s === "buy" ? "매수 제한" : `${limit ? "지정가" : "시장가"} ${s === "buy" ? "매수" : "매도"} 주문`;
+  btn.style.background = s === "buy" ? "var(--up)" : "var(--down)";
+  btn.style.color = "#fff";
+}
+
+function updateEstimate() {
+  const q = current.quote, n = readNum("#qty"), limit = otype() === "limit";
+  const p = limit ? readNum("#price") : q?.price;
+  $("#price-field").classList.toggle("disabled", !limit);
+  const bad = priceProblem(readNum("#price"));
+  $("#tick-hint").innerHTML = limit
+    ? (bad ? `<span class="up">${bad}</span>` : `호가단위 ${fmt(tickSize(readNum("#price") || q?.price || 0))}원${q?.upper_limit ? ` · 상한 ${fmt(q.upper_limit)} / 하한 ${fmt(q.lower_limit)}` : ""}`)
+    : "시장가: 현재가로 즉시 체결";
+  $("#est").textContent = q && p ? `예상금액 ${fmt(p * n)}원 (${q.name} ${fmt(n)}주 × ${fmt(p)}원)` : "";
+  if (power) {
+    const held = power.positions?.[current.code]?.qty || 0;
+    $("#power").textContent = side() === "buy" ? `주문가능 ${fmt(power.available)}원` : `보유 ${fmt(held)}주`;
+  }
+  updateOrderButton();
+}
+
+async function loadPower() {
+  try { power = await api("/api/buying-power"); updateEstimate(); } catch { /* 표시만 생략 */ }
+}
+
+function fillPriceForStock(q) {
+  $("#order-name").textContent = `${q.name} · 현재가 ${fmt(q.price)}원`;
+  if (priceCode !== q.code) {   // 새 종목을 고르면 가격칸을 현재가로 채움 (같은 종목 새로고침 때는 입력값 유지)
+    priceCode = q.code;
+    writeNum("#price", q.price);
+  }
+}
+
+async function loadProgramStock() {
+  const t = $("#program-stock");
+  try {
+    const rows = await api(`/api/program/stock/${current.code}`);
+    t.innerHTML = rows.length ? `<thead><tr><th>시간</th><th class="r">현재가</th><th class="r">등락률</th><th class="r">순매수</th><th class="r">증감</th></tr></thead><tbody>` +
+      rows.map((r) => `<tr><td>${hhmm(r.time)}</td><td class="r">${fmt(r.price)}</td>
+        <td class="r ${cls(r.change_pct)}">${signed(r.change_pct, 2)}%</td>
+        <td class="r ${cls(r.net_buy)}">${signed(r.net_buy)}</td>
+        <td class="r ${cls(r.net_buy_delta)}">${signed(r.net_buy_delta)}</td></tr>`).join("") + "</tbody>"
+      : `<tbody><tr><td class="empty">데이터 없음</td></tr></tbody>`;
+  } catch (e) { fail(t, e); }
+}
+
+// ------------------------------------------------------------ orders
+async function loadOrders() {
+  try {
+    const orders = await api("/api/orders");
+    const STATUS = { filled: "체결", open: "미체결", rejected: "거절", cancelled: "취소" };
+    $("#orders").innerHTML = orders.length ? `<thead><tr><th>시각</th><th>종목</th><th>구분</th><th class="r">수량</th><th class="r">주문가</th><th class="r">체결가</th><th>상태</th><th>사유</th></tr></thead><tbody>` +
+      orders.map((o) => `<tr><td>${esc(o.ts.slice(5, 16))}</td><td>${esc(o.name)}</td>
+        <td class="${o.side === "buy" ? "up" : "down"}">${o.order_type === "limit" ? "지정" : "시장"} ${o.side === "buy" ? "매수" : "매도"}</td>
+        <td class="r">${fmt(o.qty)}</td><td class="r">${o.limit_price ? fmt(o.limit_price) : "-"}</td><td class="r">${o.status === "filled" ? fmt(o.price) : "-"}</td>
+        <td><span class="pill ${o.status}">${STATUS[o.status] || o.status}</span>
+          ${o.status === "open" ? `<button type="button" class="mini-btn" data-cancel="${o.id}">취소</button>` : ""}</td>
+        <td class="muted">${esc(o.reason)}</td></tr>`).join("") + "</tbody>"
+      : `<tbody><tr><td class="empty">주문 내역이 없습니다.</td></tr></tbody>`;
+  } catch (e) { fail($("#orders"), e); }
+}
+
+// ------------------------------------------------------------ events
+$("#quick").innerHTML = QUICK.map(([c, n]) => `<button type="button" data-code="${c}">${n}</button>`).join("");
+$("#quick").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-code]");
+  if (b) { $("#code").value = b.textContent; loadQuote(b.dataset.code); }
+});
+
+// 종목 검색: 한글 이름(또는 코드) 입력 → 자동완성 목록 → 선택
+let suggestItems = [], suggestIdx = -1, suggestTimer = null;
+function renderSuggest() {
+  const ul = $("#suggest"), input = $("#code");
+  if (!suggestItems.length) { ul.hidden = true; input.setAttribute("aria-expanded", "false"); return; }
+  ul.innerHTML = suggestItems.map((s, i) => s.none
+    ? `<li class="none">${esc(s.none)}</li>`
+    : `<li role="option" data-i="${i}" class="${i === suggestIdx ? "on" : ""}"><span>${esc(s.name)}</span><span class="c">${esc(s.code)}</span></li>`).join("");
+  ul.hidden = false; input.setAttribute("aria-expanded", "true");
+}
+function chooseStock(s) {
+  $("#code").value = s.name; suggestItems = []; suggestIdx = -1; renderSuggest();
+  loadQuote(s.code);
+}
+async function fetchSuggest(q) {
+  try { return await api(`/api/search?q=${encodeURIComponent(q)}`); } catch { return []; }
+}
+$("#code").addEventListener("input", () => {
+  clearTimeout(suggestTimer);
+  const q = $("#code").value.trim();
+  if (!q) { suggestItems = []; renderSuggest(); return; }
+  suggestTimer = setTimeout(async () => {
+    const items = await fetchSuggest(q);
+    if ($("#code").value.trim() !== q) return;  // 그 사이 입력이 바뀌었으면 무시
+    suggestItems = items.length ? items : [{ none: "찾는 종목이 없어요" }];
+    suggestIdx = items.length ? 0 : -1;
+    renderSuggest();
+  }, 150);
+});
+$("#code").addEventListener("keydown", (e) => {
+  const n = suggestItems.filter((s) => !s.none).length;
+  if (e.key === "ArrowDown" && n) { e.preventDefault(); suggestIdx = (suggestIdx + 1) % n; renderSuggest(); }
+  else if (e.key === "ArrowUp" && n) { e.preventDefault(); suggestIdx = (suggestIdx - 1 + n) % n; renderSuggest(); }
+  else if (e.key === "Escape") { suggestItems = []; renderSuggest(); }
+});
+$("#code").addEventListener("blur", () => setTimeout(() => { suggestItems = []; renderSuggest(); }, 150));
+$("#suggest").addEventListener("mousedown", (e) => {
+  const li = e.target.closest("li[data-i]");
+  if (li) { e.preventDefault(); chooseStock(suggestItems[+li.dataset.i]); }
+});
+$("#search").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const q = $("#code").value.trim();
+  if (!q) return;
+  if (suggestIdx >= 0 && suggestItems[suggestIdx] && !suggestItems[suggestIdx].none) return chooseStock(suggestItems[suggestIdx]);
+  const items = await fetchSuggest(q);
+  if (items.length) return chooseStock(items[0]);
+  suggestItems = [{ none: `'${q}' 종목을 찾지 못했어요` }]; suggestIdx = -1; renderSuggest();
+});
+window.addEventListener("resize", () => { drawFutures(); drawMinis(); });
+document.querySelectorAll("input[name=side], input[name=otype]").forEach((r) => r.addEventListener("change", updateEstimate));
+for (const id of ["#qty", "#price"]) {
+  $(id).addEventListener("input", updateEstimate);
+  $(id).addEventListener("blur", () => { writeNum(id, readNum(id)); updateEstimate(); });  // 쉼표 넣어 보기 좋게
+}
+$("#order-form").addEventListener("click", (e) => {
+  const b = e.target.closest("button.step");
+  if (!b) return;
+  const dir = +b.dataset.dir;
+  if (b.dataset.target === "qty") {
+    writeNum("#qty", Math.max(1, readNum("#qty") + dir));
+  } else {
+    const p = readNum("#price") || current.quote?.price || 0;
+    // 호가단위에 맞춰 한 칸 이동 (단위가 바뀌는 경계에서는 내려갈 가격 기준 단위 사용)
+    const aligned = Math.round(p / tickSize(p)) * tickSize(p);
+    writeNum("#price", Math.max(1, dir > 0 ? aligned + tickSize(aligned) : aligned - tickSize(aligned - 1)));
+  }
+  updateEstimate();
+});
+$("#use-current").addEventListener("click", () => { if (current.quote) { writeNum("#price", current.quote.price); updateEstimate(); } });
+$("#orders").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-cancel]");
+  if (!b || !confirm("이 미체결 주문을 취소할까요?")) return;
+  try { await api(`/api/orders/${b.dataset.cancel}/cancel`, { method: "POST" }); } catch (err) { alert(err.message); }
+  loadOrders(); loadPower();
+});
+
+$("#order-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const s = side(), limit = otype() === "limit";
+  const qty = readNum("#qty"), price = readNum("#price");
+  const msg = $("#order-msg");
+  if (!current.quote || qty <= 0 || (limit && priceProblem(price))) return;
+  const label = s === "buy" ? "매수" : "매도";
+  const how = limit ? `지정가 ${fmt(price)}원` : "시장가";
+  if (!confirm(`[모의매매] ${current.quote.name} ${fmt(qty)}주 ${how} ${label} 하시겠습니까?`)) return;
+  try {
+    const o = await api("/api/orders", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: current.code, side: s, qty, order_type: limit ? "limit" : "market", price: limit ? price : null }),
+    });
+    msg.className = "order-msg " + (o.status === "rejected" ? "bad" : "ok");
+    msg.textContent = o.status === "filled" ? `${label} 체결: ${o.name} ${fmt(o.qty)}주 @ ${fmt(o.price)}원`
+      : o.status === "open" ? `미체결 접수: ${o.name} ${fmt(o.qty)}주 ${how} ${label} · 가격이 닿으면 체결돼요`
+      : `주문 거절: ${o.reason}`;
+    if (o.rule) renderRule(o.rule);
+  } catch (err) {
+    msg.className = "order-msg bad"; msg.textContent = err.message;
+  }
+  loadOrders(); loadPower();
+});
+
+// ------------------------------------------------------------ boot
+if (new URLSearchParams(location.search).has("report") || window.__SNAPSHOT__) document.body.classList.add("report");
+if (window.__SNAPSHOT__) {
+  // 텔레그램으로 보낸 스냅샷 파일: 서버 없이 내장 데이터로 동작
+  const b = $("#snapshot-banner");
+  b.textContent = `스냅샷 · ${window.__SNAPSHOT_TIME__} 기준 데이터입니다 (실시간 아님)`;
+  b.hidden = false;
+}
+function refreshFast() { loadStatus().catch(() => {}); loadQuote(); loadMarket(); loadFutures(); loadOrders(); loadPower(); }
+function refreshSlow() { loadMacro(); loadIntraday(); loadThemes(); loadTopValue(); }
+refreshFast(); refreshSlow();
+setInterval(refreshFast, 15000);
+setInterval(refreshSlow, 60000);
+
+</script>
+</body>
+</html>
