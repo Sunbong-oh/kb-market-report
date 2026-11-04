@@ -411,6 +411,9 @@ def prelim_lines(p: dict, code: str) -> list[str]:
     return out
 
 
+SHOCK = "[어닝 쇼크]"  # 이 판정이 붙은 '영업이익 급증' 종목은 카드·알림을 내지 않는다
+
+
 def tg_tag(line: str) -> str:
     """텔레그램은 글자색을 못 쓰므로 컨센 판정 앞에 색 동그라미: 서프라이즈 🔴 · 쇼크 🔵 · 부합은 그대로."""
     return line.replace("[어닝 서프라이즈]", "🔴[어닝 서프라이즈]").replace("[어닝 쇼크]", "🔵[어닝 쇼크]")
@@ -547,6 +550,10 @@ def run(now: datetime, dry: bool = False) -> None:
     queue = []  # 카드가 나간 종목 → 요약 보고서 작업(surge-report.yml)으로 넘긴다
     for s in surge_scan(now, scanned):
         key = f"KR-{s['rcp']}"
+        if SHOCK in kr_surge.cons_line(s):  # 2026-11-04 사용자 요청: 컨센 대비 어닝 쇼크면 카드·텔레그램·보고서 모두 만들지 않는다
+            print("  어닝 쇼크 → 카드 생략:", s["name"], s["code"], kr_surge.cons_line(s), flush=True)
+            items.pop(key, None)
+            continue
         prev = items.get(key) or {}
         at = s.get("at") or now.isoformat(timespec="minutes")
         first_iso = prev.get("first_iso") or datetime.fromisoformat(at).replace(tzinfo=KST).isoformat()
@@ -595,6 +602,9 @@ def run(now: datetime, dry: bool = False) -> None:
                  "op": {"now": (p.get("op") or [None])[0]}, "sales": {"now": (p.get("sales") or [None])[0]}}
             it["cons"] = (it.get("cons") or [])[:1] + [kr_surge.cons_line(s)] + (it.get("cons") or [])[1:]
             print("  컨센서스 대비 채움:", it["name"], it["cons"][1], flush=True)
+    for k in [k for k, v in items.items() if v.get("surge") and any(SHOCK in c for c in v.get("cons") or [])]:
+        print("  어닝 쇼크 카드 삭제:", items[k]["name"], flush=True)
+        del items[k]
     # 감시 기간이 끝난 항목도 사흘 동안 주가 반응을 갱신하고, 발표 후 첫 정규장이 끝나면 한 번 알린다
     seen = {t["key"] for t in targets(now)}
     for it in items.values():
