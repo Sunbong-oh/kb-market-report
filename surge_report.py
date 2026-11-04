@@ -1263,7 +1263,8 @@ def main() -> None:
             if pdf:
                 made.append(str(pdf.relative_to(ROOT)))
             pv = D["prov"] or {}
-            index.append({"day": os.environ.get("REPORT_DAY") or f"{TODAY:%Y-%m-%d}",  # 지난 보고서를 다시 만들 때는 원래 날짜 "code": code, "name": D["name"], "market": D["market"],
+            # 지난 보고서를 다시 만들 때(REPORT_DAY)는 원래 날짜로
+            index.append({"day": os.environ.get("REPORT_DAY") or f"{TODAY:%Y-%m-%d}", "code": code, "name": D["name"], "market": D["market"],
                           "period": pv.get("period"), "op": pv.get("op"), "op_prev": pv.get("op_prev"), "chg": pv.get("chg"),
                           "turn": pv.get("turn"), "basis": pv.get("basis"), "rcp": pv.get("rcp"),
                           "made": datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "pdf": report_url(code)})
