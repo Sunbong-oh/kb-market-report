@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-04",
+"code": "036930",
+"name": "주성엔지니어링",
+"market": "K",
+"period": "26년3분기",
+"op": 176.67000000000002,
+"op_prev": 14.23,
+"chg": 1141.5,
+"turn": false,
+"basis": null,
+"rcp": "20261104900314",
+"made": "2026-11-04 14:46",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/036930"
+},
+{
+"day": "2026-11-04",
 "code": "003030",
 "name": "세아제강지주",
 "market": "Y",
