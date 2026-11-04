@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-04",
+"code": "018670",
+"name": "SK가스",
+"market": "Y",
+"period": "26년 3Q",
+"op": 1476.58,
+"op_prev": -439.39,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261104800663",
+"made": "2026-11-04 17:32",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/018670"
+},
+{
+"day": "2026-11-04",
 "code": "298690",
 "name": "에어부산",
 "market": "Y",
