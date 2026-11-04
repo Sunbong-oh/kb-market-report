@@ -1,5 +1,35 @@
 [
 {
+"day": "2026-11-04",
+"code": "071840",
+"name": "롯데하이마트",
+"market": "Y",
+"period": "26년 3Q",
+"op": 55.09,
+"op_prev": 9.18,
+"chg": 500.2,
+"turn": false,
+"basis": null,
+"rcp": "20261104800075",
+"made": "2026-11-04 11:40",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/071840"
+},
+{
+"day": "2026-11-04",
+"code": "216050",
+"name": "인크로스",
+"market": "K",
+"period": "26년 3Q",
+"op": 54.050000000000004,
+"op_prev": 28.25,
+"chg": 91.3,
+"turn": false,
+"basis": "연결",
+"rcp": "20261104900139",
+"made": "2026-11-04 11:40",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/216050"
+},
+{
 "day": "2026-11-03",
 "code": "381970",
 "name": "KG모빌리티플랫폼",
@@ -208,36 +238,6 @@
 "rcp": "20261102800782",
 "made": "2026-11-04 11:12",
 "pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-02/000230"
-},
-{
-"day": "2026-11-04",
-"code": "216050",
-"name": "인크로스",
-"market": "K",
-"period": "26년 3Q",
-"op": 49.97,
-"op_prev": 26.3,
-"chg": 90.0,
-"turn": false,
-"basis": "별도",
-"rcp": "20261104900136",
-"made": "2026-11-04 10:41",
-"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/216050"
-},
-{
-"day": "2026-11-04",
-"code": "071840",
-"name": "롯데하이마트",
-"market": "Y",
-"period": "",
-"op": 55.09,
-"op_prev": 9.18,
-"chg": 500.2,
-"turn": false,
-"basis": null,
-"rcp": "20261104800075",
-"made": "2026-11-04 09:31",
-"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/071840"
 },
 {
 "day": "2026-10-30",
