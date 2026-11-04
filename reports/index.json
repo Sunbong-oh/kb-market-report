@@ -1,6 +1,36 @@
 [
 {
 "day": "2026-11-04",
+"code": "298690",
+"name": "에어부산",
+"market": "Y",
+"period": "26.3Q",
+"op": 47.0,
+"op_prev": -355.0,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261104800551",
+"made": "2026-11-04 17:12",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/298690"
+},
+{
+"day": "2026-11-04",
+"code": "439580",
+"name": "블루엠텍",
+"market": "K",
+"period": "26년 3Q",
+"op": 10.84,
+"op_prev": 1.82,
+"chg": 495.6,
+"turn": false,
+"basis": null,
+"rcp": "20261104900535",
+"made": "2026-11-04 17:12",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/439580"
+},
+{
+"day": "2026-11-04",
 "code": "068930",
 "name": "디지털대성",
 "market": "K",
