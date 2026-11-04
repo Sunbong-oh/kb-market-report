@@ -96,7 +96,7 @@ def numbers(rcp: str) -> dict | None:
     txt = _text(_get(VIEW_URL.format(m.group(1), m.group(2))))
     unit = next((UNIT[u] for u in ("십억원", "백만원", "천원", "억원", "원")
                  if re.search(r"단위\s*:\s*" + u, txt)), None)
-    period = re.search(r"\((\d{2}년\s*\d\s*[QqＱ분기]+[^)]*)\)", txt)
+    period = re.search(r"\((\d{2}년\s*\d\s*[QqＱ분기]+[^)]*)\)", txt) or re.search(r"\(['‘’]?(\d{2}\.\s*\d\s*[QqＱ])\)", txt)
     out: dict = {"unit": unit, "period": (period.group(1).replace(" ", "") if period else "")}
     for key, label in (("sales", "매출액"), ("op", "영업이익"), ("net", "당기순이익")):
         row = re.search(rf"^\s*{label}\s*\t\s*당해실적\s*\t(.*)$", txt, re.M)

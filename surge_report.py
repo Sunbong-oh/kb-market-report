@@ -187,10 +187,15 @@ def provisional(rcp: str) -> dict | None:
         return None
     if not n or not n.get("unit"):
         return None
-    m = re.search(r"(\d{2})년\s*(\d)", n.get("period") or "")
+    m = re.search(r"(\d{2})\s*(?:년|\.)\s*(\d)", n.get("period") or "")
+    if m:
+        y, q = 2000 + int(m.group(1)), int(m.group(2))
+    else:  # 표 머리에서 분기를 못 읽으면 공시일(접수번호 앞 8자리)의 직전 분기 — 이게 없으면 그래프에서 이번 분기가 빠졌다
+        qe = kr_surge.quarter_of(rcp[:8])
+        y, q = int(qe[:4]), int(qe[5:]) // 3
     u = n["unit"]
     g = lambda k, f: (n.get(k) or {}).get(f)
-    return {"y": 2000 + int(m.group(1)) if m else None, "q": int(m.group(2)) if m else None, "period": n.get("period"),
+    return {"y": y, "q": q, "period": n.get("period") or f"{y % 100}년 {q}Q",
             "op": g("op", "now") * u if g("op", "now") is not None else None,
             "sales": g("sales", "now") * u if g("sales", "now") is not None else None,
             "op_prev": g("op", "prev") * u if g("op", "prev") is not None else None,
@@ -1258,7 +1263,7 @@ def main() -> None:
             if pdf:
                 made.append(str(pdf.relative_to(ROOT)))
             pv = D["prov"] or {}
-            index.append({"day": f"{TODAY:%Y-%m-%d}", "code": code, "name": D["name"], "market": D["market"],
+            index.append({"day": os.environ.get("REPORT_DAY") or f"{TODAY:%Y-%m-%d}",  # 지난 보고서를 다시 만들 때는 원래 날짜 "code": code, "name": D["name"], "market": D["market"],
                           "period": pv.get("period"), "op": pv.get("op"), "op_prev": pv.get("op_prev"), "chg": pv.get("chg"),
                           "turn": pv.get("turn"), "basis": pv.get("basis"), "rcp": pv.get("rcp"),
                           "made": datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "pdf": report_url(code)})

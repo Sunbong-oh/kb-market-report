@@ -18,6 +18,10 @@ on:
         description: "텔레그램 발송"
         type: boolean
         default: true
+      day:
+        description: "보관 날짜 YYYY-MM-DD (지난 보고서를 다시 만들 때만, 비우면 오늘)"
+        type: string
+        required: false
 
 permissions:
   contents: write   # surge-reports 브랜치에 보관
@@ -38,6 +42,7 @@ jobs:
       KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      REPORT_DAY: ${{ inputs.day }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,7 +72,7 @@ jobs:
       - name: surge-reports 브랜치에 보관
         run: |
           ls out/surge_reports/*.html >/dev/null 2>&1 || { echo "만든 보고서 없음"; exit 0; }
-          day=$(TZ=Asia/Seoul date +%F)
+          day=${REPORT_DAY:-$(TZ=Asia/Seoul date +%F)}
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch -q origin surge-reports && git worktree add -q ../sr origin/surge-reports || { git worktree add -q --detach ../sr && (cd ../sr && git checkout -q --orphan surge-reports && git rm -rqf .); }
