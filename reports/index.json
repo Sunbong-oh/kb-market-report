@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-04",
+"code": "216050",
+"name": "인크로스",
+"market": "K",
+"period": "",
+"op": 54.050000000000004,
+"op_prev": 28.25,
+"chg": 91.3,
+"turn": false,
+"basis": null,
+"rcp": "20261104900139",
+"made": "2026-11-04 10:36",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/216050"
+},
+{
+"day": "2026-11-04",
 "code": "071840",
 "name": "롯데하이마트",
 "market": "Y",
