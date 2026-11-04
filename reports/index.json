@@ -1,5 +1,20 @@
 [
 {
+"day": "2026-11-04",
+"code": "071840",
+"name": "롯데하이마트",
+"market": "Y",
+"period": "",
+"op": 55.09,
+"op_prev": 9.18,
+"chg": 500.2,
+"turn": false,
+"basis": null,
+"rcp": "20261104800075",
+"made": "2026-11-04 09:31",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/071840"
+},
+{
 "day": "2026-11-03",
 "code": "089590",
 "name": "제주항공",
