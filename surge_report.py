@@ -1267,7 +1267,8 @@ def main() -> None:
             index.append({"day": os.environ.get("REPORT_DAY") or f"{TODAY:%Y-%m-%d}", "code": code, "name": D["name"], "market": D["market"],
                           "period": pv.get("period"), "op": pv.get("op"), "op_prev": pv.get("op_prev"), "chg": pv.get("chg"),
                           "turn": pv.get("turn"), "basis": pv.get("basis"), "rcp": pv.get("rcp"),
-                          "made": datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "pdf": report_url(code)})
+                          "made": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
+                          "pdf": report_url(code, date.fromisoformat(os.environ["REPORT_DAY"]) if os.environ.get("REPORT_DAY") else None)})
             if send:
                 cap = f"📑 실시간 작성된 종목 보고서 · {D['name']}({code})\n" + (f"{D['prov']['period']} 잠정실적 기준" if D["prov"] else "")
                 try:
