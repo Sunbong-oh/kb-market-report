@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-04",
+"code": "068930",
+"name": "디지털대성",
+"market": "K",
+"period": "26년 3Q",
+"op": 274.6,
+"op_prev": 151.11,
+"chg": 81.72,
+"turn": false,
+"basis": null,
+"rcp": "20261104900409",
+"made": "2026-11-04 16:42",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-04/068930"
+},
+{
+"day": "2026-11-04",
 "code": "036930",
 "name": "주성엔지니어링",
 "market": "K",
