@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-05",
+"code": "383310",
+"name": "에코프로에이치엔",
+"market": "K",
+"period": "26년 3Q",
+"op": 113.48,
+"op_prev": 57.620000000000005,
+"chg": 96.9,
+"turn": false,
+"basis": null,
+"rcp": "20261105900294",
+"made": "2026-11-05 13:46",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-05/383310"
+},
+{
+"day": "2026-11-05",
 "code": "105330",
 "name": "케이엔더블유",
 "market": "K",
