@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-05",
+"code": "027410",
+"name": "BGF",
+"market": "Y",
+"period": "26년 3Q",
+"op": 240.0,
+"op_prev": 136.0,
+"chg": 76.5,
+"turn": false,
+"basis": null,
+"rcp": "20261105800404",
+"made": "2026-11-05 15:05",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-05/027410"
+},
+{
+"day": "2026-11-05",
 "code": "065450",
 "name": "빅텍",
 "market": "K",
