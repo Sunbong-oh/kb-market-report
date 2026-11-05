@@ -1,5 +1,20 @@
 [
 {
+"day": "2026-11-06",
+"code": "023530",
+"name": "롯데쇼핑",
+"market": "Y",
+"period": "26년 3Q",
+"op": 1755.6000000000001,
+"op_prev": 899.09,
+"chg": 95.3,
+"turn": false,
+"basis": null,
+"rcp": "20261106800080",
+"made": "2026-11-06 08:51",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-06/023530"
+},
+{
 "day": "2026-11-05",
 "code": "027410",
 "name": "BGF",
