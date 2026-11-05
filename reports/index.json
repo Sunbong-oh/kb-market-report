@@ -1,5 +1,20 @@
 [
 {
+"day": "2026-11-05",
+"code": "105330",
+"name": "케이엔더블유",
+"market": "K",
+"period": "26년3Q",
+"op": 12.89,
+"op_prev": -18.37,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261105900295",
+"made": "2026-11-05 13:36",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-05/105330"
+},
+{
 "day": "2026-11-04",
 "code": "018670",
 "name": "SK가스",
