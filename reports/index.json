@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-06",
+"code": "339770",
+"name": "교촌에프앤비",
+"market": "Y",
+"period": "26년 3Q",
+"op": 123.34,
+"op_prev": 78.48,
+"chg": 57.2,
+"turn": false,
+"basis": null,
+"rcp": "20261106800611",
+"made": "2026-11-06 15:46",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-06/339770"
+},
+{
+"day": "2026-11-06",
 "code": "023530",
 "name": "롯데쇼핑",
 "market": "Y",
