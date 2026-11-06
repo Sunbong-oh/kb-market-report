@@ -1,1 +1,1 @@
-rerun 2026-11-03T07:07:15Z (11/3 TTS NoAudioReceived 후 다시 만들기)
+podcast rerun requested at 2026-11-06T14:07:10Z (UTC): 11/6 report rebuilt from flow-live 16:05 snapshot
