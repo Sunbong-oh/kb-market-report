@@ -682,6 +682,8 @@ def write_feed(pod: Path, eps: list[dict], built: datetime) -> None:
   <description>평일 오후 4시, 코스피·코스닥 등락률, 투자자별 수급, 오늘의 상승·하락 요인, 강세 테마, 목표주가 상향 리포트, 오늘 밤 미국 일정·실적을 음성으로 짚어 드립니다. 산업별 정리 시리즈도 함께 들을 수 있습니다. 투자 판단의 참고용입니다.</description>
   <itunes:author>kb-market-report</itunes:author>
   <itunes:explicit>false</itunes:explicit>
+  <itunes:image href="https://raw.githubusercontent.com/Sunbong-oh/market-dashboard/main/assets/pod-close.png"/>
+  <image><url>https://raw.githubusercontent.com/Sunbong-oh/market-dashboard/main/assets/pod-close.png</url><title>{SHOW_TITLE}</title><link>https://sunbong-oh.github.io/market-dashboard/</link></image>
   <itunes:block>Yes</itunes:block>
   <lastBuildDate>{format_datetime(built)}</lastBuildDate>{items}
  </channel>
