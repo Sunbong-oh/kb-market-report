@@ -1,6 +1,36 @@
 [
 {
 "day": "2026-11-06",
+"code": "272450",
+"name": "진에어",
+"market": "Y",
+"period": "26.3Q",
+"op": 77.65,
+"op_prev": -731.03,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261106800652",
+"made": "2026-11-06 16:07",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-06/272450"
+},
+{
+"day": "2026-11-06",
+"code": "035000",
+"name": "HS애드",
+"market": "Y",
+"period": "26.3Q",
+"op": 71.14,
+"op_prev": 37.7,
+"chg": 88.7,
+"turn": false,
+"basis": null,
+"rcp": "20261106800671",
+"made": "2026-11-06 16:06",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-06/035000"
+},
+{
+"day": "2026-11-06",
 "code": "339770",
 "name": "교촌에프앤비",
 "market": "Y",
