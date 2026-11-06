@@ -423,6 +423,32 @@ def kick_consensus(t: datetime) -> None:
         print(hm, "목표주가 리포트 실행 요청 실패:", type(e).__name__, e, flush=True)
 
 
+_close: dict = {"day": "", "slots": set()}
+CLOSE_SLOTS = (("15:52", "18:30"), ("16:45", "18:30"))  # 장마감 리포트 실행 요청 (두 번째는 첫 번째가 막혔을 때 예비)
+
+
+def kick_close(t: datetime) -> None:
+    """평일 15:52(예비 16:45)에 장마감 리포트(close-report.yml, mode=close)를 띄운다 → 리포트·텔레그램·퇴근길 음성.
+    2026-11-06: 15:55 클라우드 루틴 요청이 오지 않고 GitHub 예약도 하나도 돌지 않아 리포트·음성이 통째로 빠졌다.
+    이 작업은 이어달리기로 늘 떠 있어서 더 확실하다. 이미 보냈으면(archive/날짜/.close_sent) 워크플로가 알아서 건너뛰고,
+    휴장일은 report.py 가 걸러 낸다."""
+    hm, d = t.strftime("%H:%M"), t.strftime("%Y-%m-%d")
+    if t.weekday() >= 5:
+        return
+    if _close["day"] != d:
+        _close["day"], _close["slots"] = d, set()
+    due = [a for a, b in CLOSE_SLOTS if a <= hm < b and a not in _close["slots"]]
+    if not due:
+        return
+    _close["slots"].update(due)
+    try:
+        r = subprocess.run(["gh", "workflow", "run", "close-report.yml", "--ref", "main", "-f", "mode=close", "-f", "send=true"],
+                           cwd=ROOT, capture_output=True, timeout=60)
+        print(hm, "장마감 리포트 실행 요청:", r.returncode, r.stderr.decode(errors="replace")[-200:], flush=True)
+    except Exception as e:
+        print(hm, "장마감 리포트 실행 요청 실패:", type(e).__name__, e, flush=True)
+
+
 _ew = {"last": ""}
 
 
@@ -486,6 +512,7 @@ def main() -> None:
             t = now()
             hm, today = t.strftime("%H:%M"), t.strftime("%Y%m%d")
             kick_consensus(t)
+            kick_close(t)
             try:
                 earnings_tick(t)
             except Exception as e:
