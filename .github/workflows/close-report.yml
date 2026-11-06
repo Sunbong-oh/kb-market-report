@@ -3,7 +3,9 @@ name: 장마감 수급체크
 # 평일 장 마감 후 KB OpenAPI 데이터를 받아 리포트 사진·블로그 본문을 만들고 텔레그램으로 보낸다.
 #
 # 발송 시각 보장 방법 (목표: 평일 오후 4시경, 하루 한 번):
-#   0) Claude 클라우드 루틴이 15:55에 trigger/close-request.txt 를 push → 바로 실행 (노트북 불필요)
+#   0) 늘 떠 있는 실시간 수급 작업(live_snapshot.py kick_close)이 15:52·16:45에 workflow_dispatch(mode=close)로 실행 요청
+#      (2026-11-06 루틴·예약이 모두 빠져 리포트·음성이 통째로 누락된 뒤 추가. 가장 확실한 길)
+#   0') Claude 클라우드 루틴이 15:55에 trigger/close-request.txt 를 push → 바로 실행 (노트북 불필요)
 #   1) 노트북이 켜져 있으면 15:58에 노트북 서버가 workflow_dispatch(mode=close)로 "지금 실행"을 요청 → 바로 실행
 #   2) GitHub 예약(schedule)은 몇 시간씩 늦어지는 일이 있어(2026-10-02: 15:52 예약이 22:13 실행) 예비용으로만
 #      여러 번 걸어 둔다. 그날 장마감 리포트가 이미 나갔으면(archive/날짜/.close_sent) 건너뛴다.
