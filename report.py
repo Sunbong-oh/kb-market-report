@@ -85,7 +85,11 @@ def capture(prefix: Path) -> tuple[list[tuple[Path, str]], dict]:
                     pass
 
         page.on("response", keep)
-        page.goto(f"{URL}/?report=1", wait_until="networkidle")
+        page.goto(f"{URL}/?report=1", wait_until="load")
+        try:  # 느린 API 하나 때문에 '조용해짐'을 끝내 못 기다리면(2026-11-06 30초 초과로 실패) 아래 그림 확인으로 넘어간다
+            page.wait_for_load_state("networkidle", timeout=45_000)
+        except Exception as exc:
+            print("networkidle 대기 초과, 화면 그림 확인으로 계속:", type(exc).__name__)
         # 지수 미니차트·선물 차트·수급 막대가 그려질 때까지 대기
         try:
             page.wait_for_selector("#report-title .t", timeout=30_000)
