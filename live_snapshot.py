@@ -62,11 +62,11 @@ def start_server() -> subprocess.Popen:
     raise RuntimeError("서버를 시작하지 못했습니다.")
 
 
-def snapshot() -> dict:
+def snapshot(timeout: float = 60) -> dict:
     out = {}
     for k in KEYS:
         try:
-            r = httpx.get(URL + k, timeout=60)
+            r = httpx.get(URL + k, timeout=timeout)
             if r.status_code == 200:
                 out[k] = r.json()
         except httpx.HTTPError as e:
@@ -93,7 +93,7 @@ def telegram(text: str) -> None:
 def kb_why() -> str:
     """KB 서버가 왜 못 주는지 한 줄 (리포트 서버가 받은 KB 오류 문구)."""
     try:
-        r = httpx.get(URL + "/api/market", timeout=60)
+        r = httpx.get(URL + "/api/market", timeout=15)
         return f"HTTP {r.status_code} {r.text[:200]}"
     except httpx.HTTPError as e:
         return f"{type(e).__name__} {e}"[:200]
@@ -617,7 +617,7 @@ def main() -> None:
                     time.sleep(300)
                     continue
             try:
-                snap = snapshot()
+                snap = snapshot(12 if misses else 60)  # KB 가 안 될 때는 짧게 기다리고 네이버·다음 값으로 넘어간다
                 # 서버가 답을 못 주는데 직전 값을 그대로 다시 올리면 시각만 바뀌고 수치는 멈춘 화면이 된다
                 # → 올리지 않고(화면의 기준 시각이 멈춰 이상을 알 수 있다) 세 번 이어지면 서버를 다시 띄운다
                 fb = False  # 이번 분은 KB 대신 네이버·다음 값
