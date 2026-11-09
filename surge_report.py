@@ -5,6 +5,7 @@ earnings_watch.py 가 국내 잠정실적 급증 카드를 텔레그램으로 �
 
 보고서 순서 (사용자 요청 순)
   1. 일봉 차트 (1년, 20/60/120일 이동평균, 거래량)      KB증권 Open API IVS11560 → 실패 시 네이버(2차 출처)
+     현재가·전일 대비                                     KB증권 Open API IVU10140 → 실패 시 네이버 실시간(2차 출처)
   2. 최근 3개월 수급 (외국인·기관·개인 순매수 누적)     KB증권 Open API IVU10430 → 실패 시 네이버(2차 출처)
   3. 10년 영업이익 막대 + 영업이익률 선, 올해 추정치     OpenDART fnlttSinglAcnt (연결 우선) + 산출값
   4. 최근 3년 분기 영업이익                               OpenDART (4분기 = 연간 − 3분기 누적, 산출값) + 이번 잠정실적
@@ -604,7 +605,8 @@ def naver_flows(code: str) -> list[dict]:
     out: dict[str, dict] = {}
     bizdate = ""
     for _ in range(4):
-        j = _naver(f"https://m.stock.naver.com/api/stock/{code}/trend?pageSize=60&bizdate={bizdate}")
+        # bizdate 가 빈 값(bizdate=)이면 네이버가 빈 목록을 준다 → 첫 페이지는 빼고 보낸다
+        j = _naver(f"https://m.stock.naver.com/api/stock/{code}/trend?pageSize=60" + (f"&bizdate={bizdate}" if bizdate else ""))
         rows = j if isinstance(j, list) else []
         if not rows:
             break
@@ -620,6 +622,18 @@ def naver_flows(code: str) -> list[dict]:
     return sorted(out.values(), key=lambda x: x["d"])
 
 
+def naver_quote(code: str) -> dict | None:
+    """네이버 실시간 현재가(2차 출처). KB 현재가(IVU10140)를 못 받았을 때 표지 현재가·전일 대비·시가총액용."""
+    j = _naver(f"https://polling.finance.naver.com/api/realtime/domestic/stock/{code}")
+    d = ((j or {}).get("datas") or [{}])[0]
+    price, chg = _f(d.get("closePrice")), _f(d.get("compareToPreviousClosePrice"))
+    if not price:
+        return None
+    if (d.get("compareToPreviousPrice") or {}).get("code") in ("4", "5") and chg and chg > 0:
+        chg = -chg
+    return {"price": price, "prev": price - (chg or 0), "name": d.get("stockName")}
+
+
 def market_data(code: str, market: str) -> dict:
     cached = Path(os.environ.get("SURGE_MARKET_DIR", "-")) / f"{code}.json"
     if cached.is_file():  # 시험용: GitHub 작업에서 받아 둔 시세·수급
@@ -633,6 +647,10 @@ def market_data(code: str, market: str) -> dict:
         b = naver_bars(code)
         if b:
             res["bars"], res["bars_src"] = b, f"2차 출처: 네이버 증권 일봉 ({stamp} 조회, KB API 조회 실패)"
+    if not res["quote"]:
+        q = naver_quote(code)
+        if q:
+            res["quote"], res["quote_src"] = q, f"2차 출처: 네이버 증권 실시간 ({stamp} 조회, KB API 조회 실패)"
     if not res["flows"]:
         f = naver_flows(code)
         if f:
