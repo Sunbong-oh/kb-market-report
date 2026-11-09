@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-09",
+"code": "031310",
+"name": "아이즈비전",
+"market": "K",
+"period": "26년 3Q",
+"op": 53.160000000000004,
+"op_prev": 22.2,
+"chg": 139.48,
+"turn": false,
+"basis": null,
+"rcp": "20261109900188",
+"made": "2026-11-09 10:55",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-09/031310"
+},
+{
+"day": "2026-11-09",
 "code": "100590",
 "name": "머큐리",
 "market": "K",
