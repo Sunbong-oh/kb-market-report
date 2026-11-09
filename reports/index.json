@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-09",
+"code": "215200",
+"name": "메가스터디교육",
+"market": "K",
+"period": "26.3Q",
+"op": 536.89,
+"op_prev": 284.12,
+"chg": 88.96,
+"turn": false,
+"basis": null,
+"rcp": "20261109900648",
+"made": "2026-11-09 16:52",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-09/215200"
+},
+{
+"day": "2026-11-09",
 "code": "036710",
 "name": "심텍홀딩스",
 "market": "K",
