@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-09",
+"code": "240810",
+"name": "원익IPS",
+"market": "K",
+"period": "26.3Q",
+"op": 666.54,
+"op_prev": 183.83,
+"chg": 262.58,
+"turn": false,
+"basis": null,
+"rcp": "20261109900411",
+"made": "2026-11-09 15:46",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-09/240810"
+},
+{
+"day": "2026-11-09",
 "code": "090370",
 "name": "메타랩스",
 "market": "Y",
