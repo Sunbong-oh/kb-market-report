@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-09",
+"code": "036710",
+"name": "심텍홀딩스",
+"market": "K",
+"period": "26.3Q",
+"op": 1047.05,
+"op_prev": 575.59,
+"chg": 81.9,
+"turn": false,
+"basis": null,
+"rcp": "20261109900589",
+"made": "2026-11-09 16:37",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-09/036710"
+},
+{
+"day": "2026-11-09",
 "code": "240810",
 "name": "원익IPS",
 "market": "K",
