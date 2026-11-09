@@ -115,7 +115,7 @@ def kb_watch(t: datetime, ok: bool, why: str = "") -> None:
     if t - KB_ALERT["since"] >= timedelta(minutes=KB_ALERT_MIN) and not KB_ALERT["sent"].startswith(day):
         KB_ALERT["sent"] = day
         telegram("⚠️ KB증권 Open API 접속 이상\n"
-                 f"{KB_ALERT['since']:%H:%M}부터 {KB_ALERT_MIN}분 넘게 KB 시장 데이터를 못 받았습니다 (홈페이지 장중 수급 멈춤).\n"
+                 f"{KB_ALERT['since']:%H:%M}부터 {KB_ALERT_MIN}분 넘게 KB 시장 데이터를 못 받았습니다.\n홈페이지 장중 수급은 지수·현물 수급만 네이버·다음 값으로 대신 갱신합니다(선물·옵션·프로그램은 멈춤).\n"
                  f"원인 문구: {KB_ALERT['why'] or '알 수 없음'}\n"
                  "KB 해외 IP 차단(GitHub 서버는 미국)이면 회사 PC(국내 IP)에서 받도록 바꿔야 합니다.")
         print(hm, "KB 접속 이상 알림 보냄:", KB_ALERT["why"], flush=True)
@@ -227,6 +227,87 @@ def add_spot(snap: dict, flows: dict, spot: dict) -> None:
         rows.setdefault(tm, {"t": tm}).update(v)
     fut["flows"] = [rows[k] for k in sorted(rows)]
     fut.setdefault("flow_date", now().strftime("%Y%m%d"))
+
+
+# ---- KB 서버가 꺼졌을 때 대신 쓰는 값 (네이버·다음) ----
+# 2026-11-09 08:37~08:57 KB Open API 접속 시간 초과로 홈페이지 장중 수급이 통째로 멈췄다.
+# KB 가 /api/market 을 못 주면 직전 스냅샷을 바탕으로 지수(네이버 실시간)·지수 분봉(네이버 차트)·
+# 개인/외국인/기관 코스피·코스닥 현물 누적(다음 증권)만 새로 채워 올린다. 선물·옵션·프로그램 칸은 직전 KB 값 그대로.
+NAVER_RT = "https://polling.finance.naver.com/api/realtime/domestic/index/{m}"
+NAVER_MIN = "https://api.stock.naver.com/chart/domestic/index/{m}/minute?startDateTime={d}0900&endDateTime={d}1530"
+FB_INDEX = (("KGG01P", "KOSPI", "KOSPI"), ("QGG01P", "KOSDAQ", "KOSDAQ"))
+
+
+def _f(v) -> float | None:
+    try:
+        return float(str(v).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def fallback_market(remote: dict | None, t: datetime) -> dict:
+    """KB 없이 만든 /api/market · /api/indices/intraday (못 받은 칸은 빠진다)."""
+    today = t.strftime("%Y%m%d")
+    old = ((remote or {}).get("data") or {}) if (remote or {}).get("date") == today else {}
+    market = json.loads(json.dumps(old.get("/api/market") or {"indices": [], "investors": []}))
+    intraday = json.loads(json.dumps(old.get("/api/indices/intraday") or {}))
+    got = False
+    for code, name, m in FB_INDEX:
+        try:
+            d = httpx.get(NAVER_RT.format(m=m), headers=NAVER_HEADERS, timeout=10).json()["datas"][0]
+            val, chg, pct = _f(d.get("closePrice")), _f(d.get("compareToPreviousClosePrice")), _f(d.get("fluctuationsRatio"))
+            if val is None:
+                continue
+            if (d.get("compareToPreviousPrice") or {}).get("code") in ("4", "5") and chg and chg > 0:
+                chg = -chg
+            row = {"id": code, "name": name, "value": val, "change": chg, "change_pct": pct}
+            ix = market.setdefault("indices", [])
+            for i, r in enumerate(ix):
+                if r.get("id") == code:
+                    ix[i] = {**r, **row}
+                    break
+            else:
+                ix.append(row)
+            got = True
+        except Exception as e:
+            print("  대체 지수 실패", m, type(e).__name__)
+            continue
+        try:
+            rows = httpx.get(NAVER_MIN.format(m=m, d=today), headers=NAVER_HEADERS, timeout=10).json()
+            pts = [{"t": r["localDateTime"][8:12], "c": r["currentPrice"]} for r in rows
+                   if str(r.get("localDateTime", "")).startswith(today) and r.get("currentPrice") is not None]
+            if pts:
+                intraday[code] = {"date": today, "prev_close": round(val - (chg or 0), 2), "points": pts}
+        except Exception as e:
+            print("  대체 분봉 실패", m, type(e).__name__)
+    names = {"개인": "individualStraightPurchasePrice", "외국인": "foreignStraightPurchasePrice",
+             "기관계": "institutionStraightPurchasePrice"}
+    for m, col in (("KOSPI", "kospi"), ("KOSDAQ", "kosdaq")):
+        try:
+            rows = httpx.get(DAUM.format(m=m).replace("perPage=500", "perPage=1"), headers=DAUM_HEADERS, timeout=10).json().get("data") or []
+        except (httpx.HTTPError, ValueError):
+            continue
+        if not rows or not str(rows[0].get("date", "")).startswith(t.strftime("%Y-%m-%d")):
+            continue
+        inv = market.setdefault("investors", [])
+        for nm, key in names.items():
+            v = rows[0].get(key)
+            if v is None:
+                continue
+            r = next((x for x in inv if x.get("name") == nm), None)
+            if r is None:
+                r = {"name": nm}
+                inv.append(r)
+            r[col] = round(v / 1e8)
+            got = True
+    if not got:
+        return {}
+    market["time"] = today
+    market["fallback"] = f"KB 접속 안 됨 → 지수·현물 수급은 네이버·다음 {t:%H:%M} (선물·옵션은 마지막 KB 값)"
+    out = {"/api/market": market}
+    if intraday:
+        out["/api/indices/intraday"] = intraday
+    return out
 
 
 def seed_flows(remote: dict | None, today: str) -> dict:
@@ -539,19 +620,27 @@ def main() -> None:
                 snap = snapshot()
                 # 서버가 답을 못 주는데 직전 값을 그대로 다시 올리면 시각만 바뀌고 수치는 멈춘 화면이 된다
                 # → 올리지 않고(화면의 기준 시각이 멈춰 이상을 알 수 있다) 세 번 이어지면 서버를 다시 띄운다
+                fb = False  # 이번 분은 KB 대신 네이버·다음 값
                 if "/api/market" not in snap:
                     misses += 1
                     kb_watch(t, False, kb_why())
-                    print(hm, f"시장 데이터 못 받음({misses}회) → 올리지 않음", flush=True)
                     if misses >= 3 and proc:
                         proc.terminate()
                         proc = None
                         print(hm, "서버 다시 띄움", flush=True)
-                    time.sleep(20)
-                    continue
-                misses = 0
-                kb_watch(t, True)
-                remote, keep = remote_tree()
+                    remote, keep = remote_tree()
+                    alt = fallback_market(remote, t) if "09:00" <= hm <= "15:45" else {}
+                    if not alt:  # 장 밖이거나 대체 자료도 못 받음 → 예전처럼 올리지 않는다
+                        print(hm, f"시장 데이터 못 받음({misses}회) → 올리지 않음", flush=True)
+                        time.sleep(20)
+                        continue
+                    snap.update(alt)
+                    fb = True
+                    print(hm, f"KB 못 받음({misses}회) → 네이버·다음 값으로 대신 올림", flush=True)
+                else:
+                    misses = 0
+                    kb_watch(t, True)
+                    remote, keep = remote_tree()
                 if not seeded:
                     flows, seeded = seed_flows(remote, today), True
                     print("이어 받은 분 단위 기록:", len(flows))
@@ -572,7 +661,8 @@ def main() -> None:
                 drop_future_points(snap, t)
                 keep_previous(snap, remote, today)
                 drop_future_points(snap, t)  # 직전 스냅샷에서 이어 받은 값에도
-                record_flows(snap, flows, t)
+                if not fb:  # 대체 값일 때 선물 칸은 직전 KB 값이라 분 단위 기록에 넣지 않는다
+                    record_flows(snap, flows, t)
                 add_spot(snap, flows, daum_spot(t))
                 if not archived and t.strftime("%H%M") > "1546" and has_today(snap, today):
                     archived = save_archive(snap, t)
