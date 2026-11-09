@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-09",
+"code": "033050",
+"name": "제이엠아이",
+"market": "K",
+"period": "26년3분기",
+"op": 30.12,
+"op_prev": 17.82,
+"chg": 69.0,
+"turn": false,
+"basis": null,
+"rcp": "20261109900239",
+"made": "2026-11-09 13:21",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-09/033050"
+},
+{
+"day": "2026-11-09",
 "code": "072990",
 "name": "에이치시티",
 "market": "K",
