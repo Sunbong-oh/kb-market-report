@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-09",
+"code": "090370",
+"name": "메타랩스",
+"market": "Y",
+"period": "26년 3Q",
+"op": 16.71,
+"op_prev": 2.79,
+"chg": 499.68,
+"turn": false,
+"basis": null,
+"rcp": "20261109800371",
+"made": "2026-11-09 15:05",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-09/090370"
+},
+{
+"day": "2026-11-09",
 "code": "033050",
 "name": "제이엠아이",
 "market": "K",
