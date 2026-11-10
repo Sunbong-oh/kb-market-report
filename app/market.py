@@ -345,6 +345,36 @@ async def usd_krw(kb: KBClient) -> dict | None:
     return None
 
 
+FX_URLS = (  # 네이버 증권 원/달러(하나은행 고시) - KB IVA60190 이 빈 값일 때 대신 쓴다
+    "https://api.stock.naver.com/marketindex/exchange/FX_USDKRW",
+    "https://m.stock.naver.com/front-api/marketIndex/productDetail?category=exchange&reutersCode=FX_USDKRW",
+)
+
+
+async def usd_krw_naver() -> dict | None:
+    import httpx  # 지연 import: KB 전용 실행에는 필요 없음
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0 Safari/537.36",
+               "Referer": "https://m.stock.naver.com/"}
+    async with httpx.AsyncClient(headers=headers, timeout=8, follow_redirects=True) as http:
+        for url in FX_URLS:
+            try:
+                j = (await http.get(url)).json()
+            except Exception as exc:
+                print("원/달러 네이버 실패:", url, type(exc).__name__, flush=True)
+                continue
+            r = (j.get("exchangeInfo") or j.get("result") or j) if isinstance(j, dict) else {}
+            rate = _f(r.get("closePrice"))
+            if rate is None:
+                continue
+            chg, pct = _f(r.get("fluctuations")) or 0.0, _f(r.get("fluctuationsRatio")) or 0.0
+            if str((r.get("fluctuationsType") or {}).get("name", "")) in ("FALLING", "LOWER_LIMIT"):
+                chg, pct = -abs(chg), -abs(pct)
+            at = re.sub(r"\D", "", str(r.get("localTradedAt") or ""))
+            return {"rate": rate, "change": chg, "change_pct": pct,
+                    "time": at[8:14] if len(at) >= 14 else "", "source": "naver"}
+    return None
+
+
 BOND_URLS = (  # 네이버 증권 국고채 10년(KR10YT=RR) 실시간 - 앞의 주소가 안 되면 다음 주소
     "https://api.stock.naver.com/marketindex/bond/KR10YT=RR",
     "https://m.stock.naver.com/front-api/marketIndex/productDetail?category=bond&reutersCode=KR10YT=RR",

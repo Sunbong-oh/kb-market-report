@@ -225,6 +225,7 @@ async function loadMacro() {
     $("#usdkrw").innerHTML = u
       ? `<div class="v ${cls(u.change)}">${fmt(u.rate, 2)}</div><div class="${cls(u.change)}">${arrow(u.change)} ${fmt(Math.abs(u.change ?? 0), 2)} (${signed(u.change_pct, 2)}%)</div>`
       : `<div class="empty">데이터 없음</div>`;
+    if ($("#usd-src")) $("#usd-src").textContent = u && u.source === "naver" ? "네이버(하나은행)" : "IVA60190";
     $("#bond-date").textContent = b && b.source === "naver" ? `네이버 · ${ymd(b.date)} ${b.time || ""}`
       : b && b.date ? `IVA10370 · ${ymd(b.date)}` : "IVA10370";
     $("#tsy10").innerHTML = b
