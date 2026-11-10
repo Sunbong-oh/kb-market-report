@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-10",
+"code": "194480",
+"name": "데브시스터즈",
+"market": "K",
+"period": "26년 3Q",
+"op": 72.4,
+"op_prev": -159.75,
+"chg": null,
+"turn": true,
+"basis": null,
+"rcp": "20261110900194",
+"made": "2026-11-10 11:05",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-10/194480"
+},
+{
+"day": "2026-11-10",
 "code": "009320",
 "name": "아진전자부품",
 "market": "Y",
