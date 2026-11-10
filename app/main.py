@@ -134,6 +134,11 @@ async def get_macro():
     usd, bond, live = await asyncio.gather(market.usd_krw(kb), market.treasury_10y(kb), market.treasury_10y_live(),
                                            return_exceptions=True)
     usd, bond, live = [None if isinstance(x, BaseException) else x for x in (usd, bond, live)]
+    if not usd or usd.get("rate") is None:  # KB 환율이 빈 값이면 네이버(하나은행 고시)로
+        try:
+            usd = await market.usd_krw_naver()
+        except Exception:
+            usd = None
     # 장중엔 네이버 실시간 값(오늘 날짜), 없거나 더 오래됐으면 IVA10370 일별 값
     if live and (not bond or live.get("date", "") >= str(bond.get("date", ""))):
         bond = live
