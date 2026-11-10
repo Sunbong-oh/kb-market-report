@@ -1,5 +1,20 @@
 [
 {
+"day": "2026-11-10",
+"code": "009320",
+"name": "아진전자부품",
+"market": "Y",
+"period": "26년 3Q",
+"op": 19.92,
+"op_prev": 10.94,
+"chg": 82.1,
+"turn": false,
+"basis": null,
+"rcp": "20261110800148",
+"made": "2026-11-10 10:11",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-10/009320"
+},
+{
 "day": "2026-11-09",
 "code": "215200",
 "name": "메가스터디교육",
