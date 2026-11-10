@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-10",
+"code": "034230",
+"name": "파라다이스",
+"market": "Y",
+"period": "26년 3Q",
+"op": 641.21,
+"op_prev": 355.5,
+"chg": 80.4,
+"turn": false,
+"basis": null,
+"rcp": "20261110800734",
+"made": "2026-11-10 16:57",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-10/034230"
+},
+{
+"day": "2026-11-10",
 "code": "086900",
 "name": "메디톡스",
 "market": "K",
