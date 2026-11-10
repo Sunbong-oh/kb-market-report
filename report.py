@@ -250,6 +250,22 @@ def pick_futures_flow(saved: dict | None, live: dict | None, now: datetime) -> d
     return best
 
 
+def flow_live_snapshot(now: datetime) -> dict | None:
+    """KB 서버 오류로 리포트 화면을 못 그렸을 때의 대체 자료: 장중 수급 작업이 1분마다 올리는 flow-live 의
+    오늘 snapshot.json. 오늘 날짜이고 장 마감(15:30) 뒤 기록일 때만 쓴다."""
+    try:
+        subprocess.run(["git", "fetch", "--depth", "1", "origin", "flow-live"], cwd=ROOT, check=True, capture_output=True, timeout=120)
+        raw = subprocess.run(["git", "show", "FETCH_HEAD:snapshot.json"], cwd=ROOT, check=True, capture_output=True, timeout=60).stdout
+        j = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        print(f"flow-live 대체 자료 못 읽음: {exc}")
+        return None
+    if j.get("date") != f"{now:%Y%m%d}" or str(j.get("time", "")) < "15:30" or not (j.get("data") or {}).get("/api/market"):
+        print(f"flow-live 대체 자료 쓸 수 없음: {j.get('date')} {j.get('time')}")
+        return None
+    return j
+
+
 def main() -> int:
     send = "--no-send" not in sys.argv
     now = datetime.now(KST).replace(tzinfo=None)  # 클라우드(UTC)에서도 한국 시간 기준
@@ -257,11 +273,19 @@ def main() -> int:
     out_dir.mkdir(exist_ok=True)
     prefix = out_dir / f"KB_market_{now:%Y%m%d_%H%M}"
 
+    fb_time = ""
     proc = None if server_up() else start_server()
     try:
         if httpx.get(f"{URL}/api/status", timeout=5).json().get("demo_mode") and "--allow-demo" not in sys.argv:
             raise RuntimeError("KB API 키가 없어 데모(가짜) 데이터입니다. 리포트를 보내지 않습니다.")
-        shots, api = capture(prefix)
+        try:
+            shots, api = capture(prefix)
+        except Exception as exc:  # KB 서버 오류(HTTP 500 등)로 화면을 못 그림: 장마감 실행이면 flow-live 마지막 기록으로 대신 만든다
+            fb = flow_live_snapshot(now) if os.environ.get("REPORT_MODE") == "close" else None
+            if not fb:
+                raise
+            print(f"리포트 화면 생성 실패({exc}) -> flow-live {fb['time']} 기록으로 대체")
+            shots, api, fb_time = [], fb["data"], fb["time"]
     finally:
         if proc:
             proc.terminate()
@@ -273,7 +297,7 @@ def main() -> int:
             print(f"휴장일입니다 (최근 거래일 {last_day}) - 장마감 리포트를 보내지 않습니다.")
             return 0
     weekday = "월화수목금토일"[now.weekday()]
-    taken = f"{now:%Y-%m-%d}({weekday}) {now:%H:%M}"
+    taken = f"{now:%Y-%m-%d}({weekday}) {fb_time or f'{now:%H:%M}'}"
     snapshot = prefix.with_name(f"{prefix.name}_site.html")
     build_snapshot(api, snapshot, taken)
     shutil.copy(snapshot, out_dir / "latest.html")  # PC 바탕화면 '장마감 수급체크' 바로가기가 여는 최신 리포트
@@ -288,8 +312,8 @@ def main() -> int:
     except Exception as exc:
         print(f"선물 교차차트 붙이기 실패: {exc}")
     cal_text: list[str] = []
-    try:  # 오늘 저녁 실적·이슈 + 내일 일정을 1번 사진(시장 지수·환율·금리) 아래에 붙인다 (캘린더에 없으면 그대로)
-        cal_img = calendar_image(now, prefix.with_name(f"{prefix.name}_calendar.jpg"))
+    try:  # (대체 자료로 만든 날은 사진이 없어 건너뜀) 오늘 저녁 실적·이슈 + 내일 일정을 1번 사진(시장 지수·환율·금리) 아래에 붙인다 (캘린더에 없으면 그대로)
+        cal_img = calendar_image(now, prefix.with_name(f"{prefix.name}_calendar.jpg")) if shots else None
         print(f"일정 사진: {cal_img or '캘린더 자료 없음'}")
         if cal_img:
             stitch_below(shots[0][0], cal_img)
@@ -306,7 +330,10 @@ def main() -> int:
     except Exception as exc:
         print(f"OneDrive 저장 실패: {exc}")
     if send:  # 시험 실행(--no-send)은 텔레그램·GitHub 모두 건드리지 않는다
-        send_telegram(shots, f"KB 시장 리포트 {taken}")
+        if shots:
+            send_telegram(shots, f"KB 시장 리포트 {taken}")
+        else:
+            send_telegram_text(f"⚠️ KB 서버 오류로 화면 사진은 못 만들어, 장중 수급 마지막 기록({fb_time} 기준)으로 장마감 리포트를 만들었어요.")
         if cal_text:  # 일정 사진을 못 만든 날만: 예전처럼 글자로
             send_telegram_text("\n".join(cal_text).strip())
         send_telegram_file(snapshot, "사이트 스냅샷 · 파일을 눌러 브라우저로 열면 차트 확대·체크박스·터치 값 확인이 됩니다")
