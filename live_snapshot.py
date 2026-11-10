@@ -629,7 +629,7 @@ def main() -> None:
                         proc = None
                         print(hm, "서버 다시 띄움", flush=True)
                     remote, keep = remote_tree()
-                    alt = fallback_market(remote, t) if "09:00" <= hm <= "15:45" else {}
+                    alt = fallback_market(remote, t) if START <= hm <= "15:45" else {}  # 08:00부터: KB 가 안 되는 개장 전에도 오늘 날짜 화면으로 바꾼다
                     if not alt:  # 장 밖이거나 대체 자료도 못 받음 → 예전처럼 올리지 않는다
                         print(hm, f"시장 데이터 못 받음({misses}회) → 올리지 않음", flush=True)
                         time.sleep(20)
