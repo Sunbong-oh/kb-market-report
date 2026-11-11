@@ -1,0 +1,17 @@
+name: 회사 PC 인터넷 접속 확인 (수동)
+
+# 회사 PC 실행기에서 장중 수급이 쓰는 외부 사이트(다음 증권·네이버)가 열리는지 확인한다.
+on: {workflow_dispatch: {}}
+jobs:
+  net:
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: 접속 확인
+        shell: cmd
+        run: |
+          python -m pip install -q httpx
+          python pc_net_probe.py
