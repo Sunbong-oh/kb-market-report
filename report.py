@@ -37,6 +37,9 @@ KST = timezone(timedelta(hours=9))
 load_dotenv(ROOT / ".env")
 
 
+BROWSER_ARGS = {"headless": True} if os.environ.get("REPORT_BROWSER") == "chromium" else {"channel": "msedge", "headless": True}
+
+
 def server_up() -> bool:
     try:
         return httpx.get(f"{URL}/api/status", timeout=3).status_code == 200
@@ -68,12 +71,13 @@ PARTS = [
 ]
 
 
-def capture(prefix: Path) -> tuple[list[tuple[Path, str]], dict]:
+def capture(prefix: Path, snap_html: Path | None = None) -> tuple[list[tuple[Path, str]], dict]:
     """PARTS마다 뷰포트 폭을 바꿔 해당 카드들만 잘라 JPG로 저장한다.
-    화면이 불러온 /api 응답도 모아 돌려준다 (스냅샷 HTML용)."""
+    화면이 불러온 /api 응답도 모아 돌려준다 (스냅샷 HTML용).
+    snap_html 이 있으면 KB 서버 대신 그 파일(저장된 장중 기록으로 만든 스냅샷)을 열어 그린다."""
     shots, api = [], {}
     with sync_playwright() as p:
-        browser = p.chromium.launch(channel="msedge", headless=True)
+        browser = p.chromium.launch(**BROWSER_ARGS)
         page = browser.new_page(viewport={"width": 480, "height": 900}, device_scale_factor=2.5, color_scheme="light")
 
         def keep(res):
@@ -85,7 +89,7 @@ def capture(prefix: Path) -> tuple[list[tuple[Path, str]], dict]:
                     pass
 
         page.on("response", keep)
-        page.goto(f"{URL}/?report=1", wait_until="load")
+        page.goto((snap_html.resolve().as_uri() if snap_html else f"{URL}/") + "?report=1", wait_until="load")
         try:  # 느린 API 하나 때문에 '조용해짐'을 끝내 못 기다리면(2026-11-06 30초 초과로 실패) 아래 그림 확인으로 넘어간다
             page.wait_for_load_state("networkidle", timeout=45_000)
         except Exception as exc:
@@ -126,7 +130,7 @@ def stitch_below(top: Path, bottom: Path) -> None:
         return "data:image/jpeg;base64," + base64.b64encode(path.read_bytes()).decode()
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(channel="msedge", headless=True)
+        browser = p.chromium.launch(**BROWSER_ARGS)
         page = browser.new_page(viewport={"width": 480, "height": 400}, device_scale_factor=2.5)
         page.set_content(f'<body style="margin:0;background:#f4f5f7"><img src="{uri(top)}" style="display:block;width:480px">'
                          f'<img src="{uri(bottom)}" style="display:block;width:480px"></body>')
@@ -274,21 +278,38 @@ def main() -> int:
     prefix = out_dir / f"KB_market_{now:%Y%m%d_%H%M}"
 
     fb_time = ""
-    proc = None if server_up() else start_server()
-    try:
-        if httpx.get(f"{URL}/api/status", timeout=5).json().get("demo_mode") and "--allow-demo" not in sys.argv:
-            raise RuntimeError("KB API 키가 없어 데모(가짜) 데이터입니다. 리포트를 보내지 않습니다.")
+    shots, api = [], None
+    if os.environ.get("REPORT_MODE") == "close" and "--live-server" not in sys.argv:
+        # 장중 수급 작업이 1분마다 flow-live 에 저장해 둔 오늘 마지막 기록(15:30 이후)으로 그린다: KB 에 직접 접속하지 않아
+        # GitHub 해외 서버에서도 된다. 오늘 기록이 아니거나 지수 분봉이 오늘 것이 아니면(휴장 등) 건너뛰고 아래 KB 서버 방식으로.
+        fb = flow_live_snapshot(now)
+        kospi = (((fb or {}).get("data") or {}).get("/api/indices/intraday") or {}).get("KGG01P") or {}
+        if fb and str(kospi.get("date", "")) == f"{now:%Y%m%d}":
+            try:
+                src_html = prefix.with_name(f"{prefix.name}_src.html")
+                build_snapshot(fb["data"], src_html, f"{now:%Y-%m-%d} {fb['time']}")
+                shots, _ = capture(prefix, src_html)
+                api, fb_time = fb["data"], fb["time"]
+                print(f"flow-live {fb['time']} 기록으로 리포트 화면 생성")
+            except Exception as exc:
+                print(f"flow-live 기록으로 화면 생성 실패, KB 서버 방식으로: {type(exc).__name__}: {exc}")
+                shots, api = [], None
+    if api is None:
+        proc = None if server_up() else start_server()
         try:
-            shots, api = capture(prefix)
-        except Exception as exc:  # KB 서버 오류(HTTP 500 등)로 화면을 못 그림: 장마감 실행이면 flow-live 마지막 기록으로 대신 만든다
-            fb = flow_live_snapshot(now) if os.environ.get("REPORT_MODE") == "close" else None
-            if not fb:
-                raise
-            print(f"리포트 화면 생성 실패({exc}) -> flow-live {fb['time']} 기록으로 대체")
-            shots, api, fb_time = [], fb["data"], fb["time"]
-    finally:
-        if proc:
-            proc.terminate()
+            if httpx.get(f"{URL}/api/status", timeout=5).json().get("demo_mode") and "--allow-demo" not in sys.argv:
+                raise RuntimeError("KB API 키가 없어 데모(가짜) 데이터입니다. 리포트를 보내지 않습니다.")
+            try:
+                shots, api = capture(prefix)
+            except Exception as exc:  # KB 서버 오류(HTTP 500 등)로 화면을 못 그림: 장마감 실행이면 flow-live 마지막 기록으로 대신 만든다
+                fb = flow_live_snapshot(now) if os.environ.get("REPORT_MODE") == "close" else None
+                if not fb:
+                    raise
+                print(f"리포트 화면 생성 실패({exc}) -> flow-live {fb['time']} 기록으로 대체")
+                shots, api, fb_time = [], fb["data"], fb["time"]
+        finally:
+            if proc:
+                proc.terminate()
     # 영업일에만 장마감 리포트를 보낸다: 코스피의 가장 최근 거래일이 오늘이 아니면 휴장일(공휴일 등)
     if os.environ.get("REPORT_MODE") == "close":
         last_day = ((api.get("/api/indices/intraday") or {}).get("KGG01P") or {}).get("date")
