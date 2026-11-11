@@ -460,6 +460,24 @@ def drop_future_points(snap: dict, t: datetime) -> None:
                 d["points"] = keep
 
 
+def clear_stale_intraday(snap: dict, t: datetime) -> None:
+    """개장 전(09:00 전)에는 KB 국내 지수 분봉이 전날 한 장(09:00~15:30)으로 온다 → 화면이 어제 차트를 오늘 것처럼 그린다.
+    그 점들을 비워(오늘 날짜로 표시) 개장 전에는 빈 차트로 두고, 기준선은 어제 종가(시장 지수 값)로 맞춘다."""
+    if t.strftime("%H%M") >= "0900":
+        return
+    today = t.strftime("%Y%m%d")
+    ix = snap.get("/api/indices/intraday") or {}
+    closes = {i.get("id"): i.get("value") for i in ((snap.get("/api/market") or {}).get("indices") or [])}
+    for code in ("KGG01P", "QGG01P"):
+        d = ix.get(code)
+        if d and str(d.get("date") or "") != today and d.get("points"):
+            d["points"] = []
+            d["date"] = today
+            if closes.get(code):
+                d["prev_close"] = closes[code]
+            print("  개장 전: 전날 지수 분봉을 비움", code, flush=True)
+
+
 def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
     """KB 응답이 가끔 비거나 짧게 오면(예: 코스닥 분봉 0개) 화면 차트가 빈다 → 직전 스냅샷 값을 이어 쓴다."""
     if not remote or remote.get("date") != today:
@@ -662,6 +680,7 @@ def main() -> None:
                 drop_future_points(snap, t)
                 keep_previous(snap, remote, today)
                 drop_future_points(snap, t)  # 직전 스냅샷에서 이어 받은 값에도
+                clear_stale_intraday(snap, t)  # 개장 전: 어제 차트를 오늘 것처럼 그리지 않게
                 if not fb:  # 대체 값일 때 선물 칸은 직전 KB 값이라 분 단위 기록에 넣지 않는다
                     record_flows(snap, flows, t)
                 add_spot(snap, flows, daum_spot(t))
