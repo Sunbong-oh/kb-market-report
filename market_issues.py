@@ -37,6 +37,18 @@ SECTOR_KEYS = [
 ]
 
 
+# 지정 이슈 주제(입력 키워드·기사 제목)에 따른 대표 관련 종목: 기사에 종목 이름이 없어도 '그 일 때문에 주가가 어떤지'를 보여 준다
+PIN_STOCKS = [
+    (r"젠슨\s*황|엔비디아|NVIDIA|Nvidia|NVDA", ["SK하이닉스", "삼성전자", "한미반도체"]),
+    (r"창신|CXMT", ["삼성전자", "SK하이닉스", "한미반도체"]),
+    (r"테슬라|일론\s*머스크", ["LG에너지솔루션", "삼성SDI", "에코프로비엠"]),
+    (r"트럼프.*관세|관세", ["현대차", "기아", "현대모비스"]),
+]
+# 시장과 상관없는 가십은 기사 목록 뒤로
+GOSSIP = re.compile(r"연인|열애|부부|결혼|결별|불륜|이혼|사생활|재혼")
+MARKET_WORDS = re.compile(r"주가|급락|하락|급등|상승|증시|시총|시가총액|목표가|투자의견|반도체|공급|실적|수출|환율|금리")
+
+
 ALIAS = {"삼전": "삼성전자", "SK하닉": "SK하이닉스", "하닉": "SK하이닉스", "하이닉스": "SK하이닉스", "삼바": "삼성바이오로직스",
          "엔솔": "LG에너지솔루션", "현차": "현대차", "삼전닉스": "삼성전자 SK하이닉스"}
 
@@ -139,6 +151,12 @@ def build(rows: list[dict], map_data: dict | None, top: int = 3, pinned: tuple[l
                 continue
             if re.search(r"(?<![가-힣A-Za-z])" + re.escape(nm) + r"(?![가-힣A-Za-z])", titles) and not any(nm in f for f in found):
                 found.append(nm)
+        if is_pin:  # 지정 이슈: 주제에 맞는 대표 종목을 덧붙인다 (맵에 있는 종목만)
+            topic = " ".join(pinned[0]) + " " + titles
+            for pat, reps in PIN_STOCKS:
+                if re.search(pat, topic):
+                    found += [r for r in reps if r in stocks and r not in found]
+                    break
         sec = None
         for pat, sname, reps in ([] if is_pin else SECTOR_KEYS):  # 지정 키워드는 기사 제목에 나온 종목만
             if len(re.findall(pat, titles)) >= max(1, len(members) // 3):  # 제목에 업종 단어가 충분히 나올 때만
@@ -151,7 +169,11 @@ def build(rows: list[dict], map_data: dict | None, top: int = 3, pinned: tuple[l
             continue
         order = (lambda r: (titles.count(r["n"]), big.get(r["n"], 0))) if is_pin else (lambda r: big.get(r["n"], 0))
         rel = sorted(({"n": n, "p": stocks[n]} for n in found if n in stocks), key=order, reverse=True)[:6]
-        arts = sorted((rows[i] for i in members), key=lambda r: r["dt"], reverse=True)
+        if is_pin:
+            rel_score = lambda r: (len(MARKET_WORDS.findall(r["t"])) + 2 * sum(1 for n in found if n in r["t"]) - (6 if GOSSIP.search(r["t"]) else 0), r["dt"])
+            arts = sorted((rows[i] for i in members), key=rel_score, reverse=True)
+        else:
+            arts = sorted((rows[i] for i in members), key=lambda r: r["dt"], reverse=True)
         title = _label(rows, members) if len(members) > 1 else rows[members[0]]["t"]
         out.append({"title": title, "n": len(members), "offices": len(offices), "score": 10**6 if is_pin else score,
                     "pin": " · ".join(pinned[0]) if is_pin else None,
@@ -162,7 +184,7 @@ def build(rows: list[dict], map_data: dict | None, top: int = 3, pinned: tuple[l
 
 
 # 키워드의 같은 뜻 (영문 약어 ↔ 한글)
-KW_SYN = {"CPI": ["소비자물가"], "PPI": ["생산자물가"], "PCE": ["개인소비지출"], "FOMC": ["연준", "금리 결정"],
+KW_SYN = {"젠슨황": ["젠슨 황", "Jensen Huang"], "CPI": ["소비자물가"], "PPI": ["생산자물가"], "PCE": ["개인소비지출"], "FOMC": ["연준", "금리 결정"],
           "GDP": ["성장률"], "ESS": ["에너지저장"], "CXMT": ["창신메모리"], "창신메모리": ["CXMT"]}
 
 
@@ -176,31 +198,40 @@ def kw_terms(kw: str) -> tuple[str, list[str]]:
     return " ".join(parts), [main] + KW_SYN.get(main.upper(), KW_SYN.get(main, []))
 
 
+def _nospace(text: str) -> str:
+    """띄어쓰기를 없애 비교한다: '젠슨황' = '젠슨 황'."""
+    return re.sub(r"\s+", "", text).lower()
+
+
 def keyword_news(http: httpx.Client, keywords: list[str], rows: list[dict], hours: int = 24) -> list[dict]:
     """지정 키워드 기사: 구글 뉴스 검색(최근 1일) + 네이버 주요뉴스 중 키워드(주제어·같은 뜻)가 들어간 기사."""
     since = (datetime.now(KST) - timedelta(hours=hours)).strftime("%Y%m%d%H%M%S")
     out, seen = [], set()
     for kw in keywords:
         query, terms = kw_terms(kw)
-        hit = lambda text: any(t.lower() in text.lower() for t in terms)
+        hit = lambda text: any(_nospace(t) in _nospace(text) for t in terms)
         for r in rows:
             if hit(r["t"] + " " + r["b"]) and r["url"] not in seen:
                 seen.add(r["url"])
                 out.append(r)
+        # 검색어: 입력 그대로 + 같은 뜻 낱말로 바꾼 것(젠슨황 해임 → 젠슨 황 해임)
+        rest = query.split(" ", 1)[1] if " " in query else ""
+        queries = [query] + [f"{t} {rest}".strip() for t in terms[1:]]
         try:
-            xml = http.get("https://news.google.com/rss/search",
-                           params={"q": f"{query} when:1d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}).text
-            for it in ET.fromstring(xml).iter("item"):
-                src = it.findtext("source") or ""
-                title = re.sub(r"\s+-\s+[^-]+$", "", it.findtext("title") or "").strip()
-                try:
-                    dt = parsedate_to_datetime(it.findtext("pubDate")).astimezone(KST).strftime("%Y%m%d%H%M%S")
-                except Exception:
-                    continue
-                link = it.findtext("link") or ""
-                if title and dt >= since and link not in seen and hit(title):
-                    seen.add(link)
-                    out.append({"t": title, "b": "", "dt": dt, "o": src, "url": link})
+            for q in dict.fromkeys(queries):
+                xml = http.get("https://news.google.com/rss/search",
+                               params={"q": f"{q} when:1d", "hl": "ko", "gl": "KR", "ceid": "KR:ko"}).text
+                for it in ET.fromstring(xml).iter("item"):
+                    src = it.findtext("source") or ""
+                    title = re.sub(r"\s+-\s+[^-]+$", "", it.findtext("title") or "").strip()
+                    try:
+                        dt = parsedate_to_datetime(it.findtext("pubDate")).astimezone(KST).strftime("%Y%m%d%H%M%S")
+                    except Exception:
+                        continue
+                    link = it.findtext("link") or ""
+                    if title and dt >= since and link not in seen and hit(title):
+                        seen.add(link)
+                        out.append({"t": title, "b": "", "dt": dt, "o": src, "url": link})
         except Exception as e:
             print("  키워드 뉴스 실패:", kw, type(e).__name__, e, flush=True)
     return out
