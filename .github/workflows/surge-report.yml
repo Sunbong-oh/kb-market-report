@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   report:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows]   # 회사 PC(한국 IP) 실행기: KB 일봉·현재가·수급이 해외 서버에서는 막힌다(실패하면 네이버로 대체됨)
     timeout-minutes: 25
     env:
       PYTHONUTF8: "1"
@@ -48,7 +48,15 @@ jobs:
         with:
           ref: main
 
+      # PC 에 설치돼 있지만 경로에 없는 gh·Git 의 bash 를 이 작업 안에서만 경로에 더한다 (파이썬은 PC 것을 그대로 씀)
+      - name: 경로 설정
+        shell: cmd
+        run: |
+          echo C:\Program Files\GitHub CLI>> "%GITHUB_PATH%"
+          echo C:\Program Files\Git\bin>> "%GITHUB_PATH%"
+
       - name: DART 키 확인
+        shell: bash
         run: |
           if [ -z "$DART_API_KEY" ]; then
             echo "::error::DART 키를 못 찾았습니다. 이 저장소(kb-market-report) Settings → Secrets and variables → Actions → Repository secrets 에 이름 DART_API_KEY 로 넣어 주세요 (Environment·Codespaces·Dependabot 시크릿은 안 읽힘)"
@@ -56,30 +64,29 @@ jobs:
           fi
           echo "DART 키 확인 (길이 ${#DART_API_KEY})"
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
       - name: 패키지 설치 (PDF용 Chromium 포함)
+        shell: cmd
         run: |
-          pip install httpx python-dotenv playwright
-          python -m playwright install --with-deps chromium
+          python -m pip install -q httpx python-dotenv playwright
+          python -m playwright install chromium
 
       - name: 보고서 만들기
+        shell: bash
         run: |
           python surge_report.py "${{ inputs.items }}" ${{ inputs.send && '--send' || '' }}
 
       - name: surge-reports 브랜치에 보관
+        shell: bash
         run: |
           ls out/surge_reports/*.html >/dev/null 2>&1 || { echo "만든 보고서 없음"; exit 0; }
-          day=${REPORT_DAY:-$(TZ=Asia/Seoul date +%F)}
+          day=${REPORT_DAY:-$(python -c "from datetime import datetime,timedelta,timezone;print(datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d'))")}
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch -q origin surge-reports && git worktree add -q ../sr origin/surge-reports || { git worktree add -q --detach ../sr && (cd ../sr && git checkout -q --orphan surge-reports && git rm -rqf .); }
           mkdir -p "../sr/reports/$day"
           cp out/surge_reports/*.html out/surge_reports/*.pdf "../sr/reports/$day/" 2>/dev/null || true
           # 홈페이지 '실시간 작성 종목 보고서' 목록 (최신순, 같은 날 같은 종목은 새 것으로)
-          python3 - <<'PY'
+          python - <<'PY'
           import json, pathlib
           idx = pathlib.Path("../sr/reports/index.json")
           old = json.loads(idx.read_text(encoding="utf-8")) if idx.exists() else []
