@@ -1,0 +1,28 @@
+name: KB 응답 확인 (회사 PC 실행기, 수동)
+
+# 회사 PC(한국 IP)에 설치한 GitHub 실행기(self-hosted runner)에서 KB Open API 가 되는지 확인한다.
+# 되면 장중 수급·장마감 리포트 등을 이 실행기로 옮긴다(runs-on 을 [self-hosted, windows] 로).
+on: {workflow_dispatch: {}}
+jobs:
+  probe:
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 15
+    env:
+      KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
+      KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: 이 PC 정보
+        shell: cmd
+        run: |
+          hostname
+          python --version
+          git --version
+          where gh || echo gh 없음
+      - name: 패키지 설치
+        shell: cmd
+        run: python -m pip install -q -r requirements.txt
+      - name: KB 응답 확인
+        shell: cmd
+        run: python kb_probe.py
