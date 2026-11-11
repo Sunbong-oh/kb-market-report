@@ -1,0 +1,36 @@
+name: 리포트 내려받기 (회사 PC 폴더)
+
+# 매일 올라오는 실적발표 종목 보고서(PDF)와 전일 강세종목 리포트(HTML·PDF)를 이 컴퓨터(회사 PC 실행기)의 폴더로 내려받는다.
+# 받는 곳: 문서 폴더\투자노트 리포트\{실적발표 종목, 전일 강세종목}  (이미 받은 파일은 건너뜀, 기록은 '동기화 기록.txt')
+# PC 는 평일 08:10~17:00 에 켜져 있어 아침 08:30(밤사이 올라온 것)과 퇴근 전 16:45(낮에 올라온 것)에 돈다. 손으로도 실행할 수 있다.
+on:
+  schedule:
+    - cron: "30 23 * * 0-4"   # 평일 08:30 KST
+    - cron: "45 7 * * 1-5"    # 평일 16:45 KST
+  workflow_dispatch:
+    inputs:
+      dir:
+        description: "받을 폴더 (비우면 문서 폴더\\투자노트 리포트)"
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-reports
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
+      REPORT_DIR: ${{ github.event.inputs.dir }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: 내려받기
+        shell: cmd
+        run: python sync_reports_to_pc.py
