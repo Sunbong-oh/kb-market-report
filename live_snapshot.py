@@ -478,6 +478,16 @@ def clear_stale_intraday(snap: dict, t: datetime) -> None:
             print("  개장 전: 전날 지수 분봉을 비움", code, flush=True)
 
 
+def clear_stale_bond(snap: dict, t: datetime) -> None:
+    """국고채 10년 금리는 채권 시장이 09:00 에 열려야 오늘 값이 생긴다. 날짜가 오늘이 아닌(어제) 값은 비워 '데이터 없음'으로 두고,
+    오늘 값이 들어오면 그때 채운다. 날마다 개장 전에 저절로 다시 비워진다(어제 날짜이므로)."""
+    macro = snap.get("/api/macro")
+    b = (macro or {}).get("treasury_10y")
+    if b and str(b.get("date") or "")[:8] != t.strftime("%Y%m%d"):
+        macro["treasury_10y"] = None
+        print("  국고채 금리가 어제 값이라 비움:", b.get("date"), flush=True)
+
+
 def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
     """KB 응답이 가끔 비거나 짧게 오면(예: 코스닥 분봉 0개) 화면 차트가 빈다 → 직전 스냅샷 값을 이어 쓴다."""
     if not remote or remote.get("date") != today:
@@ -681,6 +691,7 @@ def main() -> None:
                 keep_previous(snap, remote, today)
                 drop_future_points(snap, t)  # 직전 스냅샷에서 이어 받은 값에도
                 clear_stale_intraday(snap, t)  # 개장 전: 어제 차트를 오늘 것처럼 그리지 않게
+                clear_stale_bond(snap, t)  # 어제 날짜 국고채 금리는 오늘 값이 들어올 때까지 비움
                 if not fb:  # 대체 값일 때 선물 칸은 직전 KB 값이라 분 단위 기록에 넣지 않는다
                     record_flows(snap, flows, t)
                 add_spot(snap, flows, daum_spot(t))
