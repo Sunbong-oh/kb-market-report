@@ -9,6 +9,7 @@ Windows 작업 스케줄러가 월~금 15:50에 report.bat으로 실행한다.
 """
 
 from __future__ import annotations
+import tls_trust  # noqa: F401  (회사 PC 보안 장비 인증서: 윈도 인증서 저장소 사용)
 
 import base64
 import json

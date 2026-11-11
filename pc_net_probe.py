@@ -1,4 +1,5 @@
 """회사 PC(실행기)에서 장중 수급이 쓰는 외부 사이트 접속 확인 (다음 증권 투자자 시간대별·네이버 지수)."""
+import tls_trust  # noqa: F401  (회사 PC 보안 장비 인증서: 윈도 인증서 저장소 사용)
 import httpx
 
 H = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0 Safari/537.36", "Referer": "https://finance.daum.net/"}

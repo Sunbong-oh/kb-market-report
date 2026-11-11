@@ -20,6 +20,7 @@ earnings_watch.py 가 국내 잠정실적 급증 카드를 텔레그램으로 �
 """
 
 from __future__ import annotations
+import tls_trust  # noqa: F401  (회사 PC 보안 장비 인증서: 윈도 인증서 저장소 사용)
 
 import asyncio
 import html
