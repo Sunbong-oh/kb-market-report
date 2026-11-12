@@ -479,6 +479,14 @@ def clear_stale_intraday(snap: dict, t: datetime) -> None:
             if cur.get("value") is not None:
                 d["prev_close"] = round(cur["value"] - (cur.get("change") or 0), 2)
             print("  어제 지수 분봉을 비움", code, len(pts), "개", flush=True)
+            try:  # KB 가 오늘 분봉을 아직 안 줄 때를 위해 네이버 오늘 분봉으로 채운다 (KB 가 오늘 것을 주면 그때부터 KB 값)
+                rows = httpx.get(NAVER_MIN.format(m="KOSPI" if code == "KGG01P" else "KOSDAQ", d=today), headers=NAVER_HEADERS, timeout=10).json()
+                d["points"] = [{"t": r["localDateTime"][8:12], "c": r["currentPrice"]} for r in rows
+                               if str(r.get("localDateTime", "")).startswith(today) and r.get("currentPrice") is not None
+                               and r["localDateTime"][8:12] <= hm]
+                print("  네이버 오늘 분봉으로 채움", code, len(d["points"]), "개", flush=True)
+            except Exception as e:
+                print("  네이버 오늘 분봉 못 받음", code, type(e).__name__, flush=True)
 
 
 def clear_stale_bond(snap: dict, t: datetime) -> None:
