@@ -477,8 +477,8 @@ def product_photos(url: str, names: list[str], limit: int = 4) -> list[dict]:
                     scan(u, False)
                     home = pg.url
                     break
-                except Exception:
-                    continue
+                except Exception as e:
+                    log("  홈페이지 열기 실패:", u, type(e).__name__, str(e)[:160])
             if not home:
                 b.close()
                 return []

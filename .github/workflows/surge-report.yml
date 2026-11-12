@@ -90,6 +90,8 @@ jobs:
           git fetch -q origin surge-reports && git worktree add -q ../sr origin/surge-reports || { git worktree add -q --detach ../sr && (cd ../sr && git checkout -q --orphan surge-reports && git rm -rqf .); }
           mkdir -p "../sr/reports/$day"
           cp out/surge_reports/*.html out/surge_reports/*.pdf "../sr/reports/$day/" 2>/dev/null || true
+          # 회사 PC 실행기 로그는 GitHub에 안 올라온다 → 마지막 실행 기록을 브랜치에 남긴다
+          mkdir -p ../sr/logs && cp out/surge_reports/run.log ../sr/logs/last_run.log 2>/dev/null || true
           # 홈페이지 '실시간 작성 종목 보고서' 목록 (최신순, 같은 날 같은 종목은 새 것으로)
           python - <<'PY'
           import json, pathlib
@@ -107,16 +109,7 @@ jobs:
           idx.write_text(json.dumps(rows, ensure_ascii=False, indent=0), encoding="utf-8")
           PY
           cd ../sr
-          git add reports
+          git add reports logs
           git commit -qm "실적카드 요약 보고서 $day" || exit 0
           for i in 1 2 3; do git push -q origin HEAD:surge-reports && break; git fetch -q origin surge-reports && git rebase -q origin/surge-reports; done
 
-      # 실행기 로그가 GitHub에 안 올라올 때가 있어, 만든 파일과 실행 기록을 작업 결과물로도 남긴다
-      - name: 결과물 보관 (artifact)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: surge-report
-          path: out/surge_reports/
-          if-no-files-found: ignore
-          retention-days: 7
