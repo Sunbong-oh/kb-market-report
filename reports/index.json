@@ -1,6 +1,21 @@
 [
 {
 "day": "2026-11-11",
+"code": "035900",
+"name": "JYP Ent.",
+"market": "K",
+"period": "26년3분기",
+"op": 479.81,
+"op_prev": 309.98,
+"chg": 54.8,
+"turn": false,
+"basis": null,
+"rcp": "20261111900490",
+"made": "2026-11-12 09:42",
+"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-11/035900"
+},
+{
+"day": "2026-11-11",
 "code": "112040",
 "name": "위메이드",
 "market": "K",
@@ -13,21 +28,6 @@
 "rcp": "20261111900537",
 "made": "2026-11-11 16:16",
 "pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-11/112040"
-},
-{
-"day": "2026-11-11",
-"code": "035900",
-"name": "JYP Ent.",
-"market": "K",
-"period": "26년3분기",
-"op": 479.81,
-"op_prev": 309.98,
-"chg": 54.8,
-"turn": false,
-"basis": null,
-"rcp": "20261111900490",
-"made": "2026-11-11 16:07",
-"pdf": "https://sunbong-oh.github.io/market-dashboard/reports/view.html?f=2026-11-11/035900"
 },
 {
 "day": "2026-11-10",
