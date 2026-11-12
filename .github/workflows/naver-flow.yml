@@ -1,0 +1,45 @@
+name: 네이버 실시간 수급 · 글로벌 지수 (KB 비교용)
+
+# KB 없이 네이버 증권만으로 장중 수급·외국인 선물 교차차트·글로벌 지수를 naver-live/naver.json 에 올린다 (naver_flow.py).
+# GitHub 서버(ubuntu)에서 돈다 → 회사 PC 실행기와 상관없음.
+# 평일 08:30~17:20(KST): 1분마다. 한 작업은 최대 5시간 40분 돌고, 끝날 때 아직 그 시간 안이면 다음 작업을 바로 띄운다(이어달리기).
+# 그 밖의 시각(밤): 예약마다 한 번만 갱신(미국 지수).
+on:
+  schedule:
+    - cron: "25 23 * * 0-4"   # 08:25 KST (월~금) 시작
+    - cron: "30 1 * * 1-5"    # 10:30 예비
+    - cron: "0 4 * * 1-5"     # 13:00 예비
+    - cron: "30 6 * * 1-5"    # 15:30 예비
+    - cron: "40 13-21 * * 1-5"  # 22:40~06:40 KST 매시간 (미국 지수)
+  workflow_dispatch:
+
+permissions:
+  contents: write   # naver-live 브랜치 갱신
+  actions: write    # 다음 작업 이어 띄우기
+
+concurrency:
+  group: naver-flow
+  cancel-in-progress: false
+
+jobs:
+  naver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q httpx
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - id: run
+        run: python naver_flow.py
+      - name: 다음 작업 이어 띄우기
+        if: ${{ !cancelled() && steps.run.outputs.again == '1' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run naver-flow.yml --repo "${{ github.repository }}" --ref main
