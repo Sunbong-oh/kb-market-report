@@ -218,6 +218,25 @@ def consensus(code: str, prov: dict | None) -> dict | None:
         return None
 
 
+def card_lines(code: str, rcp: str | None, cons: dict | None = None, basis: str | None = None) -> list[str]:
+    """실적 급증 카드와 같은 요약 줄 (kr_surge.summary): 영업이익·전분기 대비 / 컨센 대비 / 매출 / 전년 동기 대비.
+    홈페이지 '실적발표 종목' 목록(index.json lines)에 카드처럼 보여 주려고 남긴다."""
+    if not rcp:
+        return []
+    try:
+        import kr_surge
+        n = kr_surge.numbers(rcp)
+        if not n or not n.get("unit") or (n.get("op") or {}).get("now") is None:
+            return []
+        q = kr_surge.quarter_of(rcp[:8])
+        s = {"op": n["op"], "unit": n["unit"], "turn": "흑" in (n["op"].get("turn") or ""), "sales": n.get("sales"), "q": q,
+             "consol": basis != "별도", "cns": cons if cons is not None else kr_surge.consensus(code, q)}
+        return kr_surge.summary(s)
+    except Exception as e:
+        log("  카드 요약 줄 실패:", type(e).__name__, e)
+        return []
+
+
 def provisional_opendart(rcp: str) -> dict | None:
     """'영업(잠정)실적(공정공시)' 원문: 구분 / 당기실적 / 전기실적 / 전기대비 증감율 / 흑자적자전환 / 전년동기실적 / 전년동기대비 / 흑자적자전환."""
     t = _clean(document(rcp))
@@ -1460,6 +1479,7 @@ def main() -> None:
             index.append({"day": os.environ.get("REPORT_DAY") or f"{TODAY:%Y-%m-%d}", "code": code, "name": D["name"], "market": D["market"],
                           "period": pv.get("period"), "op": pv.get("op"), "op_prev": pv.get("op_prev"), "chg": pv.get("chg"),
                           "turn": pv.get("turn"), "basis": pv.get("basis"), "rcp": pv.get("rcp"),
+                          "lines": card_lines(code, pv.get("rcp"), D.get("cons"), pv.get("basis")),
                           "made": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
                           "pdf": report_url(code, date.fromisoformat(os.environ["REPORT_DAY"]) if os.environ.get("REPORT_DAY") else None)})
             if send:
