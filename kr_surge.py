@@ -7,7 +7,8 @@
 종목코드와 공시 시각은 네이버(자동완성·종목 공시 목록)에서 채운다.
 
 공시 표의 '영업이익 / 당해실적'  줄에서 당기·전기 실적과 전기대비 증감율, 흑자적자전환 여부를 읽어
-  · 전기 대비 증감율이 MIN_CHG(%) 이상이거나 흑자전환이고
+  · 전기 대비 증감율이 MIN_CHG(%) 이상이거나 흑자전환이거나,
+    컨센서스 대비 영업이익이 BEAT(%) 이상 많고 전분기 대비도 SURPRISE_QOQ(%) 이상 늘었고(어닝 서프라이즈, 2026-11-12 사용자 요청 — 예: 샘씨엔에스 3Q26 QoQ +17%·컨센 +12.8%)
   · 영업이익이 MIN_OP(억원) 이상인
 종목만 남긴다. 카드·텔레그램에는 컨센서스(예상치) 대비도 함께 적는다:
   KB OpenAPI 투자정보 TR에는 컨센서스 TR이 없어(IVM10050 종목기업개요도 후행 PER/EPS뿐)
@@ -31,6 +32,7 @@ DOC_URL = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo={}"
 VIEW_URL = "https://dart.fss.or.kr/report/viewer.do?rcpNo={}&dcmNo={}&eleId=0&offset=0&length=0&dtd=HTML"
 TITLE = re.compile(r"영업\(잠정\)실적")
 MIN_CHG = 50.0   # 전분기 대비 영업이익 증가율(%) 기준
+SURPRISE_QOQ = 10.0  # 컨센 서프라이즈 카드도 전분기 대비 영업이익이 이만큼(%) 이상은 늘어야 한다 (2026-11-12 사용자 요청)
 MIN_OP = 10.0    # 영업이익 최소 규모(억원) - 작은 숫자가 몇 배로 뛴 것은 뺀다
 UNIT = {"원": 1e-8, "천원": 1e-5, "백만원": 1e-2, "억원": 1.0, "십억원": 10.0}  # → 억원
 
@@ -205,18 +207,27 @@ def check(d: dict, day: str, min_chg: float = MIN_CHG, min_op: float = MIN_OP, n
         return None
     op = n["op"]
     turn = "흑" in (op.get("turn") or "")
-    if op.get("now") is None or (op["chg"] is None and not turn):
+    if op.get("now") is None:
         return None
     amount = op["now"] * n["unit"]
-    if amount < min_op or (not turn and (op["chg"] or 0) < min_chg):
+    if amount < min_op:
+        return None
+    jump = turn or (op["chg"] is not None and op["chg"] >= min_chg)
+    if not jump and (op["chg"] is None or op["chg"] < SURPRISE_QOQ):
         return None
     code = code_of(d["corp"])
     if not code:
-        print("  종목코드 모름:", d["corp"], flush=True)
+        if jump:
+            print("  종목코드 모름:", d["corp"], flush=True)
         return None
+    cns = consensus(code, quarter_of(day))
+    if not jump:  # 전분기 대비 급증은 아니어도 컨센 대비 어닝 서프라이즈면 카드 (2026-11-12 사용자 요청)
+        r = vs_cons(amount, (cns or {}).get("op"))
+        if not r or r[1] != "어닝 서프라이즈":
+            return None
     return {"rcp": d["rcp"], "name": d["corp"], "code": code, "title": d["title"], "period": n["period"],
             "unit": n["unit"], "turn": turn, "op": op, "sales": n.get("sales"), "net": n.get("net"),
-            "q": quarter_of(day), "consol": "연결" in d["title"], "cns": consensus(code, quarter_of(day)),
+            "q": quarter_of(day), "consol": "연결" in d["title"], "cns": cns, "jump": jump,
             "eok": amount, "chg": op["chg"], "at": disc_time(code, d["rcp"], day),
             "url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={d['rcp']}"}
 
@@ -246,7 +257,10 @@ def summary(s: dict) -> list[str]:
     """카드·텔레그램에 넣을 요약 줄."""
     o, u = s["op"], s["unit"]
     head = f"영업이익 {eok(o['now'], u)}"
-    head += " (전분기 적자 → 흑자전환)" if s["turn"] else f" · 전분기 {eok(o['prev'], u)} 대비 {o['chg']:+.1f}%"
+    if s["turn"]:
+        head += " (전분기 적자 → 흑자전환)"
+    elif o.get("chg") is not None:
+        head += f" · 전분기 {eok(o['prev'], u)} 대비 {o['chg']:+.1f}%"
     lines = [head, cons_line(s)]  # 전분기 대비 바로 아래에 컨센서스(예상치) 대비
     if s.get("sales") and s["sales"].get("now") is not None:
         sl = f"매출 {eok(s['sales']['now'], u)}"
