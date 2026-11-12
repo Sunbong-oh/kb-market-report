@@ -49,7 +49,32 @@ def git(*args: str, inp: bytes | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], cwd=ROOT, input=inp, capture_output=True, timeout=120)
 
 
+def free_port(port: int = 8000) -> None:
+    """윈도 PC 에서 작업을 취소하면(재시작) 그 작업이 띄운 리포트 서버가 안 죽고 남아, 새 작업이 새 서버를 못 띄우고
+    옛 서버(옛 코드·옛 환경)에 접속하게 된다(2026-11-12: 인증서 수정 전 서버가 남아 강세 테마·거래대금이 계속 비었다).
+    시작할 때 8000 포트를 잡고 있는 python 프로세스를 정리한다. 윈도에서만, python.exe 만 끈다."""
+    if sys.platform != "win32":
+        return
+    try:
+        out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True, timeout=20).stdout
+        pids = set()
+        for ln in out.splitlines():
+            c = ln.split()
+            if len(c) >= 5 and c[1] == f"127.0.0.1:{port}" and c[2].endswith(":0") and c[-1].isdigit():
+                pids.add(int(c[-1]))
+        for pid in pids - {os.getpid()}:
+            name = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=20).stdout
+            if "python" in name.lower():
+                subprocess.run(["taskkill", "/PID", str(pid), "/F", "/T"], capture_output=True, timeout=20)
+                print(f"  8000 포트의 옛 서버(PID {pid})를 정리함", flush=True)
+        if pids:
+            time.sleep(2)
+    except Exception as e:
+        print("  옛 서버 정리 실패:", type(e).__name__, e, flush=True)
+
+
 def start_server() -> subprocess.Popen:
+    free_port(8000)
     proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
                             cwd=ROOT, env={**os.environ, "REPORT_ONLY": "1"})
     for _ in range(40):
