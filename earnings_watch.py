@@ -420,7 +420,8 @@ def tg_tag(line: str) -> str:
 
 
 def surge_message(it: dict) -> str:
-    lines = [f"🚀 국내 실적 급증 · {it['name']}({it['code']})", it["item"], ""]
+    title = "🚀 국내 실적 급증" if it.get("head", "영업이익 급증") == "영업이익 급증" else "🎯 국내 어닝 서프라이즈"
+    lines = [f"{title} · {it['name']}({it['code']})", it["item"], ""]
     lines += [f"▶ {tg_tag(c)}" for c in it["cons"]]
     lines += [f"📈 {px_line(r)}" for r in it.get("px") or []]
     lines += [""] + [f"• {a['t']} ({a['o']} {a['dt']})" for a in it["news"]]
@@ -561,7 +562,7 @@ def run(now: datetime, dry: bool = False) -> None:
         it = dict(prev)
         it.update({"key": key, "day": day, "name": s["name"], "code": s["code"], "kr": True, "surge": True,
                    "report": prev.get("report") or surge_report.report_url(s["code"]),  # 실시간 작성 종목 보고서 (홈페이지 카드 링크)
-                   "icon": "🚀", "head": "영업이익 급증", "note": "공시", "item": f"{s['period']} 잠정실적",
+                   "icon": "🚀" if s.get("jump", True) else "🎯", "head": "영업이익 급증" if s.get("jump", True) else "어닝 서프라이즈", "note": "공시", "item": f"{s['period']} 잠정실적",
                    "detected": prev.get("detected") or now.strftime("%Y-%m-%d %H:%M"),
                    "first": prev.get("first") or datetime.fromisoformat(at).strftime("%m/%d %H:%M"), "first_iso": first_iso,
                    "cons": kr_surge.summary(s),
