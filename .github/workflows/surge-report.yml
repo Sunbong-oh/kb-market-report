@@ -73,7 +73,9 @@ jobs:
       - name: 보고서 만들기
         shell: bash
         run: |
-          python surge_report.py "${{ inputs.items }}" ${{ inputs.send && '--send' || '' }}
+          mkdir -p out/surge_reports
+          set -o pipefail
+          python surge_report.py "${{ inputs.items }}" ${{ inputs.send && '--send' || '' }} 2>&1 | tee out/surge_reports/run.log
 
       - name: surge-reports 브랜치에 보관
         shell: bash
@@ -82,6 +84,9 @@ jobs:
           day=${REPORT_DAY:-$(python -c "from datetime import datetime,timedelta,timezone;print(datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d'))")}
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 회사 PC 실행기는 작업 폴더가 남는다 → 지난번 ../sr 작업트리를 먼저 치운다 (남아 있으면 worktree add 가 실패)
+          git worktree remove --force ../sr 2>/dev/null || true
+          rm -rf ../sr && git worktree prune
           git fetch -q origin surge-reports && git worktree add -q ../sr origin/surge-reports || { git worktree add -q --detach ../sr && (cd ../sr && git checkout -q --orphan surge-reports && git rm -rqf .); }
           mkdir -p "../sr/reports/$day"
           cp out/surge_reports/*.html out/surge_reports/*.pdf "../sr/reports/$day/" 2>/dev/null || true
@@ -105,3 +110,13 @@ jobs:
           git add reports
           git commit -qm "실적카드 요약 보고서 $day" || exit 0
           for i in 1 2 3; do git push -q origin HEAD:surge-reports && break; git fetch -q origin surge-reports && git rebase -q origin/surge-reports; done
+
+      # 실행기 로그가 GitHub에 안 올라올 때가 있어, 만든 파일과 실행 기록을 작업 결과물로도 남긴다
+      - name: 결과물 보관 (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surge-report
+          path: out/surge_reports/
+          if-no-files-found: ignore
+          retention-days: 7
