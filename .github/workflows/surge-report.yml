@@ -74,7 +74,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p out/surge_reports
-          set -o pipefail
+          # pipefail 은 쓰지 않는다: 파이썬이 실패해도 다음 단계가 실행 기록(logs/last_run.log)을 올려야 원인을 볼 수 있다
           python surge_report.py "${{ inputs.items }}" ${{ inputs.send && '--send' || '' }} 2>&1 | tee out/surge_reports/run.log
 
       - name: surge-reports 브랜치에 보관
