@@ -3,7 +3,6 @@ name: KB 응답 확인 (회사 PC 실행기, 수동)
 # 회사 PC(한국 IP)에 설치한 GitHub 실행기(self-hosted runner)에서 KB Open API 가 되는지 확인한다.
 # 되면 장중 수급·장마감 리포트 등을 이 실행기로 옮긴다(runs-on 을 [self-hosted, windows] 로).
 on: {workflow_dispatch: {}}
-permissions: {contents: write}
 jobs:
   probe:
     runs-on: [self-hosted, windows]
@@ -22,21 +21,7 @@ jobs:
           git --version
       - name: 패키지 설치
         shell: cmd
-        continue-on-error: true
         run: python -m pip install -q -r requirements.txt
-      - name: 와이제이링크 시세 덤프 (임시)
-        shell: bash
-        continue-on-error: true
-        run: |
-          mkdir -p out/market
-          python surge_report.py 209640:K --market-dump > out/market/dump.log 2>&1; echo "exit=$?" >> out/market/dump.log
-          tail -5 out/market/dump.log
-      - name: 덤프를 브랜치에 올림 (임시)
-        if: always()
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f out/market
-          git commit -qm "209640 KB dump" || true
-          git push -f origin HEAD:refs/heads/kb-dump-209640
+      - name: KB 응답 확인
+        shell: cmd
+        run: python kb_probe.py
