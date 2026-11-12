@@ -53,6 +53,23 @@ ALIAS = {"삼전": "삼성전자", "SK하닉": "SK하이닉스", "하닉": "SK�
          "엔솔": "LG에너지솔루션", "현차": "현대차", "삼전닉스": "삼성전자 SK하이닉스"}
 
 
+def _wc(c: str) -> bool:
+    """한글·영문 글자인가 (낱말 경계 판정용)."""
+    return "가" <= c <= "힣" or (c.isascii() and c.isalpha())
+
+
+def _has_word(text: str, nm: str) -> bool:
+    """text 안에 nm 이 낱말로(앞뒤가 한글·영문이 아니게) 들어 있는가. 종목 1,800개를 정규식으로 하나씩 만들어 찾으면
+    윈도 PC(파이썬 3.14)에서 1분 넘게 걸려서 문자열 탐색으로 바꿨다."""
+    i = text.find(nm)
+    while i >= 0:
+        j = i + len(nm)
+        if not (i > 0 and _wc(text[i - 1])) and not (j < len(text) and _wc(text[j])):
+            return True
+        i = text.find(nm, i + 1)
+    return False
+
+
 def _tokens(text: str) -> set[str]:
     out = set()
     for w in re.findall(r"[A-Za-z][A-Za-z0-9&]+|[가-힣]{2,}", re.sub(r"\[[^\]]*\]", " ", text)):
@@ -149,7 +166,7 @@ def build(rows: list[dict], map_data: dict | None, top: int = 3, pinned: tuple[l
         for nm in names:  # 긴 이름부터 (삼성전자우 → 삼성전자 중복 방지), 제목에 나온 종목만
             if nm.endswith("증권") and not brokers_ok:
                 continue
-            if re.search(r"(?<![가-힣A-Za-z])" + re.escape(nm) + r"(?![가-힣A-Za-z])", titles) and not any(nm in f for f in found):
+            if _has_word(titles, nm) and not any(nm in f for f in found):
                 found.append(nm)
         if is_pin:  # 지정 이슈: 주제에 맞는 대표 종목을 덧붙인다 (맵에 있는 종목만)
             topic = " ".join(pinned[0]) + " " + titles
