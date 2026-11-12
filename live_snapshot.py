@@ -461,21 +461,24 @@ def drop_future_points(snap: dict, t: datetime) -> None:
 
 
 def clear_stale_intraday(snap: dict, t: datetime) -> None:
-    """개장 전(09:00 전)에는 KB 국내 지수 분봉이 전날 한 장(09:00~15:30)으로 온다 → 화면이 어제 차트를 오늘 것처럼 그린다.
-    그 점들을 비워(오늘 날짜로 표시) 개장 전에는 빈 차트로 두고, 기준선은 어제 종가(시장 지수 값)로 맞춘다."""
-    if t.strftime("%H%M") >= "0900":
-        return
-    today = t.strftime("%Y%m%d")
+    """KB 국내 지수 분봉은 개장 전은 물론 개장 뒤 한동안(09:09 에도 확인)도 전날 한 장(09:00~15:30, 381개)으로 온다
+    → 화면이 어제 차트를 오늘 것처럼 그린다. 오늘 날짜가 아닌데 지금 시각보다 뒤의 점이 있으면 '어제 것'으로 보고 비운다
+    (오늘 분봉은 지금 시각 뒤의 점을 가질 수 없다). 기준선은 어제 종가(= 지금 지수 - 전일 대비)로 맞춘다."""
+    hm, today = t.strftime("%H%M"), t.strftime("%Y%m%d")
     ix = snap.get("/api/indices/intraday") or {}
-    closes = {i.get("id"): i.get("value") for i in ((snap.get("/api/market") or {}).get("indices") or [])}
+    now_ix = {i.get("id"): i for i in ((snap.get("/api/market") or {}).get("indices") or [])}
     for code in ("KGG01P", "QGG01P"):
         d = ix.get(code)
-        if d and str(d.get("date") or "") != today and d.get("points"):
+        pts = (d or {}).get("points") or []
+        if not pts or str(d.get("date") or "") == today:
+            continue
+        if max(str(p.get("t", "")) for p in pts) > hm:
             d["points"] = []
             d["date"] = today
-            if closes.get(code):
-                d["prev_close"] = closes[code]
-            print("  개장 전: 전날 지수 분봉을 비움", code, flush=True)
+            cur = now_ix.get(code) or {}
+            if cur.get("value") is not None:
+                d["prev_close"] = round(cur["value"] - (cur.get("change") or 0), 2)
+            print("  어제 지수 분봉을 비움", code, len(pts), "개", flush=True)
 
 
 def clear_stale_bond(snap: dict, t: datetime) -> None:
