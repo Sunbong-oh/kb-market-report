@@ -23,6 +23,7 @@ from __future__ import annotations
 import tls_trust  # noqa: F401  (회사 PC 보안 장비 인증서: 윈도 인증서 저장소 사용)
 
 import asyncio
+import base64
 import html
 import io
 import json
@@ -202,6 +203,19 @@ def provisional(rcp: str) -> dict | None:
             "sales": g("sales", "now") * u if g("sales", "now") is not None else None,
             "op_prev": g("op", "prev") * u if g("op", "prev") is not None else None,
             "chg": g("op", "chg"), "turn": "흑" in (g("op", "turn") or ""), "yoy": g("op", "yoy"), "rcp": rcp}
+
+
+def consensus(code: str, prov: dict | None) -> dict | None:
+    """이번 잠정실적 분기의 시장 예상치(컨센서스). 카드와 같은 값: kr_surge.consensus (네이버 증권 컨센서스 열, 억원).
+    KB OpenAPI에는 컨센서스 TR이 없다. 예상치가 없으면 None."""
+    if not prov or not prov.get("y"):
+        return None
+    try:
+        import kr_surge
+        return kr_surge.consensus(code, f"{prov['y']}.{prov['q'] * 3:02d}")
+    except Exception as e:
+        log("  컨센서스 실패:", type(e).__name__, e)
+        return None
 
 
 def provisional_opendart(rcp: str) -> dict | None:
@@ -403,6 +417,113 @@ def business(doc: str) -> dict:
                                    and re.search(r"수주|잔고", " ".join(c[0] for r in t2[:3] for c in r))), None)
             break
     return res
+
+
+# ------------------------------------------------------- 제품 사진 (회사 홈페이지)
+PHOTO_SKIP = re.compile(r"logo|icon|ico_|btn|button|banner|bg[_\-.]|_bg|sns|arrow|map|ci[_\-.]|favicon|blank|spacer|sprite|badge|qr|award|cert|popup|quick|footer|gnb|lnb|kv_|hero|slide|main_?vis|visual", re.I)
+PHOTO_LINK = re.compile(r"제품|상품|브랜드|솔루션|아티스트|앨범|product|brand|solution|portfolio|lineup|line-up|pipeline|파이프라인|artist|album", re.I)
+PHOTO_JS = """() => [...document.images].map(i => {const r = i.getBoundingClientRect();
+    let t = (i.alt || i.title || '').trim(); let p = i.parentElement;
+    for (let k = 0; k < 4 && p && t.length < 2; k++, p = p.parentElement) t = (p.innerText || '').trim().split('\\n')[0];
+    return {src: i.currentSrc || i.src, w: i.naturalWidth, h: i.naturalHeight, vis: r.width > 60 && r.height > 60, t: t.slice(0, 40)}})"""
+
+
+def product_photos(url: str, names: list[str], limit: int = 4) -> list[dict]:
+    """회사 홈페이지(DART 기업개황 hm_url)에서 제품 사진을 고른다. 사업보고서 원문에는 제품 사진이 없다 (서명·조직도뿐).
+    홈페이지와 제품 메뉴 링크(최대 3쪽)의 큰 이미지(로고·아이콘·배너 제외)를 모으고, 사업보고서 주요 제품 이름과 겹치는 것을 앞에 둔다.
+    고른 사진은 같은 크기 틀(가로 4:3, 흰 바탕)에 맞춰 JPEG로 다시 찍어 보고서에 넣는다. 못 찾으면 빈 목록."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return []
+    url = (url or "").strip()
+    if not url:
+        return []
+    bare = re.sub(r"^https?://", "", url)
+    host = urllib.parse.urlparse("http://" + bare).hostname or ""
+    root = ".".join(host.split(".")[-3 if host.endswith(".co.kr") else -2:])
+    keys = [k for k in {re.sub(r"\s+", "", n)[:10] for n in names} if len(k) >= 2]
+    found: dict[str, dict] = {}
+    try:
+        with sync_playwright() as p:
+            b = p.chromium.launch()
+            pg = b.new_page(viewport={"width": 1366, "height": 900}, locale="ko-KR")
+            pg.set_default_timeout(20000)
+
+            def scan(u: str, prod: bool) -> None:
+                pg.goto(u, wait_until="domcontentloaded")
+                for _ in range(6):  # 지연 로딩 이미지
+                    pg.mouse.wheel(0, 1400)
+                    pg.wait_for_timeout(400)
+                pg.wait_for_timeout(800)
+                for fr in pg.frames:  # 옛 홈페이지는 frameset 안에 본문이 있다
+                    try:
+                        ims = fr.evaluate(PHOTO_JS)
+                    except Exception:
+                        continue
+                    for im in ims:
+                        s, w, h = im["src"], im["w"], im["h"]
+                        if not s or s.startswith("data:") or s in found or PHOTO_SKIP.search(s):
+                            continue
+                        if w < 220 or h < 150 or not (0.45 <= w / h <= 2.4):
+                            continue
+                        blob = (im["t"] + urllib.parse.unquote(s)).replace(" ", "")
+                        score = (3 if any(k in blob for k in keys) else 0) + (1 if prod else 0) + (0.5 if im["vis"] else 0)
+                        found[s] = {"src": s, "cap": im["t"].strip(), "score": score}
+
+            home = None
+            for u in ("https://" + bare, "http://" + bare):
+                try:
+                    scan(u, False)
+                    home = pg.url
+                    break
+                except Exception:
+                    continue
+            if not home:
+                b.close()
+                return []
+            links = []
+            for fr in pg.frames:
+                try:
+                    links += fr.evaluate("() => [...document.querySelectorAll('a[href]')].map(a => [a.href, (a.innerText || a.title || '').trim()])")
+                except Exception:
+                    pass
+            cand = []
+            for href, txt in links:
+                h = urllib.parse.urlparse(href)
+                if (h.scheme in ("http", "https") and (h.hostname or "").endswith(root) and href.split("#")[0] != home
+                        and PHOTO_LINK.search(txt + " " + h.path + " " + h.query) and href not in cand):
+                    cand.append(href)
+            for u in cand[:3]:
+                try:
+                    scan(u, True)
+                except Exception:
+                    continue
+            out = []
+            for it in sorted(found.values(), key=lambda x: -x["score"]):
+                if len(out) >= limit:
+                    break
+                try:
+                    r = pg.request.get(it["src"], timeout=15000)
+                    ct = (r.headers.get("content-type") or "").split(";")[0]
+                    body = r.body()
+                except Exception:
+                    continue
+                if not ct.startswith("image/") or len(body) < 8000:
+                    continue
+                pg.set_viewport_size({"width": 480, "height": 360})
+                pg.set_content('<body style="margin:0;background:#fff"><img style="width:480px;height:360px;object-fit:contain;display:block" '
+                               f'src="data:{ct};base64,{base64.b64encode(body).decode()}"></body>')
+                pg.wait_for_timeout(300)
+                shot = pg.screenshot(type="jpeg", quality=82)
+                pg.set_viewport_size({"width": 1366, "height": 900})
+                cap = re.sub(r"\s*(?:image|img|이미지)$", "", it["cap"], flags=re.I)
+                out.append({"data": "data:image/jpeg;base64," + base64.b64encode(shot).decode(), "cap": cap, "src": it["src"], "home": home})
+            b.close()
+            return out
+    except Exception as e:
+        log("  제품 사진 실패:", type(e).__name__, e)
+        return []
 
 
 NONE_RE = r"해당\s*(사항)?\s*(이|은)?\s*없|보유하고\s*있지\s*않|발행(한|된)?\s*(내역|사실|사채)이?\s*없"
@@ -908,10 +1029,14 @@ def build(code: str, rcp: str | None, cmap: dict) -> dict:
     mkt = market_data(code, market)
     price = (mkt.get("quote") or {}).get("price") or (mkt["bars"][-1]["c"] if mkt.get("bars") else None)
     doc_a = document(annual_rep["rcept_no"]) if annual_rep else ""
+    biz = business(doc_a) if doc_a else None
+    pnames = [c[0] for r in ((biz or {}).get("products") or [])[1:] for c in r if 2 <= len(c[0]) <= 20 and not re.search(r"\d", c[0])]
+    photos = product_photos(co.get("hm_url") or "", pnames)
+    log(f"  제품 사진 {len(photos)}장 ({co.get('hm_url') or '홈페이지 없음'})")
     doc_l = doc_a if latest_rep and annual_rep and latest_rep["rcept_no"] == annual_rep["rcept_no"] else (document(latest_rep["rcept_no"]) if latest_rep else "")
     return {"code": code, "name": name, "cc": cc, "market": market, "co": co, "ann": ann, "qs": qs, "prov": prov, "est": est,
             "cur_year": cur_year, "annual_rep": annual_rep, "latest_rep": latest_rep, "lq": lq, "shares": shares, "equity": equity,
-            "mkt": mkt, "price": price, "biz": business(doc_a) if doc_a else None, "mezz": mezz_tables(doc_l) if doc_l else [],
+            "mkt": mkt, "price": price, "biz": biz, "photos": photos, "cons": consensus(code, prov), "mezz": mezz_tables(doc_l) if doc_l else [],
             "decs": decisions(cc), "mdisc": mezz_disclosures(cc)}
 
 
@@ -977,6 +1102,10 @@ td.l{text-align:left;white-space:normal}
 .flag{border-left:5px solid var(--neg);background:#F6DCD5;color:#7A2A18;padding:10px 14px;margin:0 0 14px;font-weight:700}
 .tag{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:2px;white-space:nowrap}
 .ok{background:#E3EFE7;color:#2F6B4F} .chk{background:#FBEFC9;color:#7A5600} .bad{background:#F6DCD5;color:#9A3420}
+.photos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:6px 0 8px}
+.photos figure{margin:0;background:#fff;border:1px solid var(--line)} .photos img{width:100%;aspect-ratio:4/3;object-fit:contain;display:block}
+.photos figcaption{font-size:11.5px;padding:4px 6px;border-top:2px solid var(--kb);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tw.cons table td,.tw.cons table th{font-size:13.5px}
 .disc{font-size:12px;color:var(--muted)} .disc p{margin:0 0 8px}
 /* 인쇄·PDF: 배경색 유지. 섹션마다 쪽을 나누지 않고 이어서 쓴다 (빈 쪽·큰 여백 금지, 사용자 요청).
    차트·표·상자 하나만 두 쪽에 걸쳐 잘리지 않게 하고, 쪽번호는 쪽 아래 여백에 찍는다 */
@@ -994,12 +1123,12 @@ body{background:#fff;padding:0;font-size:10.5pt;line-height:1.55}
 .band{padding:6px 14px} .inner{padding:12px 4px 4px} .foot{margin:10px 4px 0}
 h1{font-size:19pt} h2{font-size:13pt;break-after:avoid} h3{break-after:avoid}
 .cover{grid-template-columns:minmax(0,1fr) 62mm;gap:6mm}
-.chart,.box{break-inside:avoid} tr{break-inside:avoid} table{break-inside:auto}
+.chart,.box,.photos,.tw.cons{break-inside:avoid} tr{break-inside:avoid} table{break-inside:auto}
 .chart{max-height:95mm}
 .tw{overflow:visible}
 table{font-size:8.5pt} table.raw td{font-size:8pt}
 }
-@media (max-width:720px){.cover{grid-template-columns:1fr}.inner{padding:18px 16px 6px}.band{padding:8px 16px}.foot{margin:14px 16px 0;flex-direction:column;gap:2px}h1{font-size:21px}}
+@media (max-width:720px){.photos{grid-template-columns:repeat(2,minmax(0,1fr))}.cover{grid-template-columns:1fr}.inner{padding:18px 16px 6px}.band{padding:8px 16px}.foot{margin:14px 16px 0;flex-direction:column;gap:2px}h1{font-size:21px}}
 """
 
 
@@ -1012,6 +1141,43 @@ def eok(v, d: int = 0) -> str:
     if v is None:
         return "데이터 없음"
     return f"{v / 10000:,.2f}조원" if abs(v) >= 10000 else f"{v:,.{d}f}억원"
+
+
+def cons_html(D: dict) -> str:
+    """컨센서스(예상치) vs 이번 잠정실적(실제) 표. 카드의 '컨센 대비' 줄과 같은 값·같은 판정(kr_surge.vs_cons, ±10%)."""
+    prov, cons = D["prov"], D.get("cons")
+    if not prov:
+        return ""
+    if not cons:
+        return (f'<h3>{esc(prov["period"])} 예상치 대비 실제</h3><div class="box"><p>이 분기에 발표된 컨센서스(시장 예상치)가 없습니다 '
+                f'(네이버 증권 기준, 2차 출처).</p></div>')
+    import kr_surge
+    rows = []
+    for lab, k in (("매출액", "sales"), ("영업이익", "op")):
+        a, c = prov.get(k), cons.get(k)
+        vs = kr_surge.vs_cons(a, c)
+        tag = ""
+        if vs and k == "op":
+            cls = {"어닝 서프라이즈": "ok", "어닝 쇼크": "bad"}.get(vs[1], "chk")
+            tag = f'<span class="tag {cls}">{esc(vs[1])}</span>'
+        diff = a - c if a is not None and c is not None else None
+        trc = ' class="tot"' if k == "op" else ""
+        rows.append(f'<tr{trc}><td>{lab}</td><td>{fnum(c)}</td><td>{fnum(a)}</td>'
+                    f'<td class="{"neg" if diff is not None and diff < 0 else ""}">{"" if diff is None else format(diff, "+,.0f")}</td>'
+                    f'<td>{esc(vs[0]) if vs else "-"}</td><td>{tag}</td></tr>')
+    return (f'<h3>{esc(prov["period"])} 예상치(컨센서스) 대비 실제(잠정실적)</h3><div class="tw cons"><table>'
+            f'<tr><th>구분</th><th>예상치(억원)</th><th>실제(억원)</th><th>차이(억원)</th><th>예상 대비</th><th>판단</th></tr>{"".join(rows)}</table></div>'
+            f'<p class="cap">예상치: 네이버 증권 {esc(cons["q"])} 분기 컨센서스(2차 출처, 발표 전 집계). 실제: 잠정실적 공시 {esc(prov["rcp"])}. '
+            f'예상 대비 ±{kr_surge.BEAT:.0f}%를 넘으면 어닝 서프라이즈·어닝 쇼크로 적습니다.</p>')
+
+
+def photos_html(D: dict) -> str:
+    ph = D.get("photos") or []
+    if not ph:
+        return '<h3>주요 제품 사진</h3><p>회사 홈페이지에서 제품 사진을 찾지 못했습니다 (데이터 없음).</p>'
+    figs = "".join(f'<figure><img src="{x["data"]}" alt="{esc(x["cap"])}"><figcaption>{esc(x["cap"] or "제품 사진")}</figcaption></figure>' for x in ph)
+    return (f'<h3>주요 제품 사진</h3><div class="photos">{figs}</div>'
+            f'<p class="cap">사진: 회사 홈페이지({esc(ph[0]["home"])}) 게시 이미지. 사업보고서에는 제품 사진이 없어 홈페이지에서 가져왔고, 이름은 홈페이지 표기를 따랐습니다.</p>')
 
 
 def render(D: dict) -> str:
@@ -1060,6 +1226,14 @@ def render(D: dict) -> str:
                  (f" {prov['basis']} 기준." if prov.get("basis") else ""))
         bullets.append(f"<li><b>이번 잠정실적: {esc(pv)}</b>{esc(s)}{' · 전년 동기 대비 ' + format(prov['yoy'], '+.1f') + '%' if prov.get('yoy') is not None else ''}. "
                        f"잠정실적 공시 접수번호 {esc(prov['rcp'])}.{esc(bnote)}</li>")
+    cons = D.get("cons")
+    if prov and cons and cons.get("op") is not None and prov.get("op") is not None:
+        import kr_surge
+        vs = kr_surge.vs_cons(prov["op"], cons["op"])
+        bullets.append(f"<li><b>영업이익 예상치 {eok(cons['op'])} → 실제 {eok(prov['op'])} ({esc(vs[0])}, {esc(vs[1])})</b>"
+                       f"{esc(cons['q'])} 분기 컨센서스(네이버 증권, 2차 출처) 대비. 4쪽 표 참고.</li>")
+    elif prov:
+        bullets.append("<li><b>영업이익 예상치: 발표된 컨센서스 없음</b>네이버 증권 기준(2차 출처).</li>")
     bullets.append(f"<li><b>주요 사업</b>{esc(one)}{' 매출 구성(최근 사업연도): ' + esc(mix_s) + '.' if mix_s else ''}</li>")
     if est:
         bullets.append(f"<li><b>{D['cur_year']}E 영업이익 {eok(est['op'])} (산출값, 컨센서스 아님)</b>{esc(est['base'])} 실적 + {esc(est['how'])}.</li>")
@@ -1146,10 +1320,10 @@ def render(D: dict) -> str:
              f'<div class="tw"><table><tr><th>연도</th><th>매출액(억원)</th><th>영업이익(억원)</th><th>영업이익률(%)</th></tr>{atr}</table></div>')
     reps = sorted({ann[y]["rcp"] for y in years if ann[y].get("rcp")})
     pages.append(page("실적 추이: 연간", tag, body3, f"OpenDART 주요계정(fnlttSinglAcnt), 사업보고서 {esc(', '.join(reps[-4:]))}", 3))
-    body4 = (f'<h2>④ 최근 3년 분기 영업이익</h2>{svg_combo(qitems, "분기 영업이익과 영업이익률")}'
+    body4 = (f'<h2>④ 최근 3년 분기 영업이익</h2>{cons_html(D)}{svg_combo(qitems, "분기 영업이익과 영업이익률")}'
              f'<div class="legend"><span><i style="background:var(--ink)"></i>P = 이번 잠정실적</span><span>* = 4분기 산출값(연간 − 3분기 누적)</span></div>'
              f'<div class="tw"><table><tr><th>분기</th><th>매출액(억원)</th><th>영업이익(억원)</th><th>이익률(%)</th><th class="l">접수번호</th></tr>{qtr}</table></div>')
-    pages.append(page("실적 추이: 분기", tag, body4, "OpenDART 주요계정(fnlttSinglAcnt) 분기·반기·사업보고서(표의 접수번호), 잠정실적 공시", 4))
+    pages.append(page("실적 추이: 분기", tag, body4, "OpenDART 주요계정(fnlttSinglAcnt) 분기·반기·사업보고서(표의 접수번호), 잠정실적 공시" + (", 컨센서스: 네이버 증권(2차 출처)" if D.get("cons") else ""), 4))
 
     # ⑤ 메자닌
     parts = []
@@ -1181,19 +1355,19 @@ def render(D: dict) -> str:
         body6 = (f'<h2>⑥ 주요 사업 · 매출 구성 · 주요 매출처</h2><p class="cap">출처: {esc(ar["report_nm"])} (접수번호 {esc(ar["rcept_no"])}) II. 사업의 내용 원문 발췌. '
                  f'요약이 아닌 원문 문장이며, 긴 문단은 앞부분만 실었습니다.</p>'
                  f'<h3>사업의 개요</h3><div class="box"><p>{esc(biz.get("overview") or "데이터 없음")}</p></div>'
-                 f'<h3>주요 제품·서비스별 매출 구성</h3>{mix_bar(biz.get("mix") or [])}'
+                 f'{photos_html(D)}<h3>주요 제품·서비스별 매출 구성</h3>{mix_bar(biz.get("mix") or [])}'
                  f'{table_html(biz["products"], 70) if biz.get("products") else "<p>표를 찾지 못했습니다 (데이터 없음).</p>"}'
                  f'<h3>주요 매출처</h3>{cust or "<p>사업보고서에서 주요 매출처 문단을 찾지 못했습니다 (데이터 없음).</p>"}'
                  f'{"<h3>수주 현황</h3>" + table_html(biz["backlog"], 50) if biz.get("backlog") else ""}')
     else:
         body6 = '<h2>⑥ 주요 사업 · 매출 구성 · 주요 매출처</h2><div class="box"><p>최근 2년 사업보고서를 찾지 못했습니다 (데이터 없음).</p></div>'
-    pages.append(page("사업 구조", tag, body6, f"OpenDART 사업보고서 원문 {esc(ar['rcept_no']) if ar else '-'}", 6))
+    pages.append(page("사업 구조", tag, body6, f"OpenDART 사업보고서 원문 {esc(ar['rcept_no']) if ar else '-'}" + (", 제품 사진: 회사 홈페이지" if D.get("photos") else ""), 6))
 
     disc = ('<p>본 자료는 실적카드(전분기 대비 영업이익 급증 잠정실적 공시)가 나간 종목에 대해 자동으로 만든 요약 자료이며, 매수·매도 추천이 아닙니다. '
             '투자에 대한 최종 결정과 책임은 투자자 본인에게 있습니다.</p>'
             '<p>재무 수치는 금융감독원 OpenDART API의 회사 공시(연결 우선, 연결이 없으면 별도로 표기)를 따랐고 각 표에 접수번호를 적었습니다. '
             '분기 손익은 3개월 금액이며, 4분기 단독 실적은 연간에서 3분기 누적을 뺀 산출값입니다. 이번 분기는 잠정실적 공시 수치이며 확정 실적과 다를 수 있습니다.</p>'
-            '<p>올해 추정치(E)는 컨센서스가 아니라 본문에 적은 방식으로 과거 실적에서 계산한 산출값입니다. PBR은 현재가 × 보통주 발행주식수를 최근 정기보고서의 지배주주지분으로 나눈 후행 값입니다.</p>'
+            '<p>예상치 대비 실제 표의 예상치는 네이버 증권 분기 컨센서스(2차 출처)입니다. 제품 사진은 회사 홈페이지 게시 이미지입니다. 올해 추정치(E)는 컨센서스가 아니라 본문에 적은 방식으로 과거 실적에서 계산한 산출값입니다. PBR은 현재가 × 보통주 발행주식수를 최근 정기보고서의 지배주주지분으로 나눈 후행 값입니다.</p>'
             '<p>주가·수급은 KB증권 Open API를 우선 사용하고, 조회에 실패하면 네이버 증권을 2차 출처로 쓰고 그 사실을 표기했습니다. '
             '사업의 개요·주요 매출처는 사업보고서 원문 발췌이며 해석을 더하지 않았습니다.</p>'
             f'<p>본 자료는 KB증권 리서치센터의 공식 발간물이 아니며, 작성 시점({TODAY:%Y-%m-%d}) 이후 공시와 시장 상황에 따라 내용이 달라질 수 있습니다.</p>')
