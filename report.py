@@ -242,17 +242,32 @@ def load_futures_flow(now: datetime) -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def pick_futures_flow(saved: dict | None, live: dict | None, now: datetime) -> dict | None:
+def pick_futures_flow(saved: dict | None, live: dict | None, now: datetime, *more: dict | None) -> dict | None:
     """홈페이지 차트와 같은 자료를 고른다: 저장본(archive/날짜/futures_flow.json)과 지금 받은 /api/futures 중
     오늘 것이면서 분 단위 기록이 더 많은 쪽. 저장이 늦거나 빠진 날에도 홈페이지와 같은 그림이 나간다."""
     today = f"{now:%Y%m%d}"
     best = None
-    for d in (saved, live):
+    for d in (saved, live, *more):
         if not d or d.get("flow_date") not in (None, today) or len(d.get("bars") or []) < 2:
             continue
         if best is None or len(d.get("flows") or []) > len(best.get("flows") or []):
             best = d
     return best
+
+
+def flow_live_futures(now: datetime) -> dict | None:
+    """flow-live 의 오늘 /api/futures(분 단위 외국인 선물 기록). 수집 작업이 중간에 멈춰 15:46 저장본이 없는 날에도,
+    멈추기 전까지 쌓인 기록으로 텔레그램 선물 차트에 외국인 선을 그린다. 오늘 것이 아니면 None."""
+    try:
+        subprocess.run(["git", "fetch", "--depth", "1", "origin", "flow-live"], cwd=ROOT, check=True, capture_output=True, timeout=120)
+        raw = subprocess.run(["git", "show", "FETCH_HEAD:snapshot.json"], cwd=ROOT, check=True, capture_output=True, timeout=60).stdout
+        j = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        print(f"flow-live 선물 기록 못 읽음: {exc}")
+        return None
+    if j.get("date") != f"{now:%Y%m%d}":
+        return None
+    return (j.get("data") or {}).get("/api/futures?minutes=1")
 
 
 def flow_live_snapshot(now: datetime) -> dict | None:
@@ -326,7 +341,7 @@ def main() -> int:
     for path in [*(p for p, _ in shots), snapshot]:
         print(f"저장: {path}")
     try:  # 홈페이지와 같은 선물지수 · 외국인 선물 교차차트를 2번 사진(투자자별 매매동향) 아래에 붙인다
-        raw = pick_futures_flow(load_futures_flow(now), api.get("/api/futures?minutes=1"), now)
+        raw = pick_futures_flow(load_futures_flow(now), api.get("/api/futures?minutes=1"), now, flow_live_futures(now))
         fut_img = futures_image(raw, api.get("/api/market"), prefix.with_name(f"{prefix.name}_futures.jpg")) if raw else None
         print(f"선물 교차차트: {fut_img or '기록 없음'}")
         if fut_img and len(shots) > 1:
