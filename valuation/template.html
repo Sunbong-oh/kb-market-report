@@ -1,0 +1,403 @@
+<title>빅테크 밸류에이션 모니터</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<style>
+/* 레이아웃: KB 리서치 표지 띠(노랑) → 본문 좌측 차트 + 우측 KEY DATA, 아래 6개월 변화 표, 마지막 고지사항 */
+:root {
+  --kb-yellow: #F2A900;
+  --kb-ink: #3D3A35;
+  --bg: #FAF8F3;
+  --panel: #FFFFFF;
+  --line: #E6E1D6;
+  --fg: #2B2925;
+  --fg-2: #6B665D;
+  --fg-3: #9A948A;
+  --grid: #ECE7DC;
+  --head-bg: #3D3A35;
+  --head-fg: #FFFFFF;
+  --up: #C8102E;
+  --down: #1F5FBF;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #e87ba4;
+  --s5: #008300; --s6: #6250d6; --s7: #e34948; --bench: #3D3A35;
+  --font: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1E1C19; --panel: #26241F; --line: #3A372F; --fg: #F1EEE6; --fg-2: #C2BCB0; --fg-3: #8E887C;
+    --grid: #34312A; --head-bg: #141310; --head-fg: #F1EEE6; --up: #FF6B6B; --down: #6EA8FF;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #d55181; --s5: #0ca30c; --s6: #9085e9; --s7: #e66767; --bench: #E9E3D3;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1E1C19; --panel: #26241F; --line: #3A372F; --fg: #F1EEE6; --fg-2: #C2BCB0; --fg-3: #8E887C;
+  --grid: #34312A; --head-bg: #141310; --head-fg: #F1EEE6; --up: #FF6B6B; --down: #6EA8FF;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #d55181; --s5: #0ca30c; --s6: #9085e9; --s7: #e66767; --bench: #E9E3D3;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.55; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 32px; }
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* 표지 띠 */
+.cover { background: var(--head-bg); color: var(--head-fg); border-top: 6px solid var(--kb-yellow); }
+.cover .wrap { padding-block: 20px 22px; display: flex; gap: 12px 24px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 900; letter-spacing: .02em; }
+.brand .mark { background: var(--kb-yellow); color: #3D3A35; padding: 2px 8px; font-size: 13px; }
+.brand .sub { font-weight: 500; font-size: 12px; opacity: .75; letter-spacing: .08em; }
+.cover h1 { margin: 10px 0 4px; font-size: clamp(22px, 3.2vw, 32px); font-weight: 900; text-wrap: balance; }
+.cover p { margin: 0; font-size: 13px; opacity: .8; }
+.cover .meta { font-size: 12px; opacity: .75; text-align: right; }
+
+/* 본문 그리드 */
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; margin-top: 20px; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } .keydata { order: -1; } }
+.panel { background: var(--panel); border: 1px solid var(--line); }
+.sec-title { display: flex; align-items: baseline; gap: 10px; padding: 14px 18px 0; }
+.sec-title h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.sec-title h2::before { content: ""; display: inline-block; width: 4px; height: 15px; background: var(--kb-yellow); margin-right: 8px; vertical-align: -1px; }
+.sec-title span { color: var(--fg-2); font-size: 12px; }
+
+/* 지표 탭 */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 18px 0; }
+.tab { font: inherit; font-size: 13px; font-weight: 500; padding: 6px 12px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--kb-yellow); border-color: var(--kb-yellow); color: #3D3A35; font-weight: 700; }
+.tab:focus-visible, .chip:focus-within, .btn:focus-visible { outline: 2px solid var(--kb-yellow); outline-offset: 2px; }
+.def { padding: 8px 18px 0; color: var(--fg-2); font-size: 12.5px; }
+
+/* 종목 체크박스 */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 18px 0; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border: 1px solid var(--line); cursor: pointer; font-size: 13px; user-select: none; }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chip .sw { width: 14px; height: 14px; border: 2px solid var(--c); background: var(--c); display: inline-block; }
+.chip.bench .sw { background: repeating-linear-gradient(90deg, var(--c) 0 4px, transparent 4px 7px); border-width: 0; height: 3px; width: 18px; }
+.chip:has(input:not(:checked)) { opacity: .42; }
+.chip:has(input:not(:checked)) .sw { background: transparent; }
+.chip.na { border-style: dashed; }
+.chip small { color: var(--fg-3); font-size: 11px; }
+.btns { display: inline-flex; gap: 6px; margin-left: auto; }
+.btn { font: inherit; font-size: 12px; padding: 5px 10px; border: 1px solid var(--line); background: transparent; color: var(--fg-2); cursor: pointer; }
+.btn[aria-pressed="true"] { border-color: var(--kb-ink); color: var(--fg); font-weight: 700; }
+
+.chart-box { position: relative; height: 430px; padding: 10px 12px 4px; }
+@media (max-width: 600px) { .chart-box { height: 340px; } }
+.foot { display: flex; justify-content: space-between; gap: 12px; padding: 8px 18px 12px; border-top: 1px solid var(--line); margin-top: 8px; color: var(--fg-3); font-size: 11.5px; }
+.foot .pg { white-space: nowrap; font-weight: 700; color: var(--fg-2); }
+
+/* KEY DATA */
+.keydata { align-self: start; }
+.keydata h3 { margin: 0; padding: 10px 16px; background: var(--kb-yellow); color: #3D3A35; font-size: 13px; font-weight: 900; letter-spacing: .1em; }
+.keydata dl { margin: 0; padding: 4px 16px 10px; }
+.kd-row { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.kd-row:last-child { border-bottom: 0; }
+.kd-row dt { color: var(--fg-2); }
+.kd-row dd { margin: 0; font-weight: 700; text-align: right; }
+.kd-row dd small { display: block; font-weight: 400; color: var(--fg-3); font-size: 11px; }
+.keydata .note { padding: 0 16px 14px; color: var(--fg-3); font-size: 11.5px; }
+
+/* 6개월 변화 표 */
+.table-wrap { overflow-x: auto; padding: 12px 18px 0; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { background: var(--head-bg); color: var(--head-fg); font-weight: 500; font-size: 12px; }
+tbody tr.bench td { font-weight: 700; background: color-mix(in srgb, var(--kb-yellow) 10%, transparent); }
+td .name { display: inline-flex; align-items: center; gap: 6px; }
+td .name i { width: 10px; height: 10px; background: var(--c); display: inline-block; }
+.up { color: var(--up); } .down { color: var(--down); } .na { color: var(--fg-3); }
+
+.method { padding: 12px 18px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 22px; font-size: 12.5px; color: var(--fg-2); }
+.method b { color: var(--fg); }
+.disclaimer { margin-top: 20px; padding: 16px 18px; border-top: 3px solid var(--kb-ink); background: var(--panel); border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); font-size: 11.5px; color: var(--fg-2); }
+.disclaimer h2 { margin: 0 0 6px; font-size: 13px; color: var(--fg); }
+.disclaimer p { margin: 4px 0; max-width: 100ch; }
+#table-section { margin-top: 20px; }
+@media (max-width: 700px) { .cover .meta { text-align: left; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<header class="cover">
+  <div class="wrap">
+    <div>
+      <div class="brand"><span class="mark">KB</span><span>KB증권 리서치</span><span class="sub">GLOBAL EQUITY · US TECH</span></div>
+      <h1>미국 빅테크 밸류에이션 모니터</h1>
+      <p>Magnificent 7 과 S&amp;P500 의 지표별 최근 6개월 추이 · 일별 종가 × 공시 재무</p>
+    </div>
+    <div class="meta tabular" id="cover-meta"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="grid">
+    <section class="panel" id="chart-section" aria-labelledby="chart-h">
+      <div class="sec-title"><h2 id="chart-h">지표별 6개월 추이</h2><span id="chart-sub"></span></div>
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="def" id="def"></div>
+      <div class="chips" id="chips"></div>
+      <div class="chart-box"><canvas id="chart" aria-label="밸류에이션 추이 차트" role="img"></canvas></div>
+      <div class="foot"><span id="src-1"></span><span class="pg">1</span></div>
+    </section>
+
+    <aside class="panel keydata" id="keydata" aria-label="KEY DATA">
+      <h3>KEY DATA</h3>
+      <dl id="kd"></dl>
+      <div class="note" id="kd-note"></div>
+    </aside>
+  </div>
+
+  <section class="panel" id="table-section" aria-labelledby="table-h">
+    <div class="sec-title"><h2 id="table-h">6개월 변화 요약</h2><span id="table-sub"></span></div>
+    <div class="table-wrap"><table id="tbl"><thead></thead><tbody></tbody></table></div>
+    <div class="method">
+      <div><b>PER·PBR·PSR</b> 일별 시가총액 ÷ 최근 4개 분기 합산(TTM) 순이익·최근 분기말 자기자본·TTM 매출. 재무 숫자는 10-Q/10-K 공시일 이후에만 반영합니다.</div>
+      <div><b>PEG</b> PER ÷ 희석 EPS 성장률(TTM, 전년 대비 %). 성장률이 0 이하이거나 적자면 계산하지 않습니다.</div>
+      <div><b>ROE·ROIC</b> ROE = TTM 순이익 ÷ 평균 자기자본. ROIC = TTM 영업이익 × (1 − 실효세율) ÷ 평균 투하자본(자기자본 + 차입금 − 현금성자산).</div>
+      <div><b>ARR</b> 연간반복매출(ARR)은 7개사 모두 공시 항목이 아니어서, 같은 성격의 공시 숫자인 TTM 매출 성장률(전년 대비)로 대신 보여드립니다.</div>
+    </div>
+    <div class="foot"><span id="src-2"></span><span class="pg">2</span></div>
+  </section>
+
+  <section class="disclaimer" aria-labelledby="disc-h">
+    <h2 id="disc-h">고지사항</h2>
+    <p>본 자료는 투자자의 이해를 돕기 위한 참고 자료이며, 특정 종목의 매수·매도를 권유하지 않습니다. 수치는 미국 SEC EDGAR 에 공시된 XBRL 재무 데이터와 Yahoo Finance 일별 종가로 산출했고, S&amp;P500 은 multpl.com 의 12개월 EPS·주당순자산 집계를 사용했습니다. 각 사 회계연도와 공시 시점이 달라 같은 날짜라도 반영된 분기가 다를 수 있습니다.</p>
+    <p>산출 방식(TTM 합산, 4분기 = 연간 − 3분기 누적, 투하자본 정의)에 따라 증권사·데이터 벤더 수치와 차이가 날 수 있으며, 과거 수치가 미래 수익률을 보장하지 않습니다. 투자 판단의 최종 책임은 투자자 본인에게 있습니다.</p>
+    <p>본 자료는 KB증권 리서치 서식을 따라 개인 분석용으로 작성되었으며 KB증권의 공식 의견이 아닙니다.</p>
+    <div class="foot" style="border-top:0;padding:8px 0 0"><span id="src-3"></span><span class="pg">3</span></div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const DATA = /*DATA*/null;
+
+const METRICS = [
+  { key: "per",  label: "PER",  unit: "배", def: "주가수익비율 = 시가총액 ÷ TTM 순이익. 낮을수록 이익 대비 싸다는 뜻입니다." },
+  { key: "pbr",  label: "PBR",  unit: "배", def: "주가순자산비율 = 시가총액 ÷ 최근 분기말 자기자본." },
+  { key: "psr",  label: "PSR",  unit: "배", def: "주가매출비율 = 시가총액 ÷ TTM 매출. 적자 기업도 비교할 수 있습니다." },
+  { key: "peg",  label: "PEG",  unit: "배", def: "PER ÷ 희석 EPS 성장률(%). 1배 아래면 성장 대비 저평가로 흔히 봅니다." },
+  { key: "roe",  label: "ROE",  unit: "%",  def: "자기자본이익률 = TTM 순이익 ÷ 평균 자기자본. 자사주 매입이 많은 애플은 자본이 작아 높게 나옵니다." },
+  { key: "roic", label: "ROIC", unit: "%",  def: "투하자본이익률 = 세후 영업이익 ÷ (자기자본 + 차입금 − 현금성자산) 평균." },
+  { key: "revg", label: "매출성장률 (ARR 대체)", unit: "%", def: "TTM 매출의 전년 대비 증가율. ARR(연간반복매출)은 공시 항목이 아니어서 이 숫자로 대신합니다." },
+  { key: "epsg", label: "EPS 성장률", unit: "%", def: "TTM 희석 EPS 의 전년 대비 증가율. PEG 계산의 분모입니다." },
+];
+const ORDER = ["SPX", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"];
+const COLOR_VAR = { SPX: "--bench", AAPL: "--s1", MSFT: "--s2", GOOGL: "--s3", AMZN: "--s4", META: "--s5", NVDA: "--s6", TSLA: "--s7" };
+const SRC = "자료: SEC EDGAR(10-Q·10-K XBRL), Yahoo Finance, multpl.com(S&P500 EPS·BPS), KB증권";
+
+let metric = "per";
+let logScale = null; // null = 자동 (이상치가 있으면 로그 축)
+let indexed = false;
+const visible = Object.fromEntries(ORDER.map(k => [k, true]));
+try { const s = JSON.parse(localStorage.getItem("bt-val") || "{}"); if (s.metric) metric = s.metric; if (s.visible) Object.assign(visible, s.visible); } catch (e) {}
+const save = () => { try { localStorage.setItem("bt-val", JSON.stringify({ metric, visible })); } catch (e) {} };
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = (v, u) => v == null ? "–" : (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1)) + (u === "%" ? "%" : "배");
+const nameOf = k => k === "SPX" ? "S&P500" : `${DATA.series[k].name}`;
+const dates = DATA.series.SPX.rows.map(r => r.d);
+
+// 날짜 정렬: 모든 종목을 S&P500 거래일 축에 맞춤
+const aligned = {};
+for (const k of ORDER) {
+  const m = Object.fromEntries(DATA.series[k].rows.map(r => [r.d, r]));
+  aligned[k] = dates.map(d => m[d] || null);
+}
+const hasData = (k, key) => aligned[k].some(r => r && r[key] != null);
+const firstLast = (k, key) => {
+  const vals = aligned[k].filter(r => r && r[key] != null);
+  return vals.length ? [vals[0][key], vals[vals.length - 1][key]] : [null, null];
+};
+
+// 표지 메타
+document.getElementById("cover-meta").innerHTML =
+  `<div>기간 ${dates[0]} ~ ${dates[dates.length - 1]}</div><div>일별 종가 ${dates.length}거래일</div><div>작성 ${DATA.generated.slice(0, 10)}</div>`;
+["src-1", "src-2", "src-3"].forEach(id => document.getElementById(id).textContent = SRC);
+
+// 탭
+const tabs = document.getElementById("tabs");
+const resetLog = () => { logScale = null; };
+METRICS.forEach(m => {
+  const b = document.createElement("button");
+  b.className = "tab"; b.role = "tab"; b.id = "tab-" + m.key; b.textContent = m.label;
+  b.addEventListener("click", () => { metric = m.key; resetLog(); save(); render(); });
+  tabs.appendChild(b);
+});
+
+// 체크박스
+const chips = document.getElementById("chips");
+ORDER.forEach(k => {
+  const lab = document.createElement("label");
+  lab.className = "chip" + (k === "SPX" ? " bench" : "");
+  lab.dataset.k = k;
+  lab.style.setProperty("--c", `var(${COLOR_VAR[k]})`);
+  const inp = document.createElement("input");
+  inp.type = "checkbox"; inp.id = "chk-" + k; inp.checked = visible[k];
+  inp.addEventListener("change", () => { visible[k] = inp.checked; save(); render(); });
+  const sw = document.createElement("span"); sw.className = "sw";
+  const t = document.createElement("span"); t.textContent = k === "SPX" ? "S&P500" : `${DATA.series[k].name} ${k}`;
+  const na = document.createElement("small"); na.className = "na-tag";
+  lab.append(inp, sw, t, na);
+  chips.appendChild(lab);
+});
+const btns = document.createElement("span"); btns.className = "btns";
+const mkBtn = (txt, id, fn) => { const b = document.createElement("button"); b.className = "btn"; b.id = id; b.textContent = txt; b.addEventListener("click", fn); btns.appendChild(b); return b; };
+mkBtn("전체 선택", "btn-all", () => { ORDER.forEach(k => visible[k] = true); syncChecks(); save(); render(); });
+mkBtn("전체 해제", "btn-none", () => { ORDER.forEach(k => visible[k] = false); syncChecks(); save(); render(); });
+const idxBtn = mkBtn("6개월 전 = 100", "btn-idx", () => { indexed = !indexed; render(); });
+const logBtn = mkBtn("로그 축", "btn-log", () => { logScale = !useLog(); render(); });
+chips.appendChild(btns);
+const syncChecks = () => ORDER.forEach(k => document.getElementById("chk-" + k).checked = visible[k]);
+
+// KEY DATA
+function renderKeyData() {
+  const last = k => { const r = aligned[k].filter(Boolean); return r[r.length - 1]; };
+  const comp = ORDER.filter(k => k !== "SPX");
+  const avg = key => { const v = comp.map(k => last(k)[key]).filter(x => x != null && x < 200); return v.reduce((a, b) => a + b, 0) / v.length; };
+  const median = key => { const v = comp.map(k => last(k)[key]).filter(x => x != null).sort((a, b) => a - b); const n = v.length; return n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2; };
+  const spx = last("SPX");
+  const mcap = comp.reduce((a, k) => a + (last(k).mcap || 0), 0);
+  const lo = comp.slice().sort((a, b) => (last(a).per ?? 1e9) - (last(b).per ?? 1e9))[0];
+  const rows = [
+    ["S&P500 지수", spx.px.toLocaleString("en-US", { maximumFractionDigits: 2 }), spx.d],
+    ["S&P500 PER", fmt(spx.per, "배"), "12개월 실적 기준"],
+    ["S&P500 PBR", fmt(spx.pbr, "배"), ""],
+    ["M7 PER 중앙값", fmt(median("per"), "배"), "테슬라 포함 7개사"],
+    ["M7 ROE 중앙값", fmt(median("roe"), "%"), ""],
+    ["M7 시가총액 합", (mcap / 1000).toFixed(1) + "조 달러", "7개사 합산"],
+    ["PER 최저", `${DATA.series[lo].name}`, fmt(last(lo).per, "배")],
+  ];
+  const dl = document.getElementById("kd"); dl.textContent = "";
+  rows.forEach(([a, b, c]) => {
+    const div = document.createElement("div"); div.className = "kd-row";
+    const dt = document.createElement("dt"); dt.textContent = a;
+    const dd = document.createElement("dd"); dd.className = "tabular"; dd.textContent = b;
+    if (c) { const s = document.createElement("small"); s.textContent = c; dd.appendChild(s); }
+    div.append(dt, dd); dl.appendChild(div);
+  });
+  document.getElementById("kd-note").textContent =
+    `반영 분기: ` + comp.map(k => `${k} ${DATA.series[k].lastQuarter.slice(2, 7).replace("-", ".")}`).join(" · ") + ` / S&P500 ${DATA.series.SPX.lastQuarter}`;
+}
+
+// 표
+function renderTable() {
+  const m = METRICS.find(x => x.key === metric);
+  document.getElementById("table-sub").textContent = `전 지표 · 6개월 전(${dates[0]}) 대비 최근(${dates[dates.length - 1]})`;
+  const thead = document.querySelector("#tbl thead"), tbody = document.querySelector("#tbl tbody");
+  thead.innerHTML = "<tr><th>종목</th>" + METRICS.map(x => `<th>${x.label.replace(" (ARR 대체)", "<br>(ARR 대체)")}</th>`).join("") + "</tr>";
+  tbody.textContent = "";
+  ORDER.forEach(k => {
+    const tr = document.createElement("tr"); if (k === "SPX") tr.className = "bench";
+    const td0 = document.createElement("td");
+    td0.innerHTML = `<span class="name" style="--c:var(${COLOR_VAR[k]})"><i></i></span>`;
+    td0.firstChild.append(nameOf(k) + (k === "SPX" ? "" : ` (${k})`));
+    tr.appendChild(td0);
+    METRICS.forEach(x => {
+      const td = document.createElement("td"); td.className = "tabular";
+      const [a, b] = firstLast(k, x.key);
+      if (b == null) { td.innerHTML = `<span class="na">${k === "SPX" && (x.key === "roic" || x.key === "psr" || x.key === "revg") ? "미제공" : "산출 불가"}</span>`; }
+      else {
+        const diff = a == null ? null : b - a;
+        const cls = diff == null || Math.abs(diff) < 0.005 ? "" : diff > 0 ? "up" : "down";
+        const dTxt = diff == null ? "" : (diff > 0 ? "▲" : diff < 0 ? "▼" : "") + Math.abs(diff).toFixed(Math.abs(diff) >= 100 ? 0 : 1) + (x.unit === "%" ? "%p" : "");
+        td.innerHTML = `${fmt(b, x.unit)}<br><small class="${cls}">${dTxt}</small>`;
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+// 차트
+let chart;
+// 자동 로그 축: 선택된 종목 중 최댓값이 나머지 최댓값의 4배를 넘고 모두 양수일 때 (예: 테슬라 PER)
+function useLog() {
+  if (logScale !== null) return logScale;
+  if (indexed) return false;
+  const mx = ORDER.filter(k => visible[k] && hasData(k, metric)).map(k => {
+    const v = aligned[k].map(r => r && r[metric]).filter(x => x != null);
+    return { max: Math.max(...v), min: Math.min(...v) };
+  });
+  if (mx.length < 2 || mx.some(o => o.min <= 0)) return false;
+  const tops = mx.map(o => o.max).sort((a, b) => b - a);
+  return tops[0] > tops[1] * 4;
+}
+function render() {
+  const m = METRICS.find(x => x.key === metric);
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.id === "tab-" + metric));
+  document.getElementById("def").textContent = m.def;
+  document.getElementById("chart-sub").textContent = indexed ? `${m.label} · 6개월 전 = 100` : `${m.label} (${m.unit})`;
+  const LOG = useLog(); idxBtn.setAttribute("aria-pressed", indexed); logBtn.setAttribute("aria-pressed", LOG);
+  logBtn.textContent = logScale === null && LOG ? "로그 축 (자동)" : "로그 축";
+  document.querySelectorAll(".chip").forEach(c => {
+    const k = c.dataset.k, ok = hasData(k, metric);
+    c.classList.toggle("na", !ok);
+    c.querySelector(".na-tag").textContent = ok ? "" : (k === "SPX" ? "미제공" : "산출 불가");
+  });
+
+  const grid = css("--grid"), fg2 = css("--fg-2"), fg = css("--fg"), panel = css("--panel");
+  const datasets = ORDER.filter(k => visible[k] && hasData(k, metric)).map(k => {
+    const col = css(COLOR_VAR[k]);
+    let vals = aligned[k].map(r => r ? r[metric] : null);
+    if (indexed) { const base = vals.find(v => v != null && v > 0); vals = vals.map(v => v == null || !base ? null : v / base * 100); }
+    if (LOG) vals = vals.map(v => v != null && v > 0 ? v : null);
+    return {
+      label: nameOf(k), key: k, data: vals, borderColor: col, backgroundColor: col,
+      borderWidth: k === "SPX" ? 2.5 : 2, borderDash: k === "SPX" ? [6, 4] : [],
+      pointRadius: 0, pointHoverRadius: 5, pointHoverBorderColor: panel, pointHoverBorderWidth: 2,
+      tension: 0, spanGaps: true, order: k === "SPX" ? 0 : 1,
+    };
+  });
+
+  const cfg = {
+    type: "line",
+    data: { labels: dates.map(d => d.slice(5).replace("-", ".")), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: css("--head-bg"), titleColor: "#fff", bodyColor: "#fff", borderColor: css("--kb-yellow"), borderWidth: 1,
+          padding: 10, boxWidth: 10, boxHeight: 10, usePointStyle: false, titleFont: { family: "Noto Sans KR", weight: "700" }, bodyFont: { family: "Noto Sans KR" },
+          itemSort: (a, b) => (b.raw ?? -1e9) - (a.raw ?? -1e9),
+          callbacks: {
+            title: items => dates[items[0].dataIndex],
+            label: c => ` ${c.dataset.label}  ${c.raw == null ? "–" : indexed ? c.raw.toFixed(1) : fmt(c.raw, m.unit)}`,
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, border: { color: grid }, ticks: { color: fg2, maxTicksLimit: 7, maxRotation: 0, font: { family: "Noto Sans KR", size: 11 } } },
+        y: {
+          type: LOG ? "logarithmic" : "linear",
+          grid: { color: grid }, border: { display: false },
+          ticks: { color: fg2, font: { family: "Noto Sans KR", size: 11 }, maxTicksLimit: 8,
+            callback: v => { const n = Number(v); return (Math.abs(n) >= 100 ? n.toFixed(0) : +n.toFixed(1)) + (indexed ? "" : m.unit === "%" ? "%" : "x"); } },
+        },
+      },
+    },
+    plugins: [{
+      id: "endLabels", // 선 끝 값 라벨 (4개 이하 선택 시)
+      afterDatasetsDraw(c) {
+        if (c.data.datasets.length > 4) return;
+        const ctx = c.ctx; ctx.save(); ctx.font = "700 11px 'Noto Sans KR', sans-serif"; ctx.fillStyle = fg; ctx.textAlign = "right";
+        c.data.datasets.forEach((ds, i) => {
+          const meta = c.getDatasetMeta(i); let j = ds.data.length - 1; while (j >= 0 && ds.data[j] == null) j--;
+          if (j < 0) return; const p = meta.data[j];
+          ctx.fillText(`${ds.label} ${indexed ? ds.data[j].toFixed(0) : fmt(ds.data[j], m.unit)}`, p.x - 4, p.y - 8);
+        });
+        ctx.restore();
+      },
+    }],
+  };
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("chart"), cfg);
+}
+
+renderKeyData(); renderTable(); render();
+const mq = window.matchMedia("(prefers-color-scheme: dark)");
+mq.addEventListener?.("change", render);
+new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>
