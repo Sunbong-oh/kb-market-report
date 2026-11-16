@@ -651,8 +651,19 @@ def send() -> None:
     token, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     for m in msgs:
         data = urllib.parse.urlencode({"chat_id": chat, "text": m, "disable_web_page_preview": "true"}).encode()
-        r = urllib.request.urlopen(f"https://api.telegram.org/bot{token}/sendMessage", data=data, timeout=30)
-        print("텔레그램:", r.status)
+        try:
+            r = urllib.request.urlopen(f"https://api.telegram.org/bot{token}/sendMessage", data=data, timeout=20)
+            print("텔레그램:", r.status, flush=True)
+            continue
+        except Exception as e:  # 회사 PC 는 보안 장비가 텔레그램을 막을 수 있다 (2026-11-16 우양피앤엘 알림이 소리 없이 빠짐)
+            print("텔레그램 직접 보내기 실패:", type(e).__name__, str(e)[:160], flush=True)
+        # GitHub 서버 워크플로가 대신 보낸다
+        try:
+            g = subprocess.run(["gh", "workflow", "run", "telegram-send.yml", "--ref", "main", "-f", "text=" + m],
+                               capture_output=True, timeout=60)
+            print("텔레그램 대신 보내기 요청(telegram-send.yml):", g.returncode, g.stderr.decode(errors="replace")[-200:], flush=True)
+        except Exception as e:
+            print("텔레그램 대신 보내기 요청 실패:", type(e).__name__, e, flush=True)
 
 
 if __name__ == "__main__":

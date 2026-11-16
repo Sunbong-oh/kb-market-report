@@ -621,8 +621,9 @@ def earnings_tick(t: datetime) -> None:
             print("  earnings-live 올리기 실패:", res.stderr.decode(errors="replace")[:200], flush=True)
             return
     r = subprocess.run([sys.executable, "earnings_watch.py", "--send"], cwd=ROOT, capture_output=True, timeout=120)
-    if r.stdout.strip():
-        print("  ", r.stdout.decode(errors="replace").strip()[-200:], flush=True)
+    out_txt = (r.stdout + r.stderr).decode(errors="replace").strip()
+    if out_txt:  # 오류(stderr)도 남긴다: 전엔 보내기 실패가 로그에 안 보였다
+        print("  ", out_txt[-400:], flush=True)
     kick_surge_report(t, out / "report_queue.json")
 
 

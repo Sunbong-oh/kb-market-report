@@ -1,0 +1,34 @@
+name: 텔레그램 보내기 (GitHub 서버)
+
+# 회사 PC(실행기)에서 api.telegram.org 로 바로 못 보낼 때 대신 보낸다.
+#   earnings_watch.py --send 가 직접 보내기에 실패하면 이 워크플로를 실행 요청한다 (gh workflow run telegram-send.yml -f text=...).
+#   회사 보안 장비가 텔레그램 접속을 막는 경우가 있어서 만들었다 (2026-11-16 우양피앤엘 실적 카드 알림 누락).
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: "보낼 글 (텔레그램 메시지 하나)"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 텔레그램 보내기
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TEXT: ${{ inputs.text }}
+        run: |
+          python3 - <<'PY'
+          import os, urllib.parse, urllib.request
+          data = urllib.parse.urlencode({"chat_id": os.environ["TELEGRAM_CHAT_ID"], "text": os.environ["TEXT"],
+                                         "disable_web_page_preview": "true"}).encode()
+          r = urllib.request.urlopen(f"https://api.telegram.org/bot{os.environ['TELEGRAM_BOT_TOKEN']}/sendMessage", data=data, timeout=30)
+          print("텔레그램:", r.status)
+          PY
