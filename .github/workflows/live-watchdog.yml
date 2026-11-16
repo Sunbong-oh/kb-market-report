@@ -1,0 +1,38 @@
+name: 장중 수급 수집 감시
+
+# 평일 08:15~16:10(KST) 5분마다: flow-live 가 6분 넘게 안 올라오면 수집(live-snapshot)을 다시 띄우고 텔레그램으로 알린다 (live_watchdog.py).
+# 이유: 2026-11-16 아침 예약·루틴이 안 떠서 수집이 10:14까지 시작되지 않았다. 이 감시는 GitHub 서버에서 돌아 회사 PC 상태와 상관없다.
+# 크론은 UTC: KST 08:00~08:55 = UTC 23시(일~목), 09:00~15:55 = UTC 00~06시(월~금), 16:00~16:10 = UTC 07시(월~금)
+on:
+  schedule:
+    - cron: "*/5 23 * * 0-4"
+    - cron: "*/5 0-6 * * 1-5"
+    - cron: "0-10/5 7 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: "1 이면 다시 띄우기·텔레그램 없이 상태만 출력"
+        default: "1"
+
+permissions:
+  contents: read
+  actions: write   # 수집 작업 다시 띄우기·취소
+
+concurrency:
+  group: live-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DRY: ${{ github.event_name == 'workflow_dispatch' && inputs.dry || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - run: python3 live_watchdog.py
