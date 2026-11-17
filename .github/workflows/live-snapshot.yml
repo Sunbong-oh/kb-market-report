@@ -17,14 +17,20 @@ on:
     branches: [main]
     paths: ["trigger-live/**"]
   workflow_dispatch:
+    inputs:
+      force:
+        description: "true 이면 같은 그룹에서 돌고 있는(PC가 꺼져 죽은) 작업을 취소하고 바로 시작"
+        default: "false"
 
 permissions:
   contents: write   # flow-live 브랜치 갱신
   actions: write    # 다음 작업 이어 띄우기
 
+# 한 번에 한 작업만. 단 force=true 로 띄운 작업(감시·PC 시작 파일)은 죽어 있는 이전 작업(PC 가 꺼진 뒤에도 '진행 중'으로 남는 경우)을 취소하고 시작한다.
+# (2026-11-18: 어제 13:47 작업이 19시간째 '진행 중'으로 남아 새 작업이 대기만 하고 수집이 안 됐다)
 concurrency:
   group: live-snapshot
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' && inputs.force == 'true' }}
 
 jobs:
   live:

@@ -88,11 +88,12 @@ def parse_ts(s: str) -> datetime:
     return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(KST)
 
 
-def dispatch() -> None:
+def dispatch(force: bool = False) -> None:
+    """수집 작업을 띄운다. force=True 면 같은 그룹의 죽은 작업을 취소하고 시작(live-snapshot.yml 의 force 입력)."""
     if DRY:
-        print("[DRY] 수집 작업 다시 띄움")
+        print(f"[DRY] 수집 작업 다시 띄움 force={force}")
         return
-    http(f"https://api.github.com/repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches", "POST", {"ref": "main"})
+    http(f"https://api.github.com/repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches", "POST", {"ref": "main", "inputs": {"force": "true" if force else "false"}})
 
 
 def cancel(run_id: int) -> None:
@@ -161,7 +162,7 @@ def main() -> int:
     for rid in d["cancel"]:
         cancel(rid)
     if d["restart"]:
-        dispatch()
+        dispatch(force=bool(runs))  # 실행 중으로 남은(죽은) 작업이 있으면 그것을 취소하고 시작
     if d["alert"]:
         telegram(d["alert"])
     return 0
