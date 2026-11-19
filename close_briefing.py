@@ -280,6 +280,38 @@ def released_earnings(now: datetime) -> dict[str, datetime]:
     return out
 
 
+def sec_released(name: str, now: datetime, hours: int = 72) -> datetime | None:
+    """실적 속보 감시에 없는 미국 회사: 네이버 해외주식 검색으로 티커를 찾고, SEC 공시(8-K 2.02 / 6-K)가
+    브리핑 전 hours 시간 안에 올라왔으면 그 시각(KST)을 돌려준다. 예: 팔로알토는 미국 장 마감 뒤(한국 새벽) 발표."""
+    name = re.sub(r"\s*\([^()]*\)", "", name).strip()  # '엔비디아(키움 18일)' -> '엔비디아'
+    try:
+        r = httpx.get("https://m.stock.naver.com/front-api/search/autoComplete",
+                      params={"query": name, "target": "stock"}, timeout=10).json()
+        tk = next((i["code"] for i in (r.get("result") or {}).get("items") or [] if i.get("nationCode") == "USA"), None)
+        if not tk:
+            return None
+        ua = {"User-Agent": "kb-market-report podcast bot", "Accept-Encoding": "identity"}
+        if not _SEC_TICKERS:
+            _SEC_TICKERS.update({v["ticker"]: v["cik_str"] for v in
+                                 httpx.get("https://www.sec.gov/files/company_tickers.json", headers=ua, timeout=20).json().values()})
+        cik = _SEC_TICKERS.get(tk.split(".")[0])
+        if not cik:
+            return None
+        rec = httpx.get(f"https://data.sec.gov/submissions/CIK{cik:010d}.json", headers=ua, timeout=20).json()["filings"]["recent"]
+        at = now.replace(tzinfo=KST)
+        for form, items, acc in zip(rec["form"][:40], rec["items"][:40], rec["acceptanceDateTime"][:40]):
+            if form == "6-K" or (form == "8-K" and "2.02" in (items or "")):
+                when = datetime.fromisoformat(acc.replace("Z", "+00:00")).astimezone(KST)
+                if timedelta(0) <= at - when <= timedelta(hours=hours):
+                    return when
+    except Exception as e:
+        print("SEC 발표 확인 실패:", name, type(e).__name__, e, file=sys.stderr)
+    return None
+
+
+_SEC_TICKERS: dict = {}
+
+
 def tonight_us(now: datetime) -> dict:
     """증시 캘린더(calendar/YYYY-MM.json)의 오늘 미국 실적·경제지표(한국시간 오늘 밤~내일 새벽).
     실적 중 브리핑 시각 전에 이미 발표된 것은 'released'로 따로 뺀다."""
@@ -289,7 +321,10 @@ def tonight_us(now: datetime) -> dict:
     earnings, released = [], []
     for e in day.get("earnings_us") or []:
         base = re.sub(r"\s\([^()]*\)$", "", e.lstrip("★")).strip()  # '★TSMC (EPS 예상 $4.45)' -> 'TSMC'
-        hit = next((t for n, t in done.items() if n == base or base.startswith(n) or n.startswith(base)), None)
+        # 실제 발표 시각은 SEC 공시가 가장 정확하다(예: 엔비디아는 하루 전 새벽 발표인데 캘린더는 오늘, 감시는 늦게 잡음).
+        # 감시 목록 밖 회사(예: 팔로알토)도 공시로 확인한다. 공시를 못 읽으면 실적 속보 감시 기록을 쓴다.
+        hit = sec_released(base, now) or next(
+            (t for n, t in done.items() if n == base or base.startswith(n) or n.startswith(base)), None)
         if hit:
             released.append((base, hit))
         else:
@@ -523,8 +558,10 @@ def build_script(api: dict, now: datetime, reasons: list[str], issues: list[str]
     if earn:
         say(f"{P}오늘 밤부터 내일 새벽 사이 실적을 발표하는 기업은 " + ". ".join(earn) + "입니다.")
     for name, t in cal.get("released") or []:
+        gap = (now.date() - t.date()).days
+        day = "오늘" if gap <= 0 else "어제" if gap == 1 else f"{t.month}월 {t.day}일"
         when = f"오{'전' if t.hour < 12 else '후'} {t.hour % 12 or 12}시" + (f" {t.minute}분" if t.minute else "")
-        say(f"{P}{event_text(name)}{josa(event_text(name))} 오늘 {when}에 이미 실적을 발표했습니다.")
+        say(f"{P}{event_text(name)}{josa(event_text(name))} 한국시간 {day} {when}에 이미 실적을 발표했습니다.")
     if not mac and not earn and not cal.get("released"):
         say("오늘 밤 예정된 주요 미국 일정과 실적 발표는 없습니다.")
 
