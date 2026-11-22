@@ -9,7 +9,9 @@ __pycache__/
 data/
 reports/
 publish/
-.claude/
+.claude/*
+# 저점 판별 스킬은 저장소와 함께 배포한다(어느 계정이든 이 저장소를 열면 Claude Code가 자동으로 불러온다)
+!.claude/skills/
 
 # 실행 결과물 (보고서·캐시) - 워크플로가 따로 브랜치에 올린다
 out/

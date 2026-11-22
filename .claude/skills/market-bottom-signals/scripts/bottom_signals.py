@@ -147,20 +147,44 @@ def putcall_series(dates):
     return out
 
 
-def kr_put_flow(archive_dir):
-    """kb-market-report 장마감 기록(archive/YYYY-MM-DD/본문_장마감수급.txt)에서 코스피200 풋옵션 투자자별 순매수(억원)를 읽는다.
-    줄 형식: '- 풋옵션: 외국인 -28 / 기관 -21 / 개인 +48'"""
+KR_ARCHIVE_RAW = "https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/main/archive/{}/%EB%B3%B8%EB%AC%B8_%EC%9E%A5%EB%A7%88%EA%B0%90%EC%88%98%EA%B8%89.txt"
+PUT_RE = r"풋옵션:\s*외국인\s*([+-]?[\d,]+)\s*/\s*기관\s*([+-]?[\d,]+)\s*/\s*개인\s*([+-]?[\d,]+)"
+
+
+def _parse_put(txt):
     import re
+    m = re.search(PUT_RE, txt or "")
+    return {k: int(v.replace(",", "")) for k, v in zip(("foreign", "inst", "retail"), m.groups())} if m else None
+
+
+def kr_put_flow(archive_dir, dates=()):
+    """코스피200 풋옵션 투자자별 순매수(억원, KB증권 Open API)를 kb-market-report 장마감 기록에서 읽는다.
+    archive_dir 가 로컬 폴더면 archive/YYYY-MM-DD/본문_장마감수급.txt 를 읽고,
+    'github' 이면 공개 저장소(Sunbong-oh/kb-market-report main)에서 dates 의 파일을 받아 온다(다른 계정·PC에서도 동작).
+    줄 형식: '- 풋옵션: 외국인 -28 / 기관 -21 / 개인 +48'. 기록은 2026-10-01부터 있다."""
     out = {}
+    if archive_dir == "github":
+        for d in dates:
+            if d < "2026-10-01":
+                continue
+            name = f"kr_close_{d}.txt"
+            p = os.path.join(CACHE, name)
+            txt = open(p, encoding="utf-8").read() if os.path.exists(p) else fetch(KR_ARCHIVE_RAW.format(d))
+            if txt and not os.path.exists(p):
+                os.makedirs(CACHE, exist_ok=True)
+                open(p, "w", encoding="utf-8").write(txt)
+            v = _parse_put(txt)
+            if v:
+                out[d] = v
+        return out
     if not archive_dir or not os.path.isdir(archive_dir):
         return out
     for d in sorted(os.listdir(archive_dir)):
         f = os.path.join(archive_dir, d, "본문_장마감수급.txt")
-        if not os.path.exists(f):
-            continue
-        m = re.search(r"풋옵션:\s*외국인\s*([+-]?[\d,]+)\s*/\s*기관\s*([+-]?[\d,]+)\s*/\s*개인\s*([+-]?[\d,]+)", open(f, encoding="utf-8").read())
-        if m:
-            out[d] = {k: int(v.replace(",", "")) for k, v in zip(("foreign", "inst", "retail"), m.groups())}
+        if os.path.exists(f):
+            v = _parse_put(open(f, encoding="utf-8").read())
+            if v:
+                out[d] = v
     return out
 
 
@@ -175,7 +199,7 @@ def main():
     ap.add_argument("--end", default=dt.date.today().isoformat())
     ap.add_argument("--ref-low-date", help="1차 폭락 저점일(없으면 구간 안에서 자동 탐색)")
     ap.add_argument("--json", help="결과를 JSON으로 저장할 경로")
-    ap.add_argument("--kr-flow-dir", help="kb-market-report 의 archive 폴더(국내 풋옵션 수급 신호용, 선택)")
+    ap.add_argument("--kr-flow-dir", help="국내 풋옵션 수급 기록: kb-market-report 의 archive 폴더 경로, 또는 'github'(공개 저장소에서 받기), 'none'(끄기). 기본: 한국 지수면 github")
     ap.add_argument("--kr-put-sell", type=int, default=200, help="외국인 풋옵션 하루 순매도 기준(억원, 기본 200)")
     a = ap.parse_args()
 
@@ -303,7 +327,8 @@ def main():
         "note": "참고 지표(거부권 아님). 하이일드 4.0% 미만 평온·4.6% 이상 경계(2007-08-16 4.59%). 2011년 바닥은 하이일드 약 7%, Baa 3.3%p에서도 나왔으므로 수준만으로 신호를 버리지 말고 funding_filter와 함께 본다",
     }
 
-    flow = kr_put_flow(a.kr_flow_dir)
+    src_kr = a.kr_flow_dir or ("github" if a.index.upper() in ("^KS11", "^KQ11", "^KS200") else "none")
+    flow = kr_put_flow(None if src_kr == "none" else src_kr, [d for d in sorted(idx) if d >= a.start])
     if flow:
         recent = [(d, v["foreign"]) for d, v in flow.items() if d >= a.start]
         hits = [(d, v) for d, v in recent if v <= -a.kr_put_sell]
