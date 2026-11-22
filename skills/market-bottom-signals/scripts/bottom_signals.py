@@ -147,6 +147,23 @@ def putcall_series(dates):
     return out
 
 
+def kr_put_flow(archive_dir):
+    """kb-market-report 장마감 기록(archive/YYYY-MM-DD/본문_장마감수급.txt)에서 코스피200 풋옵션 투자자별 순매수(억원)를 읽는다.
+    줄 형식: '- 풋옵션: 외국인 -28 / 기관 -21 / 개인 +48'"""
+    import re
+    out = {}
+    if not archive_dir or not os.path.isdir(archive_dir):
+        return out
+    for d in sorted(os.listdir(archive_dir)):
+        f = os.path.join(archive_dir, d, "본문_장마감수급.txt")
+        if not os.path.exists(f):
+            continue
+        m = re.search(r"풋옵션:\s*외국인\s*([+-]?[\d,]+)\s*/\s*기관\s*([+-]?[\d,]+)\s*/\s*개인\s*([+-]?[\d,]+)", open(f, encoding="utf-8").read())
+        if m:
+            out[d] = {k: int(v.replace(",", "")) for k, v in zip(("foreign", "inst", "retail"), m.groups())}
+    return out
+
+
 def ma(vals, n=5):
     return [sum(vals[max(0, i - n + 1):i + 1]) / len(vals[max(0, i - n + 1):i + 1]) for i in range(len(vals))]
 
@@ -158,6 +175,8 @@ def main():
     ap.add_argument("--end", default=dt.date.today().isoformat())
     ap.add_argument("--ref-low-date", help="1차 폭락 저점일(없으면 구간 안에서 자동 탐색)")
     ap.add_argument("--json", help="결과를 JSON으로 저장할 경로")
+    ap.add_argument("--kr-flow-dir", help="kb-market-report 의 archive 폴더(국내 풋옵션 수급 신호용, 선택)")
+    ap.add_argument("--kr-put-sell", type=int, default=200, help="외국인 풋옵션 하루 순매도 기준(억원, 기본 200)")
     a = ap.parse_args()
 
     # 기준 저점이 시작일보다 앞이면 그 앞까지 포함한다
@@ -284,6 +303,16 @@ def main():
         "note": "참고 지표(거부권 아님). 하이일드 4.0% 미만 평온·4.6% 이상 경계(2007-08-16 4.59%). 2011년 바닥은 하이일드 약 7%, Baa 3.3%p에서도 나왔으므로 수준만으로 신호를 버리지 말고 funding_filter와 함께 본다",
     }
 
+    flow = kr_put_flow(a.kr_flow_dir)
+    if flow:
+        recent = [(d, v["foreign"]) for d, v in flow.items() if d >= a.start]
+        hits = [(d, v) for d, v in recent if v <= -a.kr_put_sell]
+        worst = min(recent, key=lambda x: x[1]) if recent else None
+        signals["kr_foreign_put_sell"] = {
+            "threshold_eok": -a.kr_put_sell, "latest": recent[-1] if recent else None, "worst": worst,
+            "hits": hits, "met_last_10d": any(d >= (recent[-10][0] if len(recent) >= 10 else recent[0][0]) for d, _ in hits),
+            "note": "국내 보조 신호(사용자 경험칙): 외국인이 코스피200 풋옵션을 하루 200억 이상 순매도하기 시작하면 바닥 준비 가능성. 과거 장기 검증은 아직 안 됨",
+        }
     print(f"\n[{a.index}] {a.start} ~ {last['date']}   (풋콜=Cboe 주식+ETP, CNN 근사)")
     print(f"{'date':10} {'close':>10} {'VIX c/h':>13} {'PC d/5d':>13} {'z5':>6} {'TOT5':>6} {'HY':>5} {'Baa':>5}")
     for r in rows[-40:]:
