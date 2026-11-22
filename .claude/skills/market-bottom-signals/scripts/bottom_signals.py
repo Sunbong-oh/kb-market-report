@@ -128,11 +128,13 @@ def fred(series, start):
 
 
 def putcall_series(dates):
-    """요청한 미국 거래일들에 대해 {'eqetp':..., 'total':...} 일간값."""
-    eq, etp, tot = cboe_archive("equitypc"), cboe_archive("etppc"), cboe_archive("totalpc")
+    """요청한 미국 거래일들에 대해 {'eqetp':..., 'total':...} 일간값. 2019-10-04 이전은 아카이브 CSV, 이후는 일일 JSON(8개 동시)."""
+    from concurrent.futures import ThreadPoolExecutor
     out = {}
-    for d in dates:
-        if d <= ARCHIVE_END:
+    old = [d for d in dates if d <= ARCHIVE_END]
+    if old:
+        eq, etp, tot = cboe_archive("equitypc"), cboe_archive("etppc"), cboe_archive("totalpc")
+        for d in old:
             if d not in eq or d not in tot:
                 continue
             if d <= EQ_INCLUDES_ETP_UNTIL or d not in etp:
@@ -140,8 +142,9 @@ def putcall_series(dates):
             else:
                 v = (eq[d][1] + etp[d][1]) / (eq[d][0] + etp[d][0])
             out[d] = {"eqetp": v, "total": tot[d][2]}
-        else:
-            r = cboe_daily(d)
+    new = [d for d in dates if d > ARCHIVE_END]
+    with ThreadPoolExecutor(8) as ex:
+        for d, r in zip(new, ex.map(cboe_daily, new)):
             if r:
                 out[d] = r
     return out
@@ -192,24 +195,18 @@ def ma(vals, n=5):
     return [sum(vals[max(0, i - n + 1):i + 1]) / len(vals[max(0, i - n + 1):i + 1]) for i in range(len(vals))]
 
 
-def main():
-    ap = argparse.ArgumentParser(description="폭락장 저점 판별 신호")
-    ap.add_argument("--index", default="^GSPC", help="가격 기준 지수(예: ^GSPC, ^IXIC, ^KS11)")
-    ap.add_argument("--start", required=True)
-    ap.add_argument("--end", default=dt.date.today().isoformat())
-    ap.add_argument("--ref-low-date", help="1차 폭락 저점일(없으면 구간 안에서 자동 탐색)")
-    ap.add_argument("--json", help="결과를 JSON으로 저장할 경로")
-    ap.add_argument("--kr-flow-dir", help="국내 풋옵션 수급 기록: kb-market-report 의 archive 폴더 경로, 또는 'github'(공개 저장소에서 받기), 'none'(끄기). 기본: 한국 지수면 github")
-    ap.add_argument("--kr-put-sell", type=int, default=200, help="외국인 풋옵션 하루 순매도 기준(억원, 기본 200)")
-    a = ap.parse_args()
+def compute(index="^GSPC", start=None, end=None, ref_low_date=None, kr_flow_dir=None, kr_put_sell=200, pre_days=380):
+    """신호 계산. 결과 {'index', 'start', 'rows', 'signals'}. pre_days 는 1년 표준편차(z) 계산용 앞 기간(대시보드는 40처럼 짧게)."""
+    end = end or dt.date.today().isoformat()
+    start = start or (dt.date.fromisoformat(end) - dt.timedelta(days=150)).isoformat()
 
     # 기준 저점이 시작일보다 앞이면 그 앞까지 포함한다
-    if a.ref_low_date and a.ref_low_date < a.start:
-        a.start = (dt.date.fromisoformat(a.ref_low_date) - dt.timedelta(days=10)).isoformat()
+    if ref_low_date and ref_low_date < start:
+        start = (dt.date.fromisoformat(ref_low_date) - dt.timedelta(days=10)).isoformat()
     # 기준선(1년 평균·표준편차) 계산을 위해 1년 앞부터 받는다
-    pre = (dt.date.fromisoformat(a.start) - dt.timedelta(days=380)).isoformat()
-    idx = yahoo(a.index, pre, a.end)
-    vix = yahoo("^VIX", pre, a.end)
+    pre = (dt.date.fromisoformat(start) - dt.timedelta(days=pre_days)).isoformat()
+    idx = yahoo(index, pre, end)
+    vix = yahoo("^VIX", pre, end)
     us_days = sorted(vix)  # 풋콜·VIX는 미국 거래일 기준
     pc = putcall_series([d for d in us_days if d >= pre])
     hy = fred("BAMLH0A0HYM2", pre)
@@ -234,7 +231,7 @@ def main():
 
     rows = []
     for d in sorted(set(idx) | set(vix)):
-        if d < a.start:
+        if d < start:
             continue
         hy_d = max([x for x in hy if x <= d], default=None)
         rows.append({
@@ -250,9 +247,12 @@ def main():
     # 1차 폭락 저점(기준점) 찾기: 지정일 또는 구간 첫 저점(최저 종가)의 앞쪽 절반에서 최저 종가
     priced = [r for r in rows if r["index_close"] is not None]
     if not priced:
-        sys.exit("구간에 가격 데이터가 없다.")
-    if a.ref_low_date:
-        ref = min((r for r in priced if r["date"] <= a.ref_low_date), key=lambda r: abs(dt.date.fromisoformat(r["date"]).toordinal() - dt.date.fromisoformat(a.ref_low_date).toordinal()))
+        raise ValueError("구간에 가격 데이터가 없다.")
+    if ref_low_date:
+        ref = min((r for r in priced if r["date"] <= ref_low_date), key=lambda r: abs(dt.date.fromisoformat(r["date"]).toordinal() - dt.date.fromisoformat(ref_low_date).toordinal()))
+    elif len(priced) >= 25:
+        # 자동: 최근 5거래일을 뺀 직전 60거래일 안의 최저 종가를 1차 폭락 저점으로 본다(대시보드 매일 갱신용)
+        ref = min(priced[-65:-5], key=lambda r: r["index_close"])
     else:
         half = priced[: max(5, len(priced) // 2)]
         ref = min(half, key=lambda r: r["index_close"])
@@ -280,7 +280,7 @@ def main():
     # 투매형: 구간 안에서 풋콜 5일 평균이 1.0 이상인 날을 찾고, 그 뒤 10거래일 안에 VIX 종가가 그 무렵 장중 고점보다 15% 이상 내려왔는지 본다
     hits = [r for r in rows if r["pc_eqetp_5d"] is not None and r["pc_eqetp_5d"] >= 1.0]
     cap = {"threshold": 1.0, "latest_pc_eqetp_5d": lp and round(lp["pc_eqetp_5d"], 3), "met": False,
-           "note": "풋콜(주식+ETP) 5일 평균 1.0 이상 + 이후 VIX 종가가 장중 고점에서 15% 이상 하락하면 투매형 바닥 후보"}
+           "note": "풋콜(주식+ETP) 5일 평균 1.0 이상 + 이후 VIX 종가가 장중 고점에서 15% 이상 하락하면 투매형 바닥 가능성"}
     if hits:
         pk = max(hits, key=lambda r: r["pc_eqetp_5d"])
         i = rows.index(pk)
@@ -327,18 +327,33 @@ def main():
         "note": "참고 지표(거부권 아님). 하이일드 4.0% 미만 평온·4.6% 이상 경계(2007-08-16 4.59%). 2011년 바닥은 하이일드 약 7%, Baa 3.3%p에서도 나왔으므로 수준만으로 신호를 버리지 말고 funding_filter와 함께 본다",
     }
 
-    src_kr = a.kr_flow_dir or ("github" if a.index.upper() in ("^KS11", "^KQ11", "^KS200") else "none")
-    flow = kr_put_flow(None if src_kr == "none" else src_kr, [d for d in sorted(idx) if d >= a.start])
+    src_kr = kr_flow_dir or ("github" if index.upper() in ("^KS11", "^KQ11", "^KS200") else "none")
+    flow = kr_put_flow(None if src_kr == "none" else src_kr, [d for d in sorted(idx) if d >= start])
     if flow:
-        recent = [(d, v["foreign"]) for d, v in flow.items() if d >= a.start]
-        hits = [(d, v) for d, v in recent if v <= -a.kr_put_sell]
+        recent = [(d, v["foreign"]) for d, v in flow.items() if d >= start]
+        hits = [(d, v) for d, v in recent if v <= -kr_put_sell]
         worst = min(recent, key=lambda x: x[1]) if recent else None
         signals["kr_foreign_put_sell"] = {
-            "threshold_eok": -a.kr_put_sell, "latest": recent[-1] if recent else None, "worst": worst,
+            "threshold_eok": -kr_put_sell, "latest": recent[-1] if recent else None, "worst": worst,
             "hits": hits, "met_last_10d": any(d >= (recent[-10][0] if len(recent) >= 10 else recent[0][0]) for d, _ in hits),
             "note": "국내 보조 신호(사용자 경험칙): 외국인이 코스피200 풋옵션을 하루 200억 이상 순매도하기 시작하면 바닥 준비 가능성. 과거 장기 검증은 아직 안 됨",
         }
-    print(f"\n[{a.index}] {a.start} ~ {last['date']}   (풋콜=Cboe 주식+ETP, CNN 근사)")
+    return {"index": index, "start": start, "rows": rows, "signals": signals}
+
+
+def main():
+    ap = argparse.ArgumentParser(description="폭락장 저점 판별 신호")
+    ap.add_argument("--index", default="^GSPC", help="가격 기준 지수(예: ^GSPC, ^IXIC, ^KS11)")
+    ap.add_argument("--start", help="시작일(기본: 150일 전)")
+    ap.add_argument("--end")
+    ap.add_argument("--ref-low-date", help="1차 폭락 저점일(없으면 최근 5거래일을 뺀 직전 60거래일의 최저 종가)")
+    ap.add_argument("--json", help="결과를 JSON으로 저장할 경로")
+    ap.add_argument("--kr-flow-dir", help="국내 풋옵션 수급 기록: kb-market-report 의 archive 폴더 경로, 또는 'github'(공개 저장소에서 받기), 'none'(끄기). 기본: 한국 지수면 github")
+    ap.add_argument("--kr-put-sell", type=int, default=200, help="외국인 풋옵션 하루 순매도 기준(억원, 기본 200)")
+    a = ap.parse_args()
+    res = compute(a.index, a.start, a.end, a.ref_low_date, a.kr_flow_dir, a.kr_put_sell)
+    rows, signals, last = res["rows"], res["signals"], [r for r in res["rows"] if r["index_close"] is not None][-1]
+    print(f"\n[{a.index}] {res["start"]} ~ {last['date']}   (풋콜=Cboe 주식+ETP, CNN 근사)")
     print(f"{'date':10} {'close':>10} {'VIX c/h':>13} {'PC d/5d':>13} {'z5':>6} {'TOT5':>6} {'HY':>5} {'Baa':>5}")
     for r in rows[-40:]:
         f = lambda v, fmt: (fmt % v) if v is not None else "-"
@@ -348,6 +363,8 @@ def main():
     print(json.dumps(signals, ensure_ascii=False, indent=1))
     if a.json:
         json.dump({"index": a.index, "rows": rows, "signals": signals}, open(a.json, "w"), ensure_ascii=False, indent=1)
+
+
 
 
 if __name__ == "__main__":
