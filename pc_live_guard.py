@@ -9,6 +9,7 @@ PC 가 켜진 뒤 평일 08:10~16:10 에 1분마다:
   띄우기는 7분에 한 번까지만. 휴장일은 건너뛴다(고정 목록 + 09:10 이후 네이버 오늘 분봉 확인).
 GitHub 와는 gh(이 PC 에 로그인돼 있어야 함)로만 통신한다. 기록: %TEMP%\\pc_live_guard.log
 실행: python pc_live_guard.py   (pc_start_live.bat 이 PC 가 켜질 때 최신 파일을 받아 실행)
+종료하지 않고 계속 떠 있다(감시 시간이 아니면 1분마다 깨어 시각만 본다).
 """
 import json
 import os
@@ -165,12 +166,20 @@ def main() -> int:
         return 1
     last_dispatch: datetime | None = None
     pre_open_tries = 0
-    while True:
+    day = ""
+    idle_logged = False
+    while True:  # 종료하지 않는다: PC 를 안 껐거나 절전에서 깨기만 해도 다음 평일 08:10 에 스스로 일한다(11/23 아침: 금요일에 끝나 버려 월요일 수집이 안 시작됨)
         now = datetime.now(KST)
         hm = f"{now:%H:%M}"
-        if now.weekday() >= 5 or hm > CLOSE:
-            log("감시 시간 끝 → 종료")
-            return 0
+        if f"{now:%Y-%m-%d}" != day:  # 날이 바뀌면 그날 몫을 새로 센다
+            day, last_dispatch, pre_open_tries = f"{now:%Y-%m-%d}", None, 0
+        if now.weekday() >= 5 or hm > CLOSE or hm < OPEN:
+            if not idle_logged:
+                log(f"감시 시간 아님({now:%m-%d %H:%M}) → 대기 (평일 {OPEN}~{CLOSE} 에 일함)")
+                idle_logged = True
+            time.sleep(60)
+            continue
+        idle_logged = False
         if hm >= OPEN:
             try:
                 ensure_runners()
