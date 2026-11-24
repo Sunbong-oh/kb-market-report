@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:atom="http://www.w3.org/2005/Atom">
+ <channel>
+  <title>퇴근길 국내 증시 장마감 브리핑</title>
+  <link>https://github.com/Sunbong-oh/kb-market-report</link>
+  <atom:link href="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/feed.xml" rel="self" type="application/rss+xml"/>
+  <language>ko-kr</language>
+  <description>평일 오후 4시, 코스피·코스닥 등락률, 투자자별 수급, 오늘의 상승·하락 요인, 강세 테마, 목표주가 상향 리포트, 오늘 밤 미국 일정·실적을 음성으로 짚어 드립니다. 산업별 정리 시리즈도 함께 들을 수 있습니다. 투자 판단의 참고용입니다.</description>
+  <itunes:author>kb-market-report</itunes:author>
+  <itunes:explicit>false</itunes:explicit>
+  <itunes:image href="https://raw.githubusercontent.com/Sunbong-oh/market-dashboard/main/assets/pod-close.png"/>
+  <image><url>https://raw.githubusercontent.com/Sunbong-oh/market-dashboard/main/assets/pod-close.png</url><title>퇴근길 국내 증시 장마감 브리핑</title><link>https://sunbong-oh.github.io/market-dashboard/</link></image>
+  <itunes:block>Yes</itunes:block>
+  <lastBuildDate>Tue, 24 Nov 2026 15:52:00 +0900</lastBuildDate>
+  <item>
+   <title>11/24(화) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 6.32% 상승한 5006.03포인트, 코스닥은 4.79% 상승한 665.88포인트로 마감했습니다.</description>
+   <pubDate>Tue, 24 Nov 2026 15:52:00 +0900</pubDate>
+   <guid isPermaLink="false">5d61a6b7-7219-5bb6-8b9c-92175581a61f</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-24-1552-155614.mp3" length="1472688" type="audio/mpeg"/>
+   <itunes:duration>245</itunes:duration>
+  </item>
+  <item>
+   <title>11/23(월) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 3.31% 하락한 4708.54포인트, 코스닥은 1.58% 하락한 635.45포인트로 마감했습니다.</description>
+   <pubDate>Mon, 23 Nov 2026 15:52:00 +0900</pubDate>
+   <guid isPermaLink="false">8127f59b-3be6-5b25-b38b-77e362d75978</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-23-1552-155544.mp3" length="1165536" type="audio/mpeg"/>
+   <itunes:duration>194</itunes:duration>
+  </item>
+  <item>
+   <title>11/20(금) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 5.21% 하락한 4869.96포인트, 코스닥은 5.71% 하락한 645.68포인트로 마감했습니다.</description>
+   <pubDate>Fri, 20 Nov 2026 15:52:00 +0900</pubDate>
+   <guid isPermaLink="false">b08fd448-ccbd-5127-8a6c-82652d3afa20</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-20-1552-155417.mp3" length="1013328" type="audio/mpeg"/>
+   <itunes:duration>169</itunes:duration>
+  </item>
+  <item>
+   <title>11/19(목) 장마감 브리핑 (20:50 업데이트)</title>
+   <description> 먼저 시장 지수입니다. 코스피는 0.71% 상승한 5103.37포인트, 코스닥은 2.11% 상승한 676.80포인트로 마감했습니다.</description>
+   <pubDate>Thu, 19 Nov 2026 15:52:00 +0900</pubDate>
+   <guid isPermaLink="false">34a98507-e074-515c-9956-51bd64308596</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-19-1552-205058.mp3" length="2088000" type="audio/mpeg"/>
+   <itunes:duration>348</itunes:duration>
+  </item>
+  <item>
+   <title>11/18(수) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 1.99% 상승한 5067.44포인트, 코스닥은 1.96% 상승한 662.81포인트로 마감했습니다.</description>
+   <pubDate>Wed, 18 Nov 2026 15:52:00 +0900</pubDate>
+   <guid isPermaLink="false">ffadae9f-15c4-572c-aeae-7f29a9a2fea3</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-18-1552-155514.mp3" length="1666368" type="audio/mpeg"/>
+   <itunes:duration>278</itunes:duration>
+  </item>
+  <item>
+   <title>11/17(화) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 2.59% 하락한 4968.48포인트, 코스닥은 2.34% 하락한 650.06포인트로 마감했습니다.</description>
+   <pubDate>Tue, 17 Nov 2026 15:52:00 +0900</pubDate>
+   <guid isPermaLink="false">f58760ee-6958-59da-b956-18b011d4082f</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-17-1552-155430.mp3" length="1526256" type="audio/mpeg"/>
+   <itunes:duration>254</itunes:duration>
+  </item>
+  <item>
+   <title>11/16(월) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 3.59% 하락한 5100.50포인트, 코스닥은 4.86% 하락한 665.65포인트로 마감했습니다.</description>
+   <pubDate>Mon, 16 Nov 2026 15:52:00 +0900</pubDate>
+   <guid isPermaLink="false">11f0e3f7-0431-55e2-924f-e1ffbbc226bc</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-16-1552-155606.mp3" length="1773648" type="audio/mpeg"/>
+   <itunes:duration>296</itunes:duration>
+  </item>
+  <item>
+   <title>11/13(금) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 0.98% 하락한 5290.53포인트, 코스닥은 0.45% 상승한 699.66포인트로 마감했습니다.</description>
+   <pubDate>Fri, 13 Nov 2026 15:57:00 +0900</pubDate>
+   <guid isPermaLink="false">a7158638-e21b-5df5-97c8-fd4625b4575e</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-13-1557-160143.mp3" length="1723968" type="audio/mpeg"/>
+   <itunes:duration>287</itunes:duration>
+  </item>
+  <item>
+   <title>11/12(목) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 0.61% 하락한 5342.73포인트, 코스닥은 1.22% 하락한 696.53포인트로 마감했습니다.</description>
+   <pubDate>Thu, 12 Nov 2026 15:52:00 +0900</pubDate>
+   <guid isPermaLink="false">2ab97f0e-f77f-5389-a592-361a4119c832</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-12-1552-155507.mp3" length="1817568" type="audio/mpeg"/>
+   <itunes:duration>303</itunes:duration>
+  </item>
+  <item>
+   <title>11/11(수) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 2.60% 상승한 5375.36포인트, 코스닥은 5.62% 상승한 705.10포인트로 마감했습니다.</description>
+   <pubDate>Wed, 11 Nov 2026 15:45:00 +0900</pubDate>
+   <guid isPermaLink="false">93b4caea-9590-57db-a579-2e87782f9426</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-11-1545-155513.mp3" length="1426176" type="audio/mpeg"/>
+   <itunes:duration>238</itunes:duration>
+  </item>
+  <item>
+   <title>11/9(월) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 0.81% 하락한 5018.85포인트, 코스닥은 0.82% 하락한 638.97포인트로 마감했습니다.</description>
+   <pubDate>Mon, 09 Nov 2026 15:52:00 +0900</pubDate>
+   <guid isPermaLink="false">9c8c6155-9fbe-5fc5-af3c-7ea34274a8ab</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-09-1552-155519.mp3" length="1423152" type="audio/mpeg"/>
+   <itunes:duration>237</itunes:duration>
+  </item>
+  <item>
+   <title>11/6(금) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 6.02% 하락한 5059.69포인트, 코스닥은 5.03% 하락한 644.27포인트로 마감했습니다.</description>
+   <pubDate>Fri, 06 Nov 2026 16:05:00 +0900</pubDate>
+   <guid isPermaLink="false">66dec631-3a8a-519a-a7f7-5c6c0046efad</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-06-1605-231145.mp3" length="1691568" type="audio/mpeg"/>
+   <itunes:duration>282</itunes:duration>
+  </item>
+  <item>
+   <title>11/5(목) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 5.28% 하락한 5383.80포인트, 코스닥은 5.11% 하락한 678.41포인트로 마감했습니다.</description>
+   <pubDate>Thu, 05 Nov 2026 17:05:00 +0900</pubDate>
+   <guid isPermaLink="false">96d01788-9d39-5546-ab5f-8cb5c4c83896</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-05-1705-170844.mp3" length="1700928" type="audio/mpeg"/>
+   <itunes:duration>283</itunes:duration>
+  </item>
+  <item>
+   <title>11/4(수) 장마감 브리핑</title>
+   <description> 먼저 시장 지수입니다. 코스피는 0.62% 상승한 5683.80포인트, 코스닥은 1.50% 상승한 714.95포인트로 마감했습니다.</description>
+   <pubDate>Wed, 04 Nov 2026 15:58:00 +0900</pubDate>
+   <guid isPermaLink="false">d0dbe037-eb18-5d8a-9112-d026d9102680</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/2026-11-04-1558-160054.mp3" length="1813104" type="audio/mpeg"/>
+   <itunes:duration>302</itunes:duration>
+  </item>
+  <item>
+   <title>[섹터 스터디 9/9] 우주항공, &#x27;꿈&#x27;에서 &#x27;산업&#x27;으로</title>
+   <description>섹터 스터디 아홉 번째이자 마지막 시간, 우주항공입니다.  오늘의 질문은 이것입니다.</description>
+   <pubDate>Mon, 19 Oct 2026 12:09:00 +0900</pubDate>
+   <guid isPermaLink="false">fb6800d0-8e8f-523c-b797-14a3ca852b43</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/sector-09-20261019131821.mp3" length="3947184" type="audio/mpeg"/>
+   <itunes:duration>658</itunes:duration>
+   <itunes:episode>9</itunes:episode>
+  </item>
+  <item>
+   <title>[섹터 스터디 8/9] 휴머노이드 로봇, 기대와 현실 사이</title>
+   <description>섹터 스터디 여덟 번째 시간, 휴머노이드 로봇입니다.  오늘의 질문은 이것입니다.</description>
+   <pubDate>Mon, 19 Oct 2026 12:08:00 +0900</pubDate>
+   <guid isPermaLink="false">6b9ed69e-9c7a-55af-a731-a12b5865e481</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/sector-08-20261019131821.mp3" length="4128624" type="audio/mpeg"/>
+   <itunes:duration>688</itunes:duration>
+   <itunes:episode>8</itunes:episode>
+  </item>
+  <item>
+   <title>[섹터 스터디 7/9] K-뷰티·K-푸드, 반도체 다음 수출 엔진인가</title>
+   <description>섹터 스터디 일곱 번째 시간, K-뷰티와 K-푸드입니다.  오늘의 질문은 이것입니다.</description>
+   <pubDate>Mon, 19 Oct 2026 12:07:00 +0900</pubDate>
+   <guid isPermaLink="false">4445e80c-dfe8-51fa-b07b-ac7a67d5cff9</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/sector-07-20261019131821.mp3" length="3977136" type="audio/mpeg"/>
+   <itunes:duration>663</itunes:duration>
+   <itunes:episode>7</itunes:episode>
+  </item>
+  <item>
+   <title>[섹터 스터디 6/9] 조선·방산, 수주 사이클은 어디까지 왔나</title>
+   <description>섹터 스터디 여섯 번째 시간, 조선과 방산입니다.  오늘의 질문은 이것입니다.</description>
+   <pubDate>Mon, 19 Oct 2026 12:06:00 +0900</pubDate>
+   <guid isPermaLink="false">67b261e4-5ae8-52a5-a9e0-5ebeb7395cbe</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/sector-06-20261019131821.mp3" length="3951792" type="audio/mpeg"/>
+   <itunes:duration>659</itunes:duration>
+   <itunes:episode>6</itunes:episode>
+  </item>
+  <item>
+   <title>[섹터 스터디 5/9] 중국 메모리 굴기, K-반도체 3년 시나리오</title>
+   <description>섹터 스터디 다섯 번째 시간, 중국 메모리 굴기입니다.  오늘의 질문은 이것입니다.</description>
+   <pubDate>Mon, 19 Oct 2026 12:05:00 +0900</pubDate>
+   <guid isPermaLink="false">49542bf0-9060-5586-9638-8535387e74cd</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/sector-05-20261019131821.mp3" length="4122288" type="audio/mpeg"/>
+   <itunes:duration>687</itunes:duration>
+   <itunes:episode>5</itunes:episode>
+  </item>
+  <item>
+   <title>[섹터 스터디 4/9] K-바이오 기술수출, 숫자 뒤의 진짜 가치</title>
+   <description>섹터 스터디 네 번째 시간, K-바이오 기술수출입니다.  오늘의 질문은 이것입니다.</description>
+   <pubDate>Mon, 19 Oct 2026 12:04:00 +0900</pubDate>
+   <guid isPermaLink="false">87553ef6-b58e-508f-90d4-9f6c77712dfb</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/sector-04-20261019131821.mp3" length="3526416" type="audio/mpeg"/>
+   <itunes:duration>588</itunes:duration>
+   <itunes:episode>4</itunes:episode>
+  </item>
+  <item>
+   <title>[섹터 스터디 3/9] 금리 다시 오른다, 금융주는 어디로 가나</title>
+   <description>섹터 스터디 세 번째 시간, 금융주입니다.  오늘의 질문은 이것입니다.</description>
+   <pubDate>Mon, 19 Oct 2026 12:03:00 +0900</pubDate>
+   <guid isPermaLink="false">f2f34182-073f-51a1-bf0f-27881829e25c</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/sector-03-20261019131821.mp3" length="3195792" type="audio/mpeg"/>
+   <itunes:duration>533</itunes:duration>
+   <itunes:episode>3</itunes:episode>
+  </item>
+  <item>
+   <title>[섹터 스터디 2/9] AI 인프라 2차 수혜, 전력기기는 어디까지 왔나</title>
+   <description>섹터 스터디 두 번째 시간, 전력기기입니다.  오늘의 질문은 이것입니다.</description>
+   <pubDate>Mon, 19 Oct 2026 12:02:00 +0900</pubDate>
+   <guid isPermaLink="false">ba263660-1907-53e1-8ed6-7f2ff31df07e</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/sector-02-20261019131821.mp3" length="3366432" type="audio/mpeg"/>
+   <itunes:duration>561</itunes:duration>
+   <itunes:episode>2</itunes:episode>
+  </item>
+  <item>
+   <title>[섹터 스터디 1/9] 메모리 반도체, 고점인가 구조적 성장인가</title>
+   <description>섹터 스터디 첫 번째 시간, 메모리 반도체입니다.  오늘의 질문은 이것입니다.</description>
+   <pubDate>Mon, 19 Oct 2026 12:01:00 +0900</pubDate>
+   <guid isPermaLink="false">7b668d33-52bd-5fc9-914d-738942f3374f</guid>
+   <enclosure url="https://raw.githubusercontent.com/Sunbong-oh/kb-market-report/podcast/episodes/sector-01-20261019131821.mp3" length="3535632" type="audio/mpeg"/>
+   <itunes:duration>589</itunes:duration>
+   <itunes:episode>1</itunes:episode>
+  </item>
+ </channel>
+</rss>
