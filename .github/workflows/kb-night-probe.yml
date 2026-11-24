@@ -1,0 +1,33 @@
+name: 야간선물 자료 확인 (회사 PC 실행기, 수동)
+
+# KB 응답에 야간선물 봉·수급 항목이 있는지 확인한다(kb_night_probe.py). 결과는 kb-night-probe 브랜치 night_probe.json.
+on: {workflow_dispatch: {}}
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: [self-hosted, windows]
+    timeout-minutes: 15
+    env:
+      KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
+      KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: 경로 설정
+        shell: cmd
+        run: echo C:\Program Files\Git\bin>> "%GITHUB_PATH%"
+      - name: 패키지 설치
+        shell: cmd
+        run: python -m pip install -q -r requirements.txt
+      - name: 야간선물 자료 확인
+        shell: cmd
+        run: python kb_night_probe.py
+      - name: 결과를 kb-night-probe 브랜치에 올림
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p ../np && cp night_probe.json ../np/
+          cd ../np && rm -rf .git && git init -q && git checkout -q -b kb-night-probe && git add night_probe.json
+          git commit -qm "야간선물 자료 확인 결과" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" kb-night-probe
