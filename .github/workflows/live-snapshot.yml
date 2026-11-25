@@ -2,7 +2,7 @@ name: 실시간 수급 (장중)
 
 # 평일 08:00~16:05 KST, 1분마다 리포트 화면 데이터를 flow-live/snapshot.json 에 올린다 (live_snapshot.py).
 # 회사 PC 서버가 켜져 있으면 PC가 올리고(선물 분 단위 기록 포함), 이 작업은 그동안 건너뛴다.
-# 이어달리기: 한 작업은 최대 5시간 40분 돌고(장 시간이 아니면 기다리기만), 끝나면 마지막 단계가 다음 작업을 바로 띄운다.
+# 이어달리기: 한 작업은 최대 13시간(장 시간 전체) 돌고(장 시간이 아니면 기다리기만), 끝나면 마지막 단계가 다음 작업을 바로 띄운다.
 # 그래서 GitHub 예약 지연(몇 시간씩)이나 07:50 시작 루틴 실패와 상관없이 매일 08:00부터 돈다.
 # 아래 예약은 이어달리기가 끊겼을 때를 위한 예비. 한 번에 한 작업만 돈다(concurrency). 수동으로 끊으려면 실행 중인 작업을 취소.
 on:
@@ -35,7 +35,7 @@ concurrency:
 jobs:
   live:
     runs-on: [self-hosted, windows]   # 회사 PC(한국 IP) 실행기: GitHub 해외 서버에서는 KB가 막힌다
-    timeout-minutes: 355
+    timeout-minutes: 790   # 13시간(live_snapshot.py MAX_RUN): 장 시간 전체를 한 작업이 맡는다
     env:
       KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
       KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
