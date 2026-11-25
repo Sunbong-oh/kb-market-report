@@ -100,6 +100,12 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         run: python report.py ${{ (github.event_name == 'workflow_dispatch' && !inputs.send) && '--no-send' || '' }}
 
+      - name: 실패 시 리포트 서버 로그 출력
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path reports/report_server.log) { Get-Content reports/report_server.log -Tail 300 } else { "reports/report_server.log 없음" }
+
       - name: 퇴근길 음성 브리핑 (MP3 + 팟캐스트 피드 -> podcast 브랜치)
         id: pod
         # 방금 만든 리포트 스냅샷(reports/latest.html)을 3분 안팎 음성으로 만들어 podcast 브랜치에 최근 14회차만 둔다.
