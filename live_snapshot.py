@@ -544,6 +544,25 @@ def keep_previous(snap: dict, remote: dict | None, today: str) -> None:
         snap["/api/indices/intraday"] = new_ix
 
 
+NIGHT_KEY = "/api/futures?minutes=1"
+
+
+def keep_night(snap: dict, remote: dict | None, today: str, hm: str) -> None:
+    """야간선물 마감값. KB 선물 시세는 주간 개장(08:45) 전에는 야간장 마지막 가격·야간 누적 거래량을 그대로 주므로(주간 분봉 합계보다 4만 계약쯤 많다),
+    08:45 직전 시세를 snap[...]["night"] 에 적어 두고 하루 종일 이어 보낸다(홈 선물 칸 '🌙 야간선물 마감'). 08:45 뒤에 시작한 작업은 직전 스냅샷 값을 이어 받는다."""
+    fut = snap.get(NIGHT_KEY)
+    if not isinstance(fut, dict):
+        return
+    f = fut.get("futures") or {}
+    if "06:00" <= hm < "08:45" and f.get("price") is not None and f.get("change_pct") is not None:
+        fut["night"] = {"price": f["price"], "change": f.get("change"), "change_pct": f["change_pct"], "volume": f.get("volume"), "at": hm}
+        return
+    if hm >= "08:45" and remote and remote.get("date") == today:
+        old = ((remote.get("data") or {}).get(NIGHT_KEY) or {}).get("night")
+        if old and "night" not in fut:
+            fut["night"] = old
+
+
 _kicked: dict = {"day": "", "slots": set()}
 CONSENSUS_SLOTS = (("08:40", "09:40"), ("21:00", "22:00"))  # (시작, 이 시각 넘으면 건너뜀)
 
@@ -727,6 +746,7 @@ def main() -> None:
                 drop_future_points(snap, t)
                 keep_previous(snap, remote, today)
                 drop_future_points(snap, t)  # 직전 스냅샷에서 이어 받은 값에도
+                keep_night(snap, remote, today, hm)  # 야간선물 마감(08:45 직전 시세)
                 clear_stale_intraday(snap, t)  # 개장 전: 어제 차트를 오늘 것처럼 그리지 않게
                 clear_stale_bond(snap, t)  # 어제 날짜 국고채 금리는 오늘 값이 들어올 때까지 비움
                 if not fb:  # 대체 값일 때 선물 칸은 직전 KB 값이라 분 단위 기록에 넣지 않는다
