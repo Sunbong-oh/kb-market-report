@@ -36,7 +36,7 @@ KST = timezone(timedelta(hours=9))
 BRANCH = "flow-live"
 KEYS = ("/api/status", "/api/market", "/api/macro", "/api/indices/intraday", "/api/themes", "/api/futures?minutes=1", "/api/top-value")
 START, END = "08:00", "16:05"
-MAX_RUN = timedelta(hours=5, minutes=40)
+MAX_RUN = timedelta(hours=13)  # 2026-11-25: 5시간 40분 뒤 이어달리기 시점(14:10)에 새 작업이 시작을 못 해 수집이 끊겼다 → 장 시간(08:00~16:05) 전체를 한 작업이 맡게 늘림
 SESSION = ("0845", "1545")  # 선물 정규장 - 이 시간의 투자자별 누적 순매수를 분 단위로 쌓는다
 FLOW_KEYS = ("외국인", "기관계", "개인", "외국인·코스피", "외국인·코스닥")  # 뒤의 둘은 현물(교차차트 코스피·코스닥)
 
@@ -153,6 +153,9 @@ def has_today(snap: dict, today: str) -> bool:
     return str(market.get("time", ""))[:8] == today or str(kospi.get("date", "")) == today
 
 
+_themes_last: dict | None = None  # {date, time, themes} flow-live 의 themes_last.json
+
+
 def remote_tree() -> tuple[dict | None, list[str]]:
     """flow-live의 현재 snapshot.json과 (snapshot.json 외) 파일 줄들."""
     if git("fetch", "-q", "origin", BRANCH).returncode:
@@ -162,6 +165,11 @@ def remote_tree() -> tuple[dict | None, list[str]]:
         snap = json.loads(git("show", "FETCH_HEAD:snapshot.json").stdout.decode("utf-8"))
     except ValueError:
         snap = None
+    global _themes_last
+    try:  # 마지막으로 실제 등락률이 있던 강세 테마 보관본(없거나 읽기 실패면 이전 값 유지)
+        _themes_last = json.loads(git("show", "FETCH_HEAD:themes_last.json").stdout.decode("utf-8")) or _themes_last
+    except ValueError:
+        pass
     return snap, rows
 
 
@@ -563,6 +571,28 @@ def keep_night(snap: dict, remote: dict | None, today: str, hm: str) -> None:
             fut["night"] = old
 
 
+def themes_all_zero(t: dict | None) -> bool:
+    """강세 테마가 비었거나 전부 0.00% (개장 전: 네이버 테마 등락률이 모두 0 이라 순서가 아무 의미가 없다)."""
+    rows = (t or {}).get("themes") or []
+    return not rows or all(not (r.get("change_pct") or 0) for r in rows)
+
+
+def keep_themes(snap: dict, today: str, hm: str, extra: dict) -> None:
+    """① 장중 실제 값이 있는 테마를 5분마다 themes_last.json 에 보관한다(장마감 리포트가 실패해도 다음 날 개장 전에 직전 거래일 테마를 보여 주려고).
+    ② 개장 전(~09:30)에 오늘 테마가 전부 0.00% 면 보관본(날짜가 오늘보다 앞)을 stale_day 와 함께 올린다."""
+    global _themes_last
+    th = snap.get("/api/themes")
+    if not themes_all_zero(th):
+        if _themes_last is None or _themes_last.get("date") != today or int(hm[-2:]) % 5 == 0:
+            _themes_last = {"date": today, "time": hm, "themes": th}
+            extra["themes_last.json"] = json.dumps(_themes_last, ensure_ascii=False)
+        return
+    last = _themes_last
+    if hm < "09:30" and last and str(last.get("date")) < today and not themes_all_zero(last.get("themes")):
+        snap["/api/themes"] = {**last["themes"], "stale_day": last["date"]}
+        print(f"  테마: 오늘은 전부 0.00% 라 직전 거래일({last['date']} {last.get('time')}) 강세 테마를 올림", flush=True)
+
+
 _kicked: dict = {"day": "", "slots": set()}
 CONSENSUS_SLOTS = (("08:40", "09:40"), ("21:00", "22:00"))  # (시작, 이 시각 넘으면 건너뜀)
 
@@ -747,6 +777,7 @@ def main() -> None:
                 keep_previous(snap, remote, today)
                 drop_future_points(snap, t)  # 직전 스냅샷에서 이어 받은 값에도
                 keep_night(snap, remote, today, hm)  # 야간선물 마감(08:45 직전 시세)
+                keep_themes(snap, today, hm, extra)  # 강세 테마 보관·개장 전 직전 거래일 테마
                 clear_stale_intraday(snap, t)  # 개장 전: 어제 차트를 오늘 것처럼 그리지 않게
                 clear_stale_bond(snap, t)  # 어제 날짜 국고채 금리는 오늘 값이 들어올 때까지 비움
                 if not fb:  # 대체 값일 때 선물 칸은 직전 KB 값이라 분 단위 기록에 넣지 않는다
