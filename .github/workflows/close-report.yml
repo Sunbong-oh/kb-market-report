@@ -67,7 +67,7 @@ jobs:
 
       - name: 오늘 장마감 리포트를 이미 보냈는지 확인
         id: gate
-        shell: pwsh
+        shell: powershell
         run: |
           $kst = [DateTime]::UtcNow.AddHours(9)
           $skip = "false"
@@ -102,7 +102,7 @@ jobs:
 
       - name: 실패 시 리포트 서버 로그 출력
         if: failure()
-        shell: pwsh
+        shell: powershell
         run: |
           if (Test-Path reports/report_server.log) { Get-Content reports/report_server.log -Tail 300 } else { "reports/report_server.log 없음" }
 
@@ -148,7 +148,7 @@ jobs:
 
       - name: 실패 알림 (텔레그램)
         if: failure()
-        shell: pwsh
+        shell: powershell
         run: |
           $log = if (Test-Path reports\report_server.log) { (Get-Content reports\report_server.log -Tail 5) -join "`n" } else { "" }
           $text = "⚠️ 장마감 수급체크 리포트 실패 (GitHub Actions)`n$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID`n$log"
