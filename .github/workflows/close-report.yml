@@ -49,6 +49,9 @@ jobs:
     if: "${{ !(github.event_name == 'push' && startsWith(github.event.head_commit.message, 'trigger: podcast')) && inputs.mode != 'podcast' }}"
     runs-on: [self-hosted, windows]   # 회사 PC(한국 IP) 실행기: GitHub 해외 서버에서는 KB가 막힌다 (live-snapshot.yml과 같게)
     timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash   # 이 PC 는 powershell .ps1 실행이 막혀 있다(ExecutionPolicy) -> 기본 셸도 bash
     env:
       KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
       KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
@@ -67,17 +70,20 @@ jobs:
 
       - name: 오늘 장마감 리포트를 이미 보냈는지 확인
         id: gate
-        shell: powershell
+        shell: bash   # 회사 PC 는 .ps1 실행이 막혀(ExecutionPolicy) powershell 도 못 쓴다 -> Git 의 bash
         run: |
-          $kst = [DateTime]::UtcNow.AddHours(9)
-          $skip = "false"
-          if ($env:REPORT_MODE -eq "close") {
-            if (Test-Path ("archive/{0}/.close_sent" -f $kst.ToString("yyyy-MM-dd"))) { $skip = "true"; "이미 발송됨 → 건너뜀" }
-            elseif ($env:GITHUB_EVENT_NAME -eq "schedule" -and $kst.Hour -ge 19) { $skip = "true"; "19시 이후 지연 실행 → 보내지 않음" }
-            elseif ($kst.Hour -lt 15 -or ($kst.Hour -eq 15 -and $kst.Minute -lt 40)) { $skip = "true"; "장 마감 전 → 건너뜀" }
-          }
-          "skip=$skip" >> $env:GITHUB_OUTPUT
-          "KST $($kst.ToString('yyyy-MM-dd HH:mm')) mode=$env:REPORT_MODE event=$env:GITHUB_EVENT_NAME skip=$skip"
+          day=$(date -u -d '+9 hours' +%Y-%m-%d)
+          hh=$((10#$(date -u -d '+9 hours' +%H)))
+          mm=$((10#$(date -u -d '+9 hours' +%M)))
+          skip=false
+          if [ "$REPORT_MODE" = "close" ]; then
+            if [ -e "archive/$day/.close_sent" ]; then skip=true; echo "이미 발송됨 → 건너뜀"
+            elif [ "$GITHUB_EVENT_NAME" = "schedule" ] && [ "$hh" -ge 19 ]; then skip=true; echo "19시 이후 지연 실행 → 보내지 않음"
+            elif [ "$hh" -lt 15 ] || { [ "$hh" -eq 15 ] && [ "$mm" -lt 40 ]; }; then skip=true; echo "장 마감 전 → 건너뜀"
+            fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          echo "KST $day $hh:$mm mode=$REPORT_MODE event=$GITHUB_EVENT_NAME skip=$skip"
 
       - uses: actions/setup-python@v5
         if: steps.gate.outputs.skip != 'true'
@@ -102,9 +108,9 @@ jobs:
 
       - name: 실패 시 리포트 서버 로그 출력
         if: failure()
-        shell: powershell
+        shell: bash
         run: |
-          if (Test-Path reports/report_server.log) { Get-Content reports/report_server.log -Tail 300 } else { "reports/report_server.log 없음" }
+          if [ -f reports/report_server.log ]; then tail -n 300 reports/report_server.log; else echo "reports/report_server.log 없음"; fi
 
       - name: 퇴근길 음성 브리핑 (MP3 + 팟캐스트 피드 -> podcast 브랜치)
         id: pod
@@ -148,11 +154,12 @@ jobs:
 
       - name: 실패 알림 (텔레그램)
         if: failure()
-        shell: powershell
+        shell: bash
         run: |
-          $log = if (Test-Path reports\report_server.log) { (Get-Content reports\report_server.log -Tail 5) -join "`n" } else { "" }
-          $text = "⚠️ 장마감 수급체크 리포트 실패 (GitHub Actions)`n$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID`n$log"
-          Invoke-RestMethod -Method Post -Uri "https://api.telegram.org/bot$env:TELEGRAM_BOT_TOKEN/sendMessage" -Body @{ chat_id = $env:TELEGRAM_CHAT_ID; text = $text } | Out-Null
+          { printf '%s\n' "⚠️ 장마감 수급체크 리포트 실패 (GitHub Actions)" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; [ -f reports/report_server.log ] && tail -n 5 reports/report_server.log; } > tg_fail.txt || true
+          curl -s "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+            --data-urlencode "text@tg_fail.txt" > /dev/null || true
 
       - name: 결과 파일 보관
         if: always() && steps.gate.outputs.skip != 'true'
