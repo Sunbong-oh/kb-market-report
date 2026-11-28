@@ -47,11 +47,14 @@ jobs:
   report:
     # 음성만 다시 만드는 실행(trigger-podcast/ 커밋, 수동 podcast)에서는 리포트를 다시 만들거나 보내지 않는다
     if: "${{ !(github.event_name == 'push' && startsWith(github.event.head_commit.message, 'trigger: podcast')) && inputs.mode != 'podcast' }}"
-    runs-on: [self-hosted, windows]   # 회사 PC(한국 IP) 실행기: GitHub 해외 서버에서는 KB가 막힌다 (live-snapshot.yml과 같게)
+    # GitHub 서버에서 돈다. KB 에 직접 접속하지 않고 장중 수급 작업이 flow-live 에 남긴 15:30 이후 기록으로 그린다(report.py).
+    # 회사 PC 실행기로 옮기면 안 된다(2026-11-25~27 누락): 실행기는 한 번에 하나만 하고, 장중 수급 작업이
+    # 하루 종일(08:10~) 붙잡고 있어 장마감 리포트가 PC 가 꺼질 때까지 대기만 하다 취소된다.
+    runs-on: windows-latest   # Edge·한글 글꼴이 기본 설치되어 있어 화면 캡처가 PC와 같게 나온다
     timeout-minutes: 15
     defaults:
       run:
-        shell: bash   # 이 PC 는 powershell .ps1 실행이 막혀 있다(ExecutionPolicy) -> 기본 셸도 bash
+        shell: bash
     env:
       KB_OPENAPI_APP_KEY: ${{ secrets.KB_OPENAPI_APP_KEY }}
       KB_OPENAPI_APP_SECRET: ${{ secrets.KB_OPENAPI_APP_SECRET }}
